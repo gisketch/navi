@@ -26,6 +26,7 @@ export function App() {
   const {
     status: connectionStatus,
     messages,
+    currentTurn,
     connect,
     disconnect,
     sendAudio,
@@ -89,7 +90,7 @@ export function App() {
   }, [error]);
 
   return (
-    <div className="flex h-screen flex-col bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 text-white">
+    <div className="flex h-screen flex-col bg-black text-white">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
@@ -137,7 +138,11 @@ export function App() {
       )}
 
       {/* Chat area */}
-      <ChatUI messages={messages} />
+      <ChatUI
+        messages={messages}
+        currentTurn={currentTurn}
+        isCapturing={isCapturing}
+      />
 
       {/* Control bar */}
       <ControlBar

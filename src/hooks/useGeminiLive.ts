@@ -16,6 +16,7 @@ interface UseGeminiLiveOptions {
 interface UseGeminiLiveReturn {
   status: ConnectionStatus;
   messages: ChatMessage[];
+  currentTurn: { role: 'user' | 'assistant'; text: string; id: string } | null;
   connect: () => Promise<void>;
   disconnect: () => void;
   sendAudio: (base64Audio: string) => void;
@@ -30,24 +31,35 @@ export function useGeminiLive({
 }: UseGeminiLiveOptions): UseGeminiLiveReturn {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  
+  const [currentTurn, setCurrentTurn] = useState<{ role: 'user' | 'assistant'; text: string; id: string } | null>(null);
+
   const sessionRef = useRef<Session | null>(null);
   const aiRef = useRef<GoogleGenAI | null>(null);
   const responseQueueRef = useRef<LiveServerMessage[]>([]);
   const processingRef = useRef(false);
-  const currentTranscriptRef = useRef<{ user: string; assistant: string }>({ user: '', assistant: '' });
+  const currentTranscriptRef = useRef<{
+    user: string;
+    userId: string | null;
+    assistant: string;
+    assistantId: string | null;
+  }>({
+    user: '',
+    userId: null,
+    assistant: '',
+    assistantId: null
+  });
   const statusRef = useRef<ConnectionStatus>('disconnected');
-  
+
   // Keep statusRef in sync
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
 
-  const addMessage = useCallback((role: 'user' | 'assistant', text: string) => {
+  const addMessage = useCallback((role: 'user' | 'assistant', text: string, id?: string) => {
     if (!text.trim()) return;
-    
+
     const message: ChatMessage = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       role,
       text: text.trim(),
       timestamp: Date.now(),
@@ -65,8 +77,8 @@ export function useGeminiLive({
 
       // Handle audio data
       if (message.data) {
-        const audioData = typeof message.data === 'string' 
-          ? message.data 
+        const audioData = typeof message.data === 'string'
+          ? message.data
           : Buffer.from(message.data).toString('base64');
         onAudioResponse?.(audioData);
       }
@@ -77,24 +89,57 @@ export function useGeminiLive({
 
         // Input transcription (user's speech)
         if (content.inputTranscription?.text) {
-          currentTranscriptRef.current.user += content.inputTranscription.text;
+          const text = content.inputTranscription.text;
+
+          if (!currentTranscriptRef.current.userId) {
+            currentTranscriptRef.current.userId = `user-${Date.now()}`;
+          }
+
+          currentTranscriptRef.current.user += text;
+          setCurrentTurn({
+            role: 'user',
+            text: currentTranscriptRef.current.user,
+            id: currentTranscriptRef.current.userId
+          });
         }
 
         // Output transcription (AI's speech)
         if (content.outputTranscription?.text) {
-          currentTranscriptRef.current.assistant += content.outputTranscription.text;
+          const text = content.outputTranscription.text;
+
+          // If there is a pending user message, commit it immediately so it doesn't disappear
+          // when we switch currentTurn to the assistant
+          if (currentTranscriptRef.current.user) {
+            addMessage('user', currentTranscriptRef.current.user, currentTranscriptRef.current.userId || undefined);
+            currentTranscriptRef.current.user = '';
+            currentTranscriptRef.current.userId = null;
+          }
+
+          if (!currentTranscriptRef.current.assistantId) {
+            currentTranscriptRef.current.assistantId = `assistant-${Date.now()}`;
+          }
+
+          currentTranscriptRef.current.assistant += text;
+          setCurrentTurn({
+            role: 'assistant',
+            text: currentTranscriptRef.current.assistant,
+            id: currentTranscriptRef.current.assistantId
+          });
         }
 
         // Turn complete - finalize transcriptions
         if (content.turnComplete) {
           if (currentTranscriptRef.current.user) {
-            addMessage('user', currentTranscriptRef.current.user);
+            addMessage('user', currentTranscriptRef.current.user, currentTranscriptRef.current.userId || undefined);
             currentTranscriptRef.current.user = '';
+            currentTranscriptRef.current.userId = null;
           }
           if (currentTranscriptRef.current.assistant) {
-            addMessage('assistant', currentTranscriptRef.current.assistant);
+            addMessage('assistant', currentTranscriptRef.current.assistant, currentTranscriptRef.current.assistantId || undefined);
             currentTranscriptRef.current.assistant = '';
+            currentTranscriptRef.current.assistantId = null;
           }
+          setCurrentTurn(null);
         }
       }
     }
@@ -110,9 +155,9 @@ export function useGeminiLive({
 
     try {
       setStatus('connecting');
-      
+
       aiRef.current = new GoogleGenAI({ apiKey });
-      
+
       const session = await aiRef.current.live.connect({
         model: GEMINI_MODEL,
         config: {
@@ -156,7 +201,8 @@ export function useGeminiLive({
     }
     setStatus('disconnected');
     responseQueueRef.current = [];
-    currentTranscriptRef.current = { user: '', assistant: '' };
+    currentTranscriptRef.current = { user: '', userId: null, assistant: '', assistantId: null };
+    setCurrentTurn(null);
   }, []);
 
   const sendAudio = useCallback((base64Audio: string) => {
@@ -164,7 +210,7 @@ export function useGeminiLive({
       console.warn('[Navi] Cannot send audio: no session');
       return;
     }
-    
+
     if (statusRef.current !== 'connected') {
       console.warn('[Navi] Cannot send audio: status is', statusRef.current);
       return;
@@ -193,7 +239,7 @@ export function useGeminiLive({
     try {
       // Add user message immediately for text input
       addMessage('user', text);
-      
+
       sessionRef.current.sendClientContent({
         turns: text,
         turnComplete: true,
@@ -206,6 +252,7 @@ export function useGeminiLive({
 
   const clearMessages = useCallback(() => {
     setMessages([]);
+    setCurrentTurn(null);
   }, []);
 
   // Cleanup on unmount
@@ -218,6 +265,7 @@ export function useGeminiLive({
   return {
     status,
     messages,
+    currentTurn,
     connect,
     disconnect,
     sendAudio,
