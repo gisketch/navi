@@ -9,6 +9,8 @@ import { ControlBar } from './ControlBar';
 import { SettingsModal, SettingsButton } from './SettingsModal';
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../utils/constants';
 import type { MicMode } from '../utils/constants';
+import { Navi } from './Navi';
+import type { NaviState } from './Navi';
 
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -89,6 +91,14 @@ export function App() {
     }
   }, [error]);
 
+  // Compute Navi's visual state based on app state
+  const naviState: NaviState = (() => {
+    if (isPlaying) return 'speaking';
+    if (isCapturing) return 'listening';
+    if (connectionStatus === 'connecting') return 'thinking';
+    return 'idle';
+  })();
+
   return (
     <div className="flex h-screen flex-col bg-black text-white">
       {/* Header */}
@@ -137,6 +147,7 @@ export function App() {
         </div>
       )}
 
+      <Navi state={naviState} audioLevel={audioLevel} />
       {/* Chat area */}
       <ChatUI
         messages={messages}
