@@ -49,30 +49,15 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
     >
       <div
-        className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-          isUser
-            ? 'bg-blue-600 text-white rounded-br-md'
-            : 'bg-gray-800 text-gray-100 rounded-bl-md'
-        }`}
-      >
-        <p className="text-sm leading-relaxed whitespace-pre-wrap">
-          {message.text}
-        </p>
-        <p
-          className={`mt-1 text-xs ${
-            isUser ? 'text-blue-200' : 'text-gray-500'
+        className={`max-w-[80%] rounded-2xl px-5 py-3 shadow-sm backdrop-blur-sm ${!isUser
+          ? 'bg-linear-to-br from-cyan-500 to-blue-600 text-white'
+          : 'bg-white/10 text-gray-100'
           }`}
-        >
-          {formatTime(message.timestamp)}
+      >
+        <p className="text-[17px] leading-relaxed whitespace-pre-wrap font-medium tracking-wide">
+          {message.text}
         </p>
       </div>
     </div>
   );
-}
-
-function formatTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }

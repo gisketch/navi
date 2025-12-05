@@ -89,25 +89,24 @@ export function App() {
   }, [error]);
 
   return (
-    <div className="flex h-screen flex-col bg-black text-white">
+    <div className="flex h-screen flex-col bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 text-white">
       {/* Header */}
-      <header className="flex items-center justify-between border-b border-gray-800 px-4 py-3">
+      <header className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="text-xl">✨</span>
-          <h1 className="text-lg font-semibold">Navi</h1>
+          <span className="text-2xl">✨</span>
+          <h1 className="text-2xl font-semibold">Navi</h1>
         </div>
         <div className="flex items-center gap-2">
           {/* Connection toggle */}
           <button
             onClick={connectionStatus === 'connected' ? handleDisconnect : handleConnect}
             disabled={connectionStatus === 'connecting'}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-              connectionStatus === 'connected'
-                ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
-                : connectionStatus === 'connecting'
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${connectionStatus === 'connected'
+              ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
+              : connectionStatus === 'connecting'
                 ? 'bg-yellow-600/20 text-yellow-400'
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-            }`}
+              }`}
           >
             {connectionStatus === 'connected' ? (
               <>
