@@ -66,8 +66,23 @@ const MagicText = memo(function MagicText({
 });
 
 export function ChatUI({ messages, currentTurn, isCapturing }: ChatUIProps) {
-  // Identify key messages for the Two-Spot layout
-  const aboveMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  // Get the ID of the current turn to exclude it from aboveMessage
+  const currentTurnId = currentTurn?.id;
+  
+  // Find the last message that is NOT the current turn
+  // This prevents the same message from appearing in both spots simultaneously
+  const aboveMessage = useMemo(() => {
+    if (messages.length === 0) return null;
+    
+    // Filter out any message that matches the currentTurn ID
+    // This handles the brief moment when message is added but currentTurn hasn't cleared yet
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].id !== currentTurnId) {
+        return messages[i];
+      }
+    }
+    return null;
+  }, [messages, currentTurnId]);
 
   // Determine content for the Below spot
   const belowContent = useMemo(() => {
@@ -82,7 +97,7 @@ export function ChatUI({ messages, currentTurn, isCapturing }: ChatUIProps) {
     if (isCapturing) {
       return {
         id: 'listening-placeholder',
-        role: 'user',
+        role: 'user' as const,
         text: 'Listening...',
         isPlaceholder: true
       };
@@ -98,18 +113,17 @@ export function ChatUI({ messages, currentTurn, isCapturing }: ChatUIProps) {
           {aboveMessage && (
             <motion.div
               key={aboveMessage.id}
-              initial={{}}
-              animate={{ opacity: 0.6, y: 0 }} // Faded and slightly smaller
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6, y: 0 }}
               exit={{ opacity: 0, y: -20, transition: { duration: 0.3 } }}
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              className={`w-full text-xl font-medium ${ // Unify weight: font-medium
+              className={`w-full text-xl font-medium ${
                 aboveMessage.role === 'user' ? 'text-right' : 'text-left'
-                }`}
+              }`}
             >
               <MagicText
                 text={aboveMessage.text}
                 messageId={aboveMessage.id}
-              // Standard transitions for the "Above" spot
               />
             </motion.div>
           )}
@@ -118,7 +132,7 @@ export function ChatUI({ messages, currentTurn, isCapturing }: ChatUIProps) {
 
       {/* BELOW SPOT (Active) */}
       <div className="flex-[2] flex flex-col justify-start pt-4 min-h-0">
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence mode="wait">
           {belowContent ? (
             <motion.div
               key={belowContent.id}
@@ -126,36 +140,32 @@ export function ChatUI({ messages, currentTurn, isCapturing }: ChatUIProps) {
               animate={{
                 opacity: belowContent.isPlaceholder ? 0.5 : 1,
               }}
-              exit={{ opacity: 0.6, transition: { duration: 0.2 } }}
+              exit={{ opacity: 0, transition: { duration: 0.15 } }}
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
               className="w-full text-center"
             >
-              <div className={`text-4xl font-medium leading-tight tracking-tight text-white ${ // Unify weight: font-medium
+              <div className={`text-4xl font-medium leading-tight tracking-tight text-white ${
                 belowContent.isPlaceholder ? 'animate-pulse' : ''
-                }`}>
+              }`}>
                 <MagicText
                   text={belowContent.text}
                   messageId={belowContent.id}
-                  // Overrides for the "Below" spot to prevent sliding
                   transition={{
-                    layout: { duration: 0 }, // SNAP into place when container grows
-                    opacity: { duration: 0.5 }, // Fade in nicely
-                    y: { duration: 0.5 }, // Fade in nicely
+                    layout: { duration: 0 },
+                    opacity: { duration: 0.5 },
+                    y: { duration: 0.5 },
                   }}
                 />
               </div>
             </motion.div>
           ) : (
-            // Empty state or "Thinking..." could go here if we wanted strictly nothing
             <motion.div
               key="empty-state"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="w-full text-center"
-            >
-              {/* Optional: Add a subtle hint if totally idle? User didn't ask for it specifically here. */}
-            </motion.div>
+            />
           )}
         </AnimatePresence>
       </div>
