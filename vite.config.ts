@@ -24,8 +24,12 @@ export default defineConfig({
     }),
   ],
   define: {
-    __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
-    __COMMIT_HASH__: JSON.stringify(execSync('git rev-parse --short HEAD').toString().trim()),
-    __COMMIT_COUNT__: JSON.stringify(execSync('git rev-list --count HEAD').toString().trim()),
+    __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '0.0.0'),
+    __COMMIT_HASH__: JSON.stringify((() => {
+      try { return execSync('git rev-parse --short HEAD').toString().trim(); } catch (e) { return 'unknown'; }
+    })()),
+    __COMMIT_COUNT__: JSON.stringify((() => {
+      try { return execSync('git rev-list --count HEAD').toString().trim(); } catch (e) { return '0'; }
+    })()),
   },
 })
