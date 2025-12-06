@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { Mic, MicOff, Send, Volume2 } from 'lucide-react';
+import { Mic, Send, Keyboard, Settings, Radio } from 'lucide-react';
 import type { MicMode } from '../utils/constants';
 import type { ConnectionStatus } from '../hooks/useGeminiLive';
 
@@ -13,6 +13,8 @@ interface ControlBarProps {
   onStopCapture: () => void;
   onSendText: (text: string) => void;
   onStopPlayback: () => void;
+  onOpenSettings: () => void;
+  onConnect: () => void | Promise<void>;
 }
 
 export function ControlBar({
@@ -20,15 +22,23 @@ export function ControlBar({
   connectionStatus,
   isCapturing,
   isPlaying,
-  audioLevel,
+  audioLevel, // Used for later visualizer expansion
   onStartCapture,
   onStopCapture,
   onSendText,
   onStopPlayback,
+  onOpenSettings,
+  onConnect,
 }: ControlBarProps) {
   const [textInput, setTextInput] = useState('');
+  const [showKeyboard, setShowKeyboard] = useState(false);
   const isConnected = connectionStatus === 'connected';
   const isHoldingRef = useRef(false);
+
+  // Toggle keyboard mode
+  const toggleKeyboard = useCallback(() => {
+    setShowKeyboard(prev => !prev);
+  }, []);
 
   const handleSendText = useCallback(() => {
     if (textInput.trim() && isConnected) {
@@ -47,180 +57,142 @@ export function ControlBar({
     [handleSendText]
   );
 
-  // Handle mic button interactions
-  const handleMicMouseDown = useCallback(async () => {
+  // --- Main Button Logic ---
+
+  const handleMainButtonMouseDown = useCallback(async () => {
+    // If not connected, this is just a click handler (handled in onClick)
     if (!isConnected) return;
 
-    // Stop AI playback when user starts speaking
     if (isPlaying) {
       onStopPlayback();
     }
 
     if (micMode === 'hold') {
       isHoldingRef.current = true;
-      console.log('[ControlBar] Hold started, starting capture');
       await onStartCapture();
     }
   }, [isConnected, isPlaying, micMode, onStartCapture, onStopPlayback]);
 
-  const handleMicMouseUp = useCallback(() => {
+  const handleMainButtonMouseUp = useCallback(() => {
     if (micMode === 'hold' && isHoldingRef.current) {
       isHoldingRef.current = false;
-      console.log('[ControlBar] Hold ended, stopping capture');
       onStopCapture();
     }
   }, [micMode, onStopCapture]);
 
-  const handleMicClick = useCallback(async () => {
-    if (!isConnected) return;
+  const handleMainButtonClick = useCallback(async () => {
+    // 1. Connection Logic
+    if (!isConnected) {
+      if (connectionStatus !== 'connecting') {
+        onConnect();
+      }
+      return;
+    }
 
+    // 2. Mic Logic (when connected)
     if (micMode === 'auto') {
-      // Stop AI playback when user starts speaking
       if (isPlaying && !isCapturing) {
         onStopPlayback();
       }
 
       if (isCapturing) {
-        console.log('[ControlBar] Auto mode: stopping capture');
         onStopCapture();
       } else {
-        console.log('[ControlBar] Auto mode: starting capture');
         await onStartCapture();
       }
     }
-    // For hold mode, click does nothing - only mousedown/mouseup matter
-  }, [isConnected, isPlaying, isCapturing, micMode, onStartCapture, onStopCapture, onStopPlayback]);
-
-  const handleMicTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      e.preventDefault();
-      handleMicMouseDown();
-    },
-    [handleMicMouseDown]
-  );
-
-  const handleMicTouchEnd = useCallback(
-    (e: React.TouchEvent) => {
-      e.preventDefault();
-      handleMicMouseUp();
-    },
-    [handleMicMouseUp]
-  );
+  }, [isConnected, connectionStatus, onConnect, micMode, isPlaying, isCapturing, onStopPlayback, onStopCapture, onStartCapture]);
 
   return (
-    <div data-control-bar className="border-t border-white/10 bg-black/20 backdrop-blur-lg p-4">
-      {/* Audio level indicator when capturing */}
-      {isCapturing && (
-        <div className="mb-3 flex items-center justify-center gap-2">
-          <div className="h-2 w-32 bg-gray-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-green-500 transition-all duration-100"
-              style={{ width: `${Math.min(100, audioLevel * 100)}%` }}
-            />
-          </div>
-          <span className="text-xs text-gray-400">
-            {audioLevel > 0.01 ? 'Audio detected' : 'No audio'}
-          </span>
-        </div>
-      )}
+    <div className="relative w-full flex flex-col items-center justify-end pb-16 pt-4 px-6 z-50">
 
-      {/* Status indicators */}
-      <div className="mb-3 flex items-center justify-center gap-2 text-xs">
-        <StatusDot status={connectionStatus} />
-        <span className="text-gray-400">
-          {connectionStatus === 'connected'
-            ? isCapturing
-              ? 'Listening...'
-              : isPlaying
-                ? 'Navi is speaking...'
-                : 'Ready'
-            : connectionStatus === 'connecting'
-              ? 'Connecting...'
-              : connectionStatus === 'error'
-                ? 'Connection error'
-                : 'Disconnected'}
-        </span>
-        {isPlaying && (
-          <Volume2 className="h-3 w-3 text-green-400 animate-pulse" />
-        )}
-      </div>
-
-      <div className="flex items-end gap-3">
-        {/* Text input - always visible in hold mode, hidden when capturing in auto mode */}
-        {(micMode === 'hold' || !isCapturing) && (
-          <div className="flex-1">
+      {/* Floating Input Field (appears above buttons) */}
+      {showKeyboard && (
+        <div className="mb-8 w-full max-w-lg animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="relative flex items-center bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-2 shadow-2xl ring-1 ring-white/5">
             <input
+              autoFocus
               type="text"
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={isConnected ? "Type a message..." : "Connect to start..."}
+              placeholder="Type a message..."
               disabled={!isConnected}
-              className="w-full rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white placeholder-gray-400 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 disabled:opacity-50"
+              className="flex-1 bg-transparent border-none text-white placeholder-white/50 focus:ring-0 px-4 py-2 outline-none font-medium"
             />
+            <button
+              onClick={handleSendText}
+              disabled={!isConnected || !textInput.trim()}
+              className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-all disabled:opacity-30 disabled:scale-100 active:scale-95"
+            >
+              <Send className="w-5 h-5" />
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Send button for text */}
-        {textInput.trim() && (
-          <button
-            onClick={handleSendText}
-            disabled={!isConnected}
-            className="rounded-full bg-blue-600 p-2.5 text-white hover:bg-blue-500 disabled:opacity-50"
-            aria-label="Send message"
-          >
-            <Send className="h-5 w-5" />
-          </button>
-        )}
+      {/* Control Buttons Container (Separated) */}
+      <div className="flex items-center justify-center gap-8 glass-button-vars">
 
-        {/* Mic button */}
-        {!textInput.trim() && (
+        {/* Left: Keyboard Toggle */}
+        <button
+          onClick={toggleKeyboard}
+          className={`group relative flex items-center justify-center w-14 h-14 rounded-full border border-[var(--glass-border)] backdrop-blur-sm transition-all duration-300 shadow-2xl hover:scale-110 active:scale-95 ${showKeyboard
+              ? 'bg-white/20 text-white shadow-[inset_0_0_10px_rgba(255,255,255,0.2)]'
+              : 'bg-[var(--glass-bg)] text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+            }`}
+          aria-label="Toggle keyboard"
+        >
+          <Keyboard className="w-6 h-6" />
+        </button>
+
+        {/* Center: Main Action Button (Connect / Mic) */}
+        <div className="relative group">
+          {/* Active Glow */}
+          <div className={`absolute inset-0 bg-cyan-500/30 rounded-full blur-2xl transition-all duration-500 ${isCapturing ? 'opacity-100 scale-150' : 'opacity-0'
+            }`} />
+
           <button
-            onMouseDown={handleMicMouseDown}
-            onMouseUp={handleMicMouseUp}
-            onMouseLeave={handleMicMouseUp}
-            onTouchStart={handleMicTouchStart}
-            onTouchEnd={handleMicTouchEnd}
-            onClick={handleMicClick}
-            disabled={!isConnected}
-            className={`rounded-full p-3 transition-all ${isCapturing
-              ? 'bg-red-500 text-white scale-110 shadow-lg shadow-red-500/30'
-              : isConnected
-                ? 'bg-blue-600 text-white hover:bg-blue-500'
-                : 'bg-gray-700 text-gray-400'
-              } disabled:opacity-50`}
-            aria-label={isCapturing ? 'Stop recording' : 'Start recording'}
+            onMouseDown={handleMainButtonMouseDown}
+            onMouseUp={handleMainButtonMouseUp}
+            onMouseLeave={handleMainButtonMouseUp}
+            onTouchStart={(e) => { e.preventDefault(); handleMainButtonMouseDown(); }}
+            onTouchEnd={(e) => { e.preventDefault(); handleMainButtonMouseUp(); }}
+            onClick={handleMainButtonClick}
+            disabled={connectionStatus === 'connecting'}
+            className={`relative flex items-center justify-center w-20 h-20 rounded-full border border-[var(--glass-border)] backdrop-blur-sm shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 disabled:scale-100 disabled:opacity-70 ${isCapturing
+                ? 'bg-cyan-500 text-white border-cyan-400 shadow-[inset_0_0_20px_rgba(255,255,255,0.4)]'
+                : isPlaying
+                  ? 'bg-indigo-500/80 text-white animate-pulse border-indigo-400'
+                  : 'bg-[var(--glass-bg)] text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+              }`}
           >
-            {isCapturing ? (
-              <MicOff className="h-6 w-6" />
+            {/* Icon Logic */}
+            {connectionStatus === 'connecting' ? (
+              <div className="absolute inset-0 rounded-full border-t-2 border-white/50 animate-spin" />
+            ) : !isConnected ? (
+              <Radio className="w-8 h-8" /> // Connect Icon
+            ) : isCapturing ? (
+              <>
+                <span className="absolute inset-0 rounded-full animate-ping bg-white/40 opacity-50" />
+                <Mic className="w-8 h-8 relative z-10" />
+              </>
             ) : (
-              <Mic className="h-6 w-6" />
+              <Mic className="w-8 h-8" />
             )}
           </button>
-        )}
-      </div>
+        </div>
 
-      {/* Mic mode hint */}
-      <p className="mt-2 text-center text-xs text-gray-500">
-        {micMode === 'hold'
-          ? 'Hold mic button to talk'
-          : isCapturing
-            ? 'Tap mic to stop listening'
-            : 'Tap mic to start listening'}
-      </p>
+        {/* Right: Settings Button */}
+        <button
+          onClick={onOpenSettings}
+          className="group relative flex items-center justify-center w-14 h-14 rounded-full border border-[var(--glass-border)] backdrop-blur-sm bg-[var(--glass-bg)] text-white shadow-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] transition-all duration-300 hover:scale-110 hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)] active:scale-95"
+          aria-label="Settings"
+        >
+          <Settings className="w-6 h-6" />
+        </button>
+
+      </div>
     </div>
   );
-}
-
-function StatusDot({ status }: { status: ConnectionStatus }) {
-  const colorClass =
-    status === 'connected'
-      ? 'bg-green-500'
-      : status === 'connecting'
-        ? 'bg-yellow-500 animate-pulse'
-        : status === 'error'
-          ? 'bg-red-500'
-          : 'bg-gray-500';
-
-  return <div className={`h-2 w-2 rounded-full ${colorClass}`} />;
 }

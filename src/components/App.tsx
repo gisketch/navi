@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Wifi, WifiOff } from 'lucide-react';
+
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useGeminiLive } from '../hooks/useGeminiLive';
 import { useAudioCapture } from '../hooks/useAudioCapture';
 import { useAudioPlayback } from '../hooks/useAudioPlayback';
 import { ChatUI } from './ChatUI';
 import { ControlBar } from './ControlBar';
-import { SettingsModal, SettingsButton } from './SettingsModal';
+import { SettingsModal } from './SettingsModal';
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../utils/constants';
 import type { MicMode } from '../utils/constants';
 import { Navi } from './Navi';
@@ -100,55 +100,21 @@ export function App() {
   })();
 
   return (
-    <div className="flex h-screen flex-col bg-black text-white overflow-hidden relative">
+    <div className="flex h-screen flex-col text-white overflow-hidden relative">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">✨</span>
-          <h1 className="text-2xl font-semibold">Navi</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Connection toggle */}
-          <button
-            onClick={connectionStatus === 'connected' ? handleDisconnect : handleConnect}
-            disabled={connectionStatus === 'connecting'}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${connectionStatus === 'connected'
-              ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
-              : connectionStatus === 'connecting'
-                ? 'bg-yellow-600/20 text-yellow-400'
-                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-              }`}
-          >
-            {connectionStatus === 'connected' ? (
-              <>
-                <Wifi className="h-4 w-4" />
-                Connected
-              </>
-            ) : connectionStatus === 'connecting' ? (
-              <>
-                <Wifi className="h-4 w-4 animate-pulse" />
-                Connecting...
-              </>
-            ) : (
-              <>
-                <WifiOff className="h-4 w-4" />
-                Connect
-              </>
-            )}
-          </button>
-          <SettingsButton onClick={() => setSettingsOpen(true)} />
-        </div>
+      <header className="flex items-center justify-center px-6 py-16">
+          <h1 className="text-2xl font-semibold tracking-tight text-white/90">Navi</h1>
       </header>
 
       {/* Error banner */}
       {error && (
-        <div className="bg-red-900/50 px-4 py-2 text-center text-sm text-red-200">
+        <div className="bg-red-900/50 px-4 py-2 text-center text-sm text-red-200 backdrop-blur-sm">
           {error}
         </div>
       )}
 
       {/* Navi overlay - positioned absolutely to move across entire screen */}
-      <Navi state={naviState} audioLevel={audioLevel} />
+      <Navi state={naviState} audioLevel={audioLevel} scale={1.2} />
 
       {/* Chat area */}
       <ChatUI
@@ -168,6 +134,8 @@ export function App() {
         onStopCapture={stopCapture}
         onSendText={sendText}
         onStopPlayback={stopPlayback}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onConnect={handleConnect}
       />
 
       {/* Settings modal */}
@@ -180,6 +148,7 @@ export function App() {
         onMicModeChange={setMicMode}
         n8nWebhookUrl={n8nWebhookUrl}
         onN8nWebhookUrlChange={setN8nWebhookUrl}
+        onDisconnect={handleDisconnect}
       />
     </div>
   );

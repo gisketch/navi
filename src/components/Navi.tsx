@@ -6,6 +6,7 @@ export type NaviState = 'offline' | 'idle' | 'listening' | 'thinking' | 'speakin
 interface NaviProps {
   state?: NaviState;
   audioLevel?: number; // 0-1, for mic input or output volume
+  scale?: number; // Overall scale of Navi (default 1)
 }
 
 // Color schemes for each state
@@ -110,6 +111,178 @@ function Particle({ delay, state }: { delay: number; state: NaviState }) {
   );
 }
 
+// Screen edge waveform visualizer for listening state
+function ScreenEdgeWaveform({ audioLevel, isActive }: { audioLevel: number; isActive: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationRef = useRef<number>(0);
+  const timeRef = useRef(0);
+  const smoothAudioRef = useRef(0);
+  const slideRef = useRef(0); // 0 = off-screen, 1 = fully visible (slides in from edges)
+  const isActiveRef = useRef(isActive);
+  const audioLevelRef = useRef(audioLevel);
+
+  // Keep refs in sync with props
+  useEffect(() => {
+    isActiveRef.current = isActive;
+  }, [isActive]);
+  
+  useEffect(() => {
+    audioLevelRef.current = audioLevel;
+  }, [audioLevel]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const animate = () => {
+      timeRef.current += 0.015;
+      
+      // Smoothly slide in/out based on isActive (using ref for current value)
+      const slideSpeed = 0.025; // ~0.6 second transition
+      if (isActiveRef.current) {
+        slideRef.current = Math.min(1, slideRef.current + slideSpeed);
+      } else {
+        slideRef.current = Math.max(0, slideRef.current - slideSpeed);
+      }
+      
+      // Smooth the audio level for less jittery animation
+      smoothAudioRef.current += (audioLevelRef.current - smoothAudioRef.current) * 0.1;
+      const smoothAudio = smoothAudioRef.current;
+      
+      const { width, height } = canvas;
+      ctx.clearRect(0, 0, width, height);
+
+      // Only render when slide > 0
+      if (slideRef.current <= 0) {
+        animationRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
+      // Eased slide value for smooth acceleration/deceleration
+      const easeInOut = (t: number) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const slideEased = easeInOut(slideRef.current);
+      
+      // Calculate slide offset - glow slides in from outside screen
+      const maxSlideOffset = 150; // How far off-screen when hidden
+      const slideOffset = (1 - slideEased) * maxSlideOffset;
+
+      const effectiveLevel = Math.max(0.05, smoothAudio);
+      
+      // Draw smooth glowing edge on left and right sides only
+      const drawSideGlow = (isLeft: boolean) => {
+        // Apply slide offset - left edge slides from left, right edge slides from right
+        const baseX = isLeft ? 0 : width;
+        const x = isLeft ? baseX - slideOffset : baseX + slideOffset;
+        
+        const baseWidth = 20 + effectiveLevel * 40;
+        const numPoints = 8; // Few control points for smooth curves
+        
+        // Generate smooth control points using sine waves
+        const points: { y: number; offset: number }[] = [];
+        for (let i = 0; i <= numPoints; i++) {
+          const t = i / numPoints;
+          const y = t * height;
+          
+          // Smooth sine waves for gentle undulation
+          const wave1 = Math.sin(t * Math.PI * 2 + timeRef.current * 0.8) * 0.5;
+          const wave2 = Math.sin(t * Math.PI * 1.5 - timeRef.current * 0.5) * 0.3;
+          const wave3 = Math.sin(t * Math.PI * 3 + timeRef.current * 1.2) * 0.2;
+          
+          const offset = (wave1 + wave2 + wave3) * baseWidth * effectiveLevel;
+          points.push({ y, offset });
+        }
+
+        // Draw multiple layered glows for depth - apply slide opacity
+        const slideOpacity = slideEased;
+        const layers = [
+          { blur: 60, alpha: 0.15 * slideOpacity, width: baseWidth * 2.5 },
+          { blur: 35, alpha: 0.25 * slideOpacity, width: baseWidth * 1.5 },
+          { blur: 15, alpha: 0.4 * slideOpacity, width: baseWidth * 0.8 },
+          { blur: 5, alpha: 0.6 * slideOpacity, width: baseWidth * 0.3 },
+        ];
+
+        layers.forEach(layer => {
+          ctx.beginPath();
+          
+          // Start from edge
+          ctx.moveTo(x, 0);
+          
+          // Draw smooth bezier curve through points
+          for (let i = 0; i < points.length - 1; i++) {
+            const curr = points[i];
+            const next = points[i + 1];
+            
+            const currX = x + (isLeft ? 1 : -1) * (layer.width + curr.offset);
+            const nextX = x + (isLeft ? 1 : -1) * (layer.width + next.offset);
+            
+            const midY = (curr.y + next.y) / 2;
+            const midX = (currX + nextX) / 2;
+            
+            if (i === 0) {
+              ctx.lineTo(currX, curr.y);
+            }
+            ctx.quadraticCurveTo(currX, curr.y + (next.y - curr.y) * 0.5, midX, midY);
+          }
+          
+          // Last point
+          const last = points[points.length - 1];
+          ctx.lineTo(x + (isLeft ? 1 : -1) * (layer.width + last.offset), last.y);
+          
+          // Close back to edge
+          ctx.lineTo(x, height);
+          ctx.lineTo(x, 0);
+          ctx.closePath();
+
+          // Gradient fill
+          const gradient = ctx.createLinearGradient(
+            x, 0,
+            x + (isLeft ? 1 : -1) * layer.width * 2, 0
+          );
+          gradient.addColorStop(0, `rgba(120, 220, 255, ${layer.alpha * (0.5 + effectiveLevel)})`);
+          gradient.addColorStop(0.3, `rgba(80, 180, 255, ${layer.alpha * 0.7 * (0.5 + effectiveLevel)})`);
+          gradient.addColorStop(0.7, `rgba(40, 140, 220, ${layer.alpha * 0.3 * (0.5 + effectiveLevel)})`);
+          gradient.addColorStop(1, 'rgba(0, 100, 180, 0)');
+
+          ctx.filter = `blur(${layer.blur}px)`;
+          ctx.fillStyle = gradient;
+          ctx.fill();
+        });
+        
+        ctx.filter = 'none';
+      };
+
+      drawSideGlow(true);  // Left
+      drawSideGlow(false); // Right
+
+      animationRef.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      window.removeEventListener('resize', resize);
+      cancelAnimationFrame(animationRef.current);
+    };
+  }, [audioLevel, isActive]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="fixed inset-0 pointer-events-none z-40"
+    />
+  );
+}
+
 // Wing flap speed based on state
 const getWingSpeed = (state: NaviState) => {
   switch (state) {
@@ -121,7 +294,7 @@ const getWingSpeed = (state: NaviState) => {
   }
 };
 
-export function Navi({ state = 'offline', audioLevel = 0 }: NaviProps) {
+export function Navi({ state = 'offline', audioLevel = 0, scale = 1 }: NaviProps) {
   const particles = [0, 0.35, 0.7, 1.05, 1.4, 1.75, 2.1];
   const colors = stateColors[state];
   const flapSpeed = getWingSpeed(state);
@@ -179,6 +352,10 @@ export function Navi({ state = 'offline', audioLevel = 0 }: NaviProps) {
   const wingLagX = useTransform(() => wingRawX.get() - bodyX.get());
   const wingLagY = useTransform(() => wingRawY.get() - bodyY.get());
 
+  // Glow lag - the difference between glow position and body position
+  const glowLagX = useTransform(() => glowX.get() - bodyX.get());
+  const glowLagY = useTransform(() => glowY.get() - bodyY.get());
+
   // Handle touch/mouse interactions - pressing anywhere triggers follow
   useEffect(() => {
     const handleStart = (clientX: number, clientY: number) => {
@@ -219,13 +396,15 @@ export function Navi({ state = 'offline', audioLevel = 0 }: NaviProps) {
     const isInInteractiveArea = (target: EventTarget | null) => {
       if (!target || !(target instanceof Element)) return false;
       // Check if target is inside header, control bar, button, input, or modal
-      const excluded = target.closest('header, [data-control-bar], button, input, textarea, [role="dialog"], a');
+      const excluded = target.closest('header, [data-control-bar], button, input, textarea, [role="dialog"], a, [data-interactive]');
       return !excluded;
     };
 
-    // Touch events
+    // Touch events - don't prevent default on start to allow button taps
     const onTouchStart = (e: TouchEvent) => {
+      // Only handle if not on interactive element
       if (isInInteractiveArea(e.target)) {
+        // Small delay to allow button tap to register first
         handleStart(e.touches[0].clientX, e.touches[0].clientY);
       }
     };
@@ -322,59 +501,23 @@ export function Navi({ state = 'offline', audioLevel = 0 }: NaviProps) {
 
   // Glow intensity based on state (offline is very low)
   const glowIntensity = state === 'offline'
-    ? 0.05
+    ? 0.00
     : state === 'listening' || state === 'speaking'
       ? 0.1 + audioLevel * 0.25
       : 0.1;
 
   return (
-    <div
-      ref={containerRef}
-      className="fixed inset-0 flex items-start justify-center cursor-pointer select-none pointer-events-none z-50 pt-[20vh]"
-      style={{ touchAction: 'none' }}
-    >
-      {/* Big gradient circle glow - follows body with drag (reduced opacity) */}
-      {Object.entries(stateColors).map(([colorState, colorValues]) => (
-        <motion.div
-          key={`outer-glow-${colorState}`}
-          className="absolute z-0 size-40 rounded-full blur-xl"
-          style={{
-            background: colorValues.outerGradient,
-            x: glowX,
-            y: glowY,
-          }}
-          animate={{
-            scale: state === 'thinking' ? [1, 1.2, 1] : [1, 1.1, 1],
-            opacity: state === colorState
-              ? [0.2 + glowIntensity, 0.3 + glowIntensity, 0.2 + glowIntensity]
-              : 0,
-          }}
-          transition={{
-            scale: { duration: state === 'thinking' ? 0.5 : 2, repeat: Infinity, ease: "easeInOut" },
-            opacity: state === colorState
-              ? { duration: state === 'thinking' ? 0.5 : 2, repeat: Infinity, ease: "easeInOut" }
-              : { duration: 0.8, ease: "easeInOut" },
-          }}
-        />
-      ))}
-
-      {/* Simple circle glow on top - follows body with drag (reduced opacity) */}
-      {Object.entries(stateColors).map(([colorState, colorValues]) => (
-        <motion.div
-          key={`inner-glow-${colorState}`}
-          className="absolute z-0 size-20 rounded-full blur-md"
-          style={{
-            backgroundColor: colorValues.primary,
-            x: glowX,
-            y: glowY,
-          }}
-          animate={{
-            opacity: state === colorState ? glowIntensity + 0.1 : 0
-          }}
-          transition={{ duration: 0.8, ease: "easeInOut" }}
-        />
-      ))}
-
+    <>
+      {/* Screen edge waveform for listening state */}
+      <ScreenEdgeWaveform audioLevel={audioLevel} isActive={state === 'listening'} />
+      
+      <div
+        ref={containerRef}
+        className="fixed inset-0 flex items-start justify-center cursor-pointer select-none pointer-events-none z-50 pt-[20vh]"
+        style={{ touchAction: 'none' }}
+      >
+      {/* Scaled container for all visual elements */}
+      <div style={{ transform: `scale(${scale})` }}>
       {/* Main Navi container */}
       <motion.div
         className="relative z-10"
@@ -382,6 +525,48 @@ export function Navi({ state = 'offline', audioLevel = 0 }: NaviProps) {
         animate={{ scale: isTouching ? 1.15 : (state === 'listening' ? 1.1 : 1) }}
         transition={{ scale: { duration: 0.3 } }}
       >
+        {/* Big gradient circle glow - follows body with drag (reduced opacity) */}
+        {Object.entries(stateColors).map(([colorState, colorValues]) => (
+          <motion.div
+            key={`outer-glow-${colorState}`}
+            className="absolute z-0 size-40 rounded-full blur-xl left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            style={{
+              background: colorValues.outerGradient,
+              x: glowLagX,
+              y: glowLagY,
+            }}
+            animate={{
+              scale: state === 'thinking' ? [1, 1.2, 1] : [1, 1.1, 1],
+              opacity: state === colorState
+                ? [0.2 + glowIntensity, 0.3 + glowIntensity, 0.2 + glowIntensity]
+                : 0,
+            }}
+            transition={{
+              scale: { duration: state === 'thinking' ? 0.5 : 2, repeat: Infinity, ease: "easeInOut" },
+              opacity: state === colorState
+                ? { duration: state === 'thinking' ? 0.5 : 2, repeat: Infinity, ease: "easeInOut" }
+                : { duration: 0.8, ease: "easeInOut" },
+            }}
+          />
+        ))}
+
+        {/* Simple circle glow on top - follows body with drag (reduced opacity) */}
+        {Object.entries(stateColors).map(([colorState, colorValues]) => (
+          <motion.div
+            key={`inner-glow-${colorState}`}
+            className="absolute z-0 size-20 rounded-full blur-md left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            style={{
+              backgroundColor: colorValues.primary,
+              x: glowLagX,
+              y: glowLagY,
+            }}
+            animate={{
+              opacity: state === colorState ? glowIntensity + 0.1 : 0
+            }}
+            transition={{ duration: 0.8, ease: "easeInOut" }}
+          />
+        ))}
+
         {/* Particles - only show when not offline */}
         {state !== 'offline' && particles.map((delay, index) => (
           <Particle key={`${state}-${index}`} delay={delay} state={state} />
@@ -516,6 +701,8 @@ export function Navi({ state = 'offline', audioLevel = 0 }: NaviProps) {
           </motion.div>
         </div>
       </motion.div>
+      </div>
     </div>
+    </>
   );
 }
