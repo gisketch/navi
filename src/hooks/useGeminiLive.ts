@@ -9,6 +9,7 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'er
 
 interface UseGeminiLiveOptions {
   apiKey: string;
+  systemInstruction?: string;
   onAudioResponse?: (audioData: string) => void;
   onError?: (error: Error) => void;
 }
@@ -26,6 +27,7 @@ interface UseGeminiLiveReturn {
 
 export function useGeminiLive({
   apiKey,
+  systemInstruction,
   onAudioResponse,
   onError,
 }: UseGeminiLiveOptions): UseGeminiLiveReturn {
@@ -158,13 +160,19 @@ export function useGeminiLive({
 
       aiRef.current = new GoogleGenAI({ apiKey });
 
+      const config: any = {
+        responseModalities: [Modality.AUDIO],
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
+      };
+
+      if (systemInstruction) {
+        config.systemInstruction = { parts: [{ text: systemInstruction }] };
+      }
+
       const session = await aiRef.current.live.connect({
         model: GEMINI_MODEL,
-        config: {
-          responseModalities: [Modality.AUDIO],
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
-        },
+        config,
         callbacks: {
           onopen: () => {
             console.log('[Navi] Connected to Gemini Live');
@@ -192,7 +200,7 @@ export function useGeminiLive({
       setStatus('error');
       onError?.(error instanceof Error ? error : new Error('Failed to connect'));
     }
-  }, [apiKey, onError, processResponseQueue]);
+  }, [apiKey, systemInstruction, onError, processResponseQueue]);
 
   const disconnect = useCallback(() => {
     if (sessionRef.current) {

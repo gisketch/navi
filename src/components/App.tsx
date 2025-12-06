@@ -6,9 +6,8 @@ import { useAudioCapture } from '../hooks/useAudioCapture';
 import { useAudioPlayback } from '../hooks/useAudioPlayback';
 import { ChatUI } from './ChatUI';
 import { ControlBar } from './ControlBar';
-import type { RadialMenuState } from './ControlBar';
 import { SettingsModal } from './SettingsModal';
-import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../utils/constants';
+import { STORAGE_KEYS, DEFAULT_SETTINGS, DEFAULT_SYSTEM_INSTRUCTION } from '../utils/constants';
 import type { MicMode } from '../utils/constants';
 import { Navi } from './Navi';
 import type { NaviState } from './Navi';
@@ -16,7 +15,6 @@ import type { NaviState } from './Navi';
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
 
   // Persisted settings
   const [apiKey, setApiKey] = useLocalStorage(STORAGE_KEYS.API_KEY, DEFAULT_SETTINGS.apiKey);
@@ -37,6 +35,7 @@ export function App() {
     sendText,
   } = useGeminiLive({
     apiKey,
+    systemInstruction: DEFAULT_SYSTEM_INSTRUCTION,
     onAudioResponse: queueAudio,
     onError: (err) => setError(err.message),
   });
@@ -104,7 +103,7 @@ export function App() {
   return (
     <div className="flex h-screen flex-col text-white overflow-hidden relative">
       {/* Header */}
-      <header className="flex items-center justify-center px-6 py-16 pb-24">
+      <header className="flex items-center justify-center px-6 py-16">
         <h1 className="text-2xl font-semibold tracking-tight text-white/90">Navi</h1>
       </header>
 
@@ -116,7 +115,7 @@ export function App() {
       )}
 
       {/* Navi overlay - positioned absolutely to move across entire screen */}
-      <Navi state={naviState} audioLevel={audioLevel} scale={1.2} radialMenuState={radialMenuState} />
+      <Navi state={naviState} audioLevel={audioLevel} scale={1.2} />
 
       {/* Chat area */}
       <ChatUI
@@ -139,8 +138,6 @@ export function App() {
         onStopPlayback={stopPlayback}
         onOpenSettings={() => setSettingsOpen(true)}
         onConnect={handleConnect}
-        onDisconnect={handleDisconnect}
-        onRadialMenuChange={setRadialMenuState}
       />
 
       {/* Settings modal */}
