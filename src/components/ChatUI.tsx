@@ -242,9 +242,9 @@ export function ChatUI({ currentTurn, isCapturing }: ChatUIProps) {
   }, [currentTurn, isCapturing]);
 
   return (
-    <div className="flex flex-1 flex-col p-6 overflow-hidden relative justify-end pt-12">
+    <div className="flex flex-1 flex-col p-6 overflow-hidden relative justify-start">
       {/* Single centered text area */}
-      <div className="flex flex-col items-start justify-start h-[24em]">
+      <div className="flex flex-col items-start justify-start h-[24em] pt-56">
         <AnimatePresence mode="wait">
           {content ? (
             <motion.div

@@ -614,7 +614,7 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
 
       <div
         ref={containerRef}
-        className="fixed inset-0 flex items-start justify-center cursor-pointer select-none pointer-events-none z-[60] pt-[26vh]"
+        className="fixed inset-0 flex items-start justify-center cursor-pointer select-none pointer-events-none z-[60] pt-56"
         style={{ touchAction: 'none' }}
       >
         {/* Scaled container for all visual elements - combines prop scale with radial menu scale */}
