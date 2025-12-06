@@ -9,7 +9,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.png', 'audio-processor.js'],
+      includeAssets: ['icon2.png', 'audio-processor.js'],
       manifest: false, // We use our own manifest.json
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],

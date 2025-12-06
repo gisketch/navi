@@ -167,6 +167,18 @@ export function useGeminiLive({
                   }]
                 };
 
+                // Add a space to separate pre-tool text from post-tool text
+                if (currentTranscriptRef.current.assistant && !currentTranscriptRef.current.assistant.endsWith(' ')) {
+                  currentTranscriptRef.current.assistant += ' ';
+                  // Update current turn if it exists and is assistant
+                  setCurrentTurn(prev => {
+                    if (prev && prev.role === 'assistant' && prev.id === currentTranscriptRef.current.assistantId) {
+                      return { ...prev, text: currentTranscriptRef.current.assistant };
+                    }
+                    return prev;
+                  });
+                }
+
                 console.log('[Navi] Sending Tool Response');
                 sessionRef.current?.sendToolResponse(response);
               } else if (record.status === 'error') {
