@@ -11,6 +11,8 @@ interface SettingsModalProps {
   onMicModeChange: (mode: MicMode) => void;
   n8nWebhookUrl: string;
   onN8nWebhookUrlChange: (url: string) => void;
+  saveNoteWebhook: string;
+  onSaveNoteWebhookChange: (url: string) => void;
   onDisconnect: () => void;
 }
 
@@ -23,11 +25,17 @@ export function SettingsModal({
   onMicModeChange,
   n8nWebhookUrl,
   onN8nWebhookUrlChange,
+  saveNoteWebhook,
+  onSaveNoteWebhookChange,
   onDisconnect,
 }: SettingsModalProps) {
   const [tempApiKey, setTempApiKey] = useState(apiKey);
   const [tempMicMode, setTempMicMode] = useState(micMode);
   const [tempN8nUrl, setTempN8nUrl] = useState(n8nWebhookUrl);
+  // Functions Webhooks
+  const [tempSaveNoteWebhook, setTempSaveNoteWebhook] = useState(saveNoteWebhook);
+
+  const [activeTab, setActiveTab] = useState<'general' | 'functions'>('general');
 
   if (!isOpen) return null;
 
@@ -35,6 +43,7 @@ export function SettingsModal({
     onApiKeyChange(tempApiKey);
     onMicModeChange(tempMicMode);
     onN8nWebhookUrlChange(tempN8nUrl);
+    onSaveNoteWebhookChange(tempSaveNoteWebhook);
     onClose();
   };
 
@@ -42,6 +51,8 @@ export function SettingsModal({
     setTempApiKey(apiKey);
     setTempMicMode(micMode);
     setTempN8nUrl(n8nWebhookUrl);
+    setTempSaveNoteWebhook(saveNoteWebhook);
+    setActiveTab('general');
     onClose();
   };
 
@@ -68,77 +79,116 @@ export function SettingsModal({
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-4 border-b border-white/10 mb-6 pb-2">
+          <button
+            onClick={() => setActiveTab('general')}
+            className={`text-sm font-medium pb-1 transition-colors ${activeTab === 'general' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white'}`}
+          >
+            General
+          </button>
+          <button
+            onClick={() => setActiveTab('functions')}
+            className={`text-sm font-medium pb-1 transition-colors ${activeTab === 'functions' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white'}`}
+          >
+            Functions
+          </button>
+        </div>
+
         <div className="space-y-5">
-          {/* API Key */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-300">
-              Gemini API Key
-            </label>
-            <input
-              type="password"
-              value={tempApiKey}
-              onChange={(e) => setTempApiKey(e.target.value)}
-              placeholder="Enter your API key"
-              className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-            />
-            <p className="mt-1.5 text-xs text-gray-500">
-              Get your API key from{' '}
-              <a
-                href="https://aistudio.google.com/apikey"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-cyan-400 hover:underline"
-              >
-                Google AI Studio
-              </a>
-            </p>
-          </div>
+          {activeTab === 'general' ? (
+            <>
+              {/* API Key */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-300">
+                  Gemini API Key
+                </label>
+                <input
+                  type="password"
+                  value={tempApiKey}
+                  onChange={(e) => setTempApiKey(e.target.value)}
+                  placeholder="Enter your API key"
+                  className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                />
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Get your API key from{' '}
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-400 hover:underline"
+                  >
+                    Google AI Studio
+                  </a>
+                </p>
+              </div>
 
-          {/* Mic Mode */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-300">
-              Microphone Mode
-            </label>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setTempMicMode('hold')}
-                className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${tempMicMode === 'hold'
-                    ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/20'
-                    : 'bg-black/40 text-gray-300 hover:bg-white/10'
-                  }`}
-              >
-                Hold to Talk
-              </button>
-              <button
-                onClick={() => setTempMicMode('auto')}
-                className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${tempMicMode === 'auto'
-                    ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/20'
-                    : 'bg-black/40 text-gray-300 hover:bg-white/10'
-                  }`}
-              >
-                Auto (VAD)
-              </button>
-            </div>
-            <p className="mt-1.5 text-xs text-gray-500">
-              {tempMicMode === 'hold'
-                ? 'Press and hold the mic button to speak'
-                : 'Automatic voice detection - starts/stops recording automatically'}
-            </p>
-          </div>
+              {/* Mic Mode */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-300">
+                  Microphone Mode
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTempMicMode('hold')}
+                    className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${tempMicMode === 'hold'
+                      ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/20'
+                      : 'bg-black/40 text-gray-300 hover:bg-white/10'
+                      }`}
+                  >
+                    Hold to Talk
+                  </button>
+                  <button
+                    onClick={() => setTempMicMode('auto')}
+                    className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${tempMicMode === 'auto'
+                      ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/20'
+                      : 'bg-black/40 text-gray-300 hover:bg-white/10'
+                      }`}
+                  >
+                    Auto (VAD)
+                  </button>
+                </div>
+                <p className="mt-1.5 text-xs text-gray-500">
+                  {tempMicMode === 'hold'
+                    ? 'Press and hold the mic button to speak'
+                    : 'Automatic voice detection - starts/stops recording automatically'}
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <h3 className="text-sm font-semibold text-gray-200 mb-3">Function Webhooks</h3>
+                {/* Save Note Webhook */}
+                <div className="mb-4">
+                  <label className="mb-2 block text-sm font-medium text-gray-300">
+                    Save Note Webhook
+                  </label>
+                  <input
+                    type="url"
+                    value={tempSaveNoteWebhook}
+                    onChange={(e) => setTempSaveNoteWebhook(e.target.value)}
+                    placeholder="https://automate.gisketch.com/webhook/save-note"
+                    className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                  />
+                </div>
+              </div>
+              {/* n8n Webhook URL (Legacy) */}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-300">
+                  General/Legacy Webhook (Optional)
+                </label>
+                <input
+                  type="url"
+                  value={tempN8nUrl}
+                  onChange={(e) => setTempN8nUrl(e.target.value)}
+                  placeholder="https://your-n8n-instance.com/webhook/..."
+                  className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                />
+              </div>
+            </>
+          )}
 
-          {/* n8n Webhook URL */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-300">
-              n8n Webhook URL (Optional)
-            </label>
-            <input
-              type="url"
-              value={tempN8nUrl}
-              onChange={(e) => setTempN8nUrl(e.target.value)}
-              placeholder="https://your-n8n-instance.com/webhook/..."
-              className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-            />
-          </div>
         </div>
 
         {/* Actions */}

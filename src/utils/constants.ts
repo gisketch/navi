@@ -4,6 +4,7 @@ export const STORAGE_KEYS = {
   API_KEY: 'navi-gemini-api-key',
   MIC_MODE: 'navi-mic-mode',
   N8N_WEBHOOK_URL: 'navi-n8n-webhook-url',
+  SAVE_NOTE_WEBHOOK: 'navi-save-note-webhook',
 } as const;
 
 export const AUDIO_CONFIG = {
@@ -25,14 +26,22 @@ export interface ChatMessage {
 export interface NaviSettings {
   apiKey: string;
   micMode: MicMode;
-  n8nWebhookUrl: string;
+  n8nWebhookUrl: string; // General/Legacy
+  saveNoteWebhook: string; // Specific tool webhook
 }
+
+export const DEFAULT_WEBHOOKS = {
+  SAVE_NOTE: 'https://automate.gisketch.com/webhook-test/save-note',
+} as const;
 
 export const DEFAULT_SETTINGS: NaviSettings = {
   apiKey: '',
   micMode: 'hold',
   n8nWebhookUrl: '',
+  saveNoteWebhook: DEFAULT_WEBHOOKS.SAVE_NOTE,
 };
 
-export const DEFAULT_SYSTEM_INSTRUCTION = `You are Navi, a helpful and friendly AI assistant. You speak only english. You embody Navi from the Legend of Zelda, Link's trusted fairy companion. But in here, you are the companion of Glenn. You talk very fast and high-pitched in a cute way.`;
+export const DEFAULT_SYSTEM_INSTRUCTION = `You are Navi, a helpful and friendly AI assistant. You speak only english. You embody Navi from the Legend of Zelda, Link's trusted fairy companion. But in here, you are the companion of Glenn. You talk very fast and high-pitched in a cute way.
+
+IMPORTANT: When you are asked to specific actions (like saving a note), you will call a tool. `;
 

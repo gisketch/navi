@@ -37,14 +37,14 @@ export function useAudioCapture({
   const [isCapturing, setIsCapturing] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
-  
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const processorRef = useRef<AudioWorkletNode | null>(null);
   const isCapturingRef = useRef(false);
   const chunkCountRef = useRef(0);
-  
+
   // Store callback in ref so processor always has latest reference
   const onAudioDataRef = useRef(onAudioData);
   useEffect(() => {
@@ -59,7 +59,7 @@ export function useAudioCapture({
 
     try {
       console.log('[Navi] Requesting microphone access...');
-      
+
       // Request microphone access - don't force sample rate, use device default
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -90,30 +90,28 @@ export function useAudioCapture({
           targetSampleRate: TARGET_SAMPLE_RATE,
         },
       });
-      
+
       // Handle messages from processor - use ref to always get latest callback
       processor.port.onmessage = (event: MessageEvent) => {
         if (event.data.type === 'debug') {
           // Debug info from processor
-          console.log('[Navi] Audio debug:', event.data);
           const level = Math.min(1, event.data.maxSample * 5); // Amplify for visibility
           setAudioLevel(level);
           onAudioLevel?.(level);
           return;
         }
-        
+
         if (!isCapturingRef.current) {
           return;
         }
-        
+
         if (event.data.type === 'pcm') {
           chunkCountRef.current++;
           const base64Audio = int16ToBase64(event.data.data);
-          console.log(`[Navi] Audio chunk #${chunkCountRef.current}, size: ${base64Audio.length}, capturing: ${isCapturingRef.current}`);
           onAudioDataRef.current(base64Audio);
         }
       };
-      
+
       processorRef.current = processor;
 
       // Connect source to processor (but not to destination - we don't want to hear ourselves)
@@ -133,7 +131,7 @@ export function useAudioCapture({
       console.log('[Navi] Audio not initialized, initializing first...');
       await initialize();
     }
-    
+
     if (isCapturingRef.current) {
       console.log('[Navi] Already capturing');
       return;

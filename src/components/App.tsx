@@ -7,6 +7,7 @@ import { useAudioPlayback } from '../hooks/useAudioPlayback';
 import { ChatUI } from './ChatUI';
 import { ControlBar } from './ControlBar';
 import { SettingsModal } from './SettingsModal';
+import { LiveStatus } from './LiveStatus';
 import { STORAGE_KEYS, DEFAULT_SETTINGS, DEFAULT_SYSTEM_INSTRUCTION } from '../utils/constants';
 import type { MicMode } from '../utils/constants';
 import { Navi } from './Navi';
@@ -16,11 +17,13 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
+  const [spinTrigger, setSpinTrigger] = useState(0);
 
   // Persisted settings
   const [apiKey, setApiKey] = useLocalStorage(STORAGE_KEYS.API_KEY, DEFAULT_SETTINGS.apiKey);
   const [micMode, setMicMode] = useLocalStorage<MicMode>(STORAGE_KEYS.MIC_MODE, DEFAULT_SETTINGS.micMode);
   const [n8nWebhookUrl, setN8nWebhookUrl] = useLocalStorage(STORAGE_KEYS.N8N_WEBHOOK_URL, DEFAULT_SETTINGS.n8nWebhookUrl);
+  const [saveNoteWebhook, setSaveNoteWebhook] = useLocalStorage(STORAGE_KEYS.SAVE_NOTE_WEBHOOK, DEFAULT_SETTINGS.saveNoteWebhook);
 
   // Audio playback hook
   const { isPlaying, queueAudio, stopPlayback } = useAudioPlayback();
@@ -34,11 +37,14 @@ export function App() {
     disconnect,
     sendAudio,
     sendText,
+    liveStatus,
+    isToolActive,
   } = useGeminiLive({
     apiKey,
     systemInstruction: DEFAULT_SYSTEM_INSTRUCTION,
     onAudioResponse: queueAudio,
     onError: (err) => setError(err.message),
+    saveNoteWebhook,
   });
 
   // Audio capture hook
@@ -95,11 +101,19 @@ export function App() {
 
   // Compute Navi's visual state based on app state
   const naviState: NaviState = (() => {
+    if (isToolActive) return 'thinking';
     if (isPlaying) return 'speaking';
     if (isCapturing) return 'listening';
     if (connectionStatus === 'connected' || connectionStatus === 'connecting') return 'idle';
     return 'offline';
   })();
+
+  // Force stop capture if tool becomes active (Navi is thinking)
+  useEffect(() => {
+    if (isToolActive && isCapturing) {
+      stopCapture();
+    }
+  }, [isToolActive, isCapturing, stopCapture]);
 
   return (
     <div className="flex h-screen flex-col text-white overflow-hidden relative">
@@ -116,7 +130,19 @@ export function App() {
       )}
 
       {/* Navi overlay - positioned absolutely to move across entire screen */}
-      <Navi state={naviState} audioLevel={audioLevel} scale={1.2} radialMenuState={radialMenuState} />
+      <Navi 
+        state={naviState} 
+        audioLevel={audioLevel} 
+        scale={1.2} 
+        radialMenuState={radialMenuState}
+        spinTrigger={spinTrigger}
+      />
+
+      {/* Live Status (Agentic Tools) - with animated word display */}
+      <LiveStatus 
+        status={liveStatus} 
+        onStatusChange={() => setSpinTrigger(prev => prev + 1)}
+      />
 
       {/* Chat area */}
       <ChatUI
@@ -151,6 +177,8 @@ export function App() {
         onMicModeChange={setMicMode}
         n8nWebhookUrl={n8nWebhookUrl}
         onN8nWebhookUrlChange={setN8nWebhookUrl}
+        saveNoteWebhook={saveNoteWebhook}
+        onSaveNoteWebhookChange={setSaveNoteWebhook}
         onDisconnect={handleDisconnect}
       />
     </div>

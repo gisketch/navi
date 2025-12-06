@@ -16,6 +16,7 @@ interface NaviProps {
   audioLevel?: number; // 0-1, for mic input or output volume
   scale?: number; // Overall scale of Navi (default 1)
   radialMenuState?: RadialMenuState; // For positioning Navi above radial menu buttons
+  spinTrigger?: number; // Increment to trigger a wing spin animation
 }
 
 // Color schemes for each state
@@ -134,7 +135,7 @@ function ScreenEdgeWaveform({ audioLevel, isActive }: { audioLevel: number; isAc
   useEffect(() => {
     isActiveRef.current = isActive;
   }, [isActive]);
-  
+
   useEffect(() => {
     audioLevelRef.current = audioLevel;
   }, [audioLevel]);
@@ -155,7 +156,7 @@ function ScreenEdgeWaveform({ audioLevel, isActive }: { audioLevel: number; isAc
 
     const animate = () => {
       timeRef.current += 0.015;
-      
+
       // Smoothly slide in/out based on isActive (using ref for current value)
       const slideSpeed = 0.025; // ~0.6 second transition
       if (isActiveRef.current) {
@@ -163,11 +164,11 @@ function ScreenEdgeWaveform({ audioLevel, isActive }: { audioLevel: number; isAc
       } else {
         slideRef.current = Math.max(0, slideRef.current - slideSpeed);
       }
-      
+
       // Smooth the audio level for less jittery animation
       smoothAudioRef.current += (audioLevelRef.current - smoothAudioRef.current) * 0.1;
       const smoothAudio = smoothAudioRef.current;
-      
+
       const { width, height } = canvas;
       ctx.clearRect(0, 0, width, height);
 
@@ -180,33 +181,33 @@ function ScreenEdgeWaveform({ audioLevel, isActive }: { audioLevel: number; isAc
       // Eased slide value for smooth acceleration/deceleration
       const easeInOut = (t: number) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
       const slideEased = easeInOut(slideRef.current);
-      
+
       // Calculate slide offset - glow slides in from outside screen
       const maxSlideOffset = 150; // How far off-screen when hidden
       const slideOffset = (1 - slideEased) * maxSlideOffset;
 
       const effectiveLevel = Math.max(0.05, smoothAudio);
-      
+
       // Draw smooth glowing edge on left and right sides only
       const drawSideGlow = (isLeft: boolean) => {
         // Apply slide offset - left edge slides from left, right edge slides from right
         const baseX = isLeft ? 0 : width;
         const x = isLeft ? baseX - slideOffset : baseX + slideOffset;
-        
+
         const baseWidth = 20 + effectiveLevel * 40;
         const numPoints = 8; // Few control points for smooth curves
-        
+
         // Generate smooth control points using sine waves
         const points: { y: number; offset: number }[] = [];
         for (let i = 0; i <= numPoints; i++) {
           const t = i / numPoints;
           const y = t * height;
-          
+
           // Smooth sine waves for gentle undulation
           const wave1 = Math.sin(t * Math.PI * 2 + timeRef.current * 0.8) * 0.5;
           const wave2 = Math.sin(t * Math.PI * 1.5 - timeRef.current * 0.5) * 0.3;
           const wave3 = Math.sin(t * Math.PI * 3 + timeRef.current * 1.2) * 0.2;
-          
+
           const offset = (wave1 + wave2 + wave3) * baseWidth * effectiveLevel;
           points.push({ y, offset });
         }
@@ -223,31 +224,31 @@ function ScreenEdgeWaveform({ audioLevel, isActive }: { audioLevel: number; isAc
 
         layers.forEach(layer => {
           ctx.beginPath();
-          
+
           // Start from edge
           ctx.moveTo(x, 0);
-          
+
           // Draw smooth bezier curve through points
           for (let i = 0; i < points.length - 1; i++) {
             const curr = points[i];
             const next = points[i + 1];
-            
+
             const currX = x + (isLeft ? 1 : -1) * (layer.width + curr.offset);
             const nextX = x + (isLeft ? 1 : -1) * (layer.width + next.offset);
-            
+
             const midY = (curr.y + next.y) / 2;
             const midX = (currX + nextX) / 2;
-            
+
             if (i === 0) {
               ctx.lineTo(currX, curr.y);
             }
             ctx.quadraticCurveTo(currX, curr.y + (next.y - curr.y) * 0.5, midX, midY);
           }
-          
+
           // Last point
           const last = points[points.length - 1];
           ctx.lineTo(x + (isLeft ? 1 : -1) * (layer.width + last.offset), last.y);
-          
+
           // Close back to edge
           ctx.lineTo(x, height);
           ctx.lineTo(x, 0);
@@ -295,20 +296,31 @@ const getWingSpeed = (state: NaviState) => {
   switch (state) {
     case 'offline': return 0; // No flapping when offline
     case 'listening': return 0.12; // Fast buzzing
-    case 'thinking': return 0.5; // Slow, calm
+    case 'thinking': return 0.15; // Fast excited flapping
     case 'speaking': return 0.2; // Medium excited
     default: return 0.32; // Normal idle
   }
 };
 
-export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuState }: NaviProps) {
+export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuState, spinTrigger = 0 }: NaviProps) {
   const particles = [0, 0.35, 0.7, 1.05, 1.4, 1.75, 2.1];
   const flapSpeed = getWingSpeed(state);
 
   // Track if we've connected (transitioned from offline)
   const [hasConnected, setHasConnected] = useState(false);
   const [wingScale, setWingScale] = useState(0); // Start at 0 when offline
+  const [wingSpinRotation, setWingSpinRotation] = useState(0); // For triggered spins
   const prevStateRef = useRef<NaviState>(state);
+  const prevSpinTriggerRef = useRef(spinTrigger);
+
+  // Detect spin trigger changes
+  useEffect(() => {
+    if (spinTrigger !== prevSpinTriggerRef.current && spinTrigger > 0) {
+      // Trigger a 360 spin
+      setWingSpinRotation(prev => prev + 360);
+    }
+    prevSpinTriggerRef.current = spinTrigger;
+  }, [spinTrigger]);
 
   // Detect transition from offline to connected states
   useEffect(() => {
@@ -472,14 +484,14 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
       // Has selection - position above the selected button
       const targetX = radialMenuState.selectedButtonPosition.x - centerX;
       const targetY = radialMenuState.selectedButtonPosition.y - centerY - 80; // 80px above the button
-      
+
       setRadialOverride({ x: targetX, y: targetY });
       setRadialScale(0.6);
     } else {
       // Menu open but no selection - position above main button
       const targetX = radialMenuState.mainButtonCenter.x - centerX;
       const targetY = radialMenuState.mainButtonCenter.y - centerY + RADIAL_DEFAULT_OFFSET_Y;
-      
+
       setRadialOverride({ x: targetX, y: targetY });
       setRadialScale(0.6);
     }
@@ -495,7 +507,7 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
 
   // Animated scale for radial menu transitions
   const animatedScale = useSpring(radialScale, { stiffness: 300, damping: 25 });
-  
+
   useEffect(() => {
     animatedScale.set(radialScale);
   }, [radialScale, animatedScale]);
@@ -534,6 +546,12 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
         const t = (elapsed % 0.5) / 0.5 * Math.PI * 2;
         newX = 0;
         newY = Math.sin(t) * -5;
+      } else if (state === 'thinking') {
+        // Excited bobbing and slight wandering
+        const t = (elapsed % 0.6) / 0.6 * Math.PI * 2;
+        const wanderT = (elapsed % 2) / 2 * Math.PI * 2;
+        newX = Math.sin(wanderT) * 8;
+        newY = Math.sin(t) * -6 + Math.cos(wanderT * 0.5) * 4;
       } else if (state === 'speaking') {
         // Gentle floating
         const t = (elapsed % 1.5) / 1.5 * Math.PI * 2;
@@ -576,10 +594,10 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
     <>
       {/* Screen edge waveform for listening state */}
       <ScreenEdgeWaveform audioLevel={audioLevel} isActive={state === 'listening'} />
-      
+
       <div
         ref={containerRef}
-        className="fixed inset-0 flex items-start justify-center cursor-pointer select-none pointer-events-none z-[60] pt-[20vh]"
+        className="fixed inset-0 flex items-start justify-center cursor-pointer select-none pointer-events-none z-[60] pt-[26vh]"
         style={{ touchAction: 'none' }}
       >
       {/* Scaled container for all visual elements - combines prop scale with radial menu scale */}
@@ -646,11 +664,11 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
             initial={{ scale: 0, rotate: 0 }}
             animate={{
               scale: wingScale,
-              rotate: hasConnected && wingScale === 1 ? 360 : 0,
+              rotate: wingScale === 1 ? (hasConnected ? 360 : 0) + wingSpinRotation : 0,
             }}
             transition={{
               scale: { duration: 0.6, ease: "easeOut" },
-              rotate: { duration: 0.6, ease: "easeOut" },
+              rotate: { duration: 0.5, ease: "easeOut" },
             }}
           >
             <motion.img
@@ -739,11 +757,11 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
             initial={{ scale: 0, rotate: 0 }}
             animate={{
               scale: wingScale,
-              rotate: hasConnected && wingScale === 1 ? -360 : 0,
+              rotate: wingScale === 1 ? (hasConnected ? -360 : 0) - wingSpinRotation : 0,
             }}
             transition={{
               scale: { duration: 0.6, ease: "easeOut", delay: 0.1 },
-              rotate: { duration: 0.6, ease: "easeOut", delay: 0.1 },
+              rotate: { duration: 0.5, ease: "easeOut", delay: 0.1  },
             }}
           >
             <motion.img

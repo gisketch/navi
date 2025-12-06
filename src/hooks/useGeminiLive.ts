@@ -1,28 +1,48 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, Modality, type Session, type LiveServerMessage } from '@google/genai';
-import { GEMINI_MODEL, AUDIO_CONFIG } from '../utils/constants';
+import { GEMINI_MODEL, AUDIO_CONFIG, type ChatMessage } from '../utils/constants';
+import { TOOLS } from '../utils/tools';
+import { pb } from '../utils/pocketbase';
 
 const INPUT_SAMPLE_RATE = AUDIO_CONFIG.INPUT_SAMPLE_RATE;
-import type { ChatMessage } from '../utils/constants';
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+interface ToolCall {
+  functionCalls?: {
+    id?: string;
+    name?: string;
+    args?: Record<string, any>;
+  }[];
+}
+
+interface ToolResponse {
+  functionResponses: {
+    id: string;
+    name: string;
+    response: Record<string, any>;
+  }[];
+}
 
 interface UseGeminiLiveOptions {
   apiKey: string;
   systemInstruction?: string;
   onAudioResponse?: (audioData: string) => void;
   onError?: (error: Error) => void;
+  saveNoteWebhook: string;
 }
 
 interface UseGeminiLiveReturn {
   status: ConnectionStatus;
   messages: ChatMessage[];
   currentTurn: { role: 'user' | 'assistant'; text: string; id: string } | null;
+  liveStatus: string | null;
   connect: () => Promise<void>;
   disconnect: () => void;
   sendAudio: (base64Audio: string) => void;
   sendText: (text: string) => void;
   clearMessages: () => void;
+  isToolActive: boolean;
 }
 
 export function useGeminiLive({
@@ -30,10 +50,13 @@ export function useGeminiLive({
   systemInstruction,
   onAudioResponse,
   onError,
+  saveNoteWebhook,
 }: UseGeminiLiveOptions): UseGeminiLiveReturn {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [currentTurn, setCurrentTurn] = useState<{ role: 'user' | 'assistant'; text: string; id: string } | null>(null);
+  const [liveStatus, setLiveStatus] = useState<string | null>(null);
+  const [isToolActive, setIsToolActive] = useState(false);
 
   const sessionRef = useRef<Session | null>(null);
   const aiRef = useRef<GoogleGenAI | null>(null);
@@ -51,6 +74,8 @@ export function useGeminiLive({
     assistantId: null
   });
   const statusRef = useRef<ConnectionStatus>('disconnected');
+  // Track active agentic task (one at a time)
+  const activeTaskRef = useRef<{ id: string; processingText: string; savingText: string } | null>(null);
 
   // Keep statusRef in sync
   useEffect(() => {
@@ -69,6 +94,119 @@ export function useGeminiLive({
     setMessages(prev => [...prev, message]);
   }, []);
 
+  // Handle Tool Calls
+  const handleToolCall = useCallback(async (toolCall: ToolCall) => {
+    const functionCalls = toolCall.functionCalls;
+    if (!functionCalls || functionCalls.length === 0) return;
+
+    for (const call of functionCalls) {
+      if (call.name === 'saveNote') {
+        const { content, processingText, savingText } = call.args as any;
+        const taskId = crypto.randomUUID();
+
+        console.log('[Navi] Tool Call: saveNote', { taskId, content, processingText, savingText });
+
+        // 1. Set Status UI
+        activeTaskRef.current = { id: taskId, processingText, savingText };
+        setLiveStatus(processingText);
+        setIsToolActive(true);
+
+        // 2. Trigger Webhook
+        try {
+          await fetch(saveNoteWebhook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: taskId, content }),
+          });
+        } catch (err) {
+          console.error('[Navi] Webhook failed', err);
+          setLiveStatus(null);
+          setIsToolActive(false);
+          activeTaskRef.current = null;
+
+          // Send Error Response
+          sessionRef.current?.sendToolResponse({
+            functionResponses: [{
+              id: call.id || 'unknown',
+              name: call.name || 'unknown',
+              response: { error: `Failed to trigger action. Error: ${err instanceof Error ? err.message : String(err)}. Please respond sadly to the user about this failure.` }
+            }]
+          });
+          return;
+        }
+
+        // 3. Subscribe to PocketBase updates
+        // We defer the response to Gemini until completion
+        console.log(`[Navi] Subscribing to task_updates for ${taskId}`);
+        try {
+          // Subscribe to ALL updates in the collection and filter client-side
+          // because we don't know the Record ID yet.
+          await pb.collection('task_updates').subscribe('*', (e) => {
+            const record = e.record;
+            if (record.task_id === taskId) {
+              console.log('[Navi] PB Update:', record.status, record.message);
+
+              if (record.status === 'processing') {
+                // Already set, but ensure consistency
+                setLiveStatus(processingText);
+              } else if (record.status === 'saving') {
+                setLiveStatus(savingText);
+              } else if (record.status === 'completed') {
+                // Task Completed
+                setLiveStatus(null);
+                setIsToolActive(false);
+                pb.collection('task_updates').unsubscribe(); // Cleanup
+                activeTaskRef.current = null;
+
+                // 4. Send Tool Response to Gemini
+                const response: ToolResponse = {
+                  functionResponses: [{
+                    id: call.id || 'unknown',
+                    name: call.name || 'unknown',
+                    response: { result: `Note saved successfully. File: ${record.message}` }
+                  }]
+                };
+
+                console.log('[Navi] Sending Tool Response');
+                sessionRef.current?.sendToolResponse(response);
+              } else if (record.status === 'error') {
+                setLiveStatus(null);
+                setIsToolActive(false);
+                pb.collection('task_updates').unsubscribe(); // Cleanup
+                activeTaskRef.current = null;
+
+                // Send Error Response
+                sessionRef.current?.sendToolResponse({
+                  functionResponses: [{
+                    id: call.id || 'unknown',
+                    name: call.name || 'unknown',
+                    response: { error: record.message || "Unknown error occurred" }
+                  }]
+                });
+              }
+            }
+          });
+        } catch (pbError) {
+          console.error('[Navi] PB Subscribe Error', pbError);
+          setLiveStatus(null);
+          setIsToolActive(false);
+          activeTaskRef.current = null;
+
+          sessionRef.current?.sendToolResponse({
+            functionResponses: [{
+              id: call.id || 'unknown',
+              name: call.name || 'unknown',
+              response: { error: `Failed to subscribe to updates. Error: ${pbError}. Please respond sadly to the user about this failure.` }
+            }]
+          });
+        }
+
+        // We do NOT add to functionResponses here because we are handling it asynchronously via PB.
+        // This effectively "holds" the turn.
+      }
+    }
+  }, [saveNoteWebhook]);
+
   const processResponseQueue = useCallback(async () => {
     if (processingRef.current) return;
     processingRef.current = true;
@@ -83,6 +221,11 @@ export function useGeminiLive({
           ? message.data
           : Buffer.from(message.data).toString('base64');
         onAudioResponse?.(audioData);
+      }
+
+      // Handle Tool Call
+      if (message.toolCall) {
+        await handleToolCall(message.toolCall);
       }
 
       // Handle server content (transcriptions)
@@ -147,7 +290,7 @@ export function useGeminiLive({
     }
 
     processingRef.current = false;
-  }, [addMessage, onAudioResponse]);
+  }, [addMessage, onAudioResponse, handleToolCall]);
 
   const connect = useCallback(async () => {
     if (!apiKey) {
@@ -164,6 +307,7 @@ export function useGeminiLive({
         responseModalities: [Modality.AUDIO],
         inputAudioTranscription: {},
         outputAudioTranscription: {},
+        tools: TOOLS, // Add Tools
       };
 
       if (systemInstruction) {
@@ -207,7 +351,15 @@ export function useGeminiLive({
       sessionRef.current.close();
       sessionRef.current = null;
     }
+    // Cleanup active PB subscriptions
+    if (activeTaskRef.current) {
+      pb.collection('task_updates').unsubscribe();
+      activeTaskRef.current = null;
+    }
+
     setStatus('disconnected');
+    setLiveStatus(null);
+    setIsToolActive(false);
     responseQueueRef.current = [];
     currentTranscriptRef.current = { user: '', userId: null, assistant: '', assistantId: null };
     setCurrentTurn(null);
@@ -225,7 +377,8 @@ export function useGeminiLive({
     }
 
     try {
-      console.log('[Navi] Sending audio to Gemini, size:', base64Audio.length);
+      // Create a specific log for audio sending to reduce noise?
+      // console.log('[Navi] Sending audio to Gemini, size:', base64Audio.length);
       sessionRef.current.sendRealtimeInput({
         audio: {
           data: base64Audio,
@@ -274,6 +427,8 @@ export function useGeminiLive({
     status,
     messages,
     currentTurn,
+    liveStatus, // Expose live status
+    isToolActive, // Expose tool active state
     connect,
     disconnect,
     sendAudio,
