@@ -3,10 +3,19 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 
 export type NaviState = 'offline' | 'idle' | 'listening' | 'thinking' | 'speaking';
 
+// Radial menu state for Navi positioning
+export interface RadialMenuState {
+  isOpen: boolean;
+  selectedButtonId: string | null;
+  selectedButtonPosition: { x: number; y: number } | null;
+  mainButtonCenter: { x: number; y: number };
+}
+
 interface NaviProps {
   state?: NaviState;
   audioLevel?: number; // 0-1, for mic input or output volume
   scale?: number; // Overall scale of Navi (default 1)
+  radialMenuState?: RadialMenuState; // For positioning Navi above radial menu buttons
 }
 
 // Color schemes for each state
@@ -294,9 +303,8 @@ const getWingSpeed = (state: NaviState) => {
   }
 };
 
-export function Navi({ state = 'offline', audioLevel = 0, scale = 1 }: NaviProps) {
+export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuState }: NaviProps) {
   const particles = [0, 0.35, 0.7, 1.05, 1.4, 1.75, 2.1];
-  const colors = stateColors[state];
   const flapSpeed = getWingSpeed(state);
 
   // Track if we've connected (transitioned from offline)
@@ -442,12 +450,72 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1 }: NaviProps
     };
   }, [state, isTouching, touchTargetX, touchTargetY, idleX, idleY]);
 
-  // Animate idle position based on state (when not touching)
+  // Track radial menu override position
+  const [radialOverride, setRadialOverride] = useState<{ x: number; y: number } | null>(null);
+  const [radialScale, setRadialScale] = useState(1);
+  const isRadialMenuOpen = radialMenuState?.isOpen ?? false;
+
+  // Configurable offset above main button when radial menu is open (no selection)
+  const RADIAL_DEFAULT_OFFSET_Y = -120; // pixels above main button
+
+  // Position Navi above selected radial menu button
   useEffect(() => {
+    if (!radialMenuState?.isOpen) {
+      // Menu closed - clear override
+      setRadialOverride(null);
+      setRadialScale(1);
+      return;
+    }
+
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight * 0.2; // Navi's default center
+
+    if (radialMenuState.selectedButtonPosition) {
+      // Has selection - position above the selected button
+      const targetX = radialMenuState.selectedButtonPosition.x - centerX;
+      const targetY = radialMenuState.selectedButtonPosition.y - centerY - 80; // 80px above the button
+      
+      setRadialOverride({ x: targetX, y: targetY });
+      setRadialScale(0.6);
+    } else {
+      // Menu open but no selection - position above main button
+      const targetX = radialMenuState.mainButtonCenter.x - centerX;
+      const targetY = radialMenuState.mainButtonCenter.y - centerY + RADIAL_DEFAULT_OFFSET_Y;
+      
+      setRadialOverride({ x: targetX, y: targetY });
+      setRadialScale(0.6);
+    }
+  }, [radialMenuState]);
+
+  // Update touch target when radial override changes
+  useEffect(() => {
+    if (radialOverride) {
+      touchTargetX.set(radialOverride.x);
+      touchTargetY.set(radialOverride.y);
+    }
+  }, [radialOverride, touchTargetX, touchTargetY]);
+
+  // Animated scale for radial menu transitions
+  const animatedScale = useSpring(radialScale, { stiffness: 300, damping: 25 });
+  
+  useEffect(() => {
+    animatedScale.set(radialScale);
+  }, [radialScale, animatedScale]);
+
+  // Animate idle position based on state (when not touching AND radial menu is closed)
+  useEffect(() => {
+    // Skip idle animation when radial menu is open
+    if (isRadialMenuOpen) return;
+
     let animationFrame: number;
     let startTime = Date.now();
 
     const animate = () => {
+      // Double check radial menu isn't open (in case state changed mid-animation)
+      if (isRadialMenuOpen) {
+        return;
+      }
+
       const elapsed = (Date.now() - startTime) / 1000;
 
       let newX = 0;
@@ -489,7 +557,7 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1 }: NaviProps
 
     animate();
     return () => cancelAnimationFrame(animationFrame);
-  }, [state, idleX, idleY, touchTargetX, touchTargetY, isTouching]);
+  }, [state, idleX, idleY, touchTargetX, touchTargetY, isTouching, isRadialMenuOpen]);
 
   // Dynamic wing speed - faster when touching/moving
   const effectiveFlapSpeed = isTouching ? Math.max(0.08, flapSpeed * 0.5) : flapSpeed;
@@ -513,11 +581,11 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1 }: NaviProps
       
       <div
         ref={containerRef}
-        className="fixed inset-0 flex items-start justify-center cursor-pointer select-none pointer-events-none z-50 pt-[20vh]"
+        className="fixed inset-0 flex items-start justify-center cursor-pointer select-none pointer-events-none z-[60] pt-[20vh]"
         style={{ touchAction: 'none' }}
       >
-      {/* Scaled container for all visual elements */}
-      <div style={{ transform: `scale(${scale})` }}>
+      {/* Scaled container for all visual elements - combines prop scale with radial menu scale */}
+      <motion.div style={{ scale: useTransform(animatedScale, s => scale * s) }}>
       {/* Main Navi container */}
       <motion.div
         className="relative z-10"
@@ -701,7 +769,7 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1 }: NaviProps
           </motion.div>
         </div>
       </motion.div>
-      </div>
+      </motion.div>
     </div>
     </>
   );
