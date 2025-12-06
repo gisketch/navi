@@ -35,14 +35,12 @@ const Word = memo(function Word({
   index,
   messageId,
   role,
-  wordCount,
   naviPosition,
 }: {
   word: string;
   index: number;
   messageId: string;
   role: 'user' | 'assistant';
-  wordCount: number;
   naviPosition: { x: number; y: number };
 }) {
   const ref = useRef<HTMLSpanElement>(null);
@@ -188,7 +186,6 @@ const MagicText = memo(function MagicText({
             index={index}
             messageId={messageId}
             role={role}
-            wordCount={currentCount}
             naviPosition={naviPosition}
           />
         );
@@ -197,21 +194,25 @@ const MagicText = memo(function MagicText({
   );
 });
 
-export function ChatUI({ messages, currentTurn, isCapturing }: ChatUIProps) {
+export function ChatUI({ currentTurn, isCapturing }: ChatUIProps) {
   // Track Navi's real position, updated periodically
   const [naviPosition, setNaviPosition] = useState(() => getNaviPosition());
+  const lastPositionRef = useRef(naviPosition);
 
   // Update Navi position periodically (for when Navi moves)
+  // Optimized: only trigger re-render when position actually changes
   useLayoutEffect(() => {
-    const updatePosition = () => setNaviPosition(getNaviPosition());
-
-    // Update immediately
-    updatePosition();
-
-    // Use requestAnimationFrame for smooth tracking
     let animationId: number;
     const tick = () => {
-      updatePosition();
+      const newPos = getNaviPosition();
+      // Only update state if position changed significantly (> 1px)
+      if (
+        Math.abs(newPos.x - lastPositionRef.current.x) > 1 ||
+        Math.abs(newPos.y - lastPositionRef.current.y) > 1
+      ) {
+        lastPositionRef.current = newPos;
+        setNaviPosition(newPos);
+      }
       animationId = requestAnimationFrame(tick);
     };
     animationId = requestAnimationFrame(tick);

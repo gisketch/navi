@@ -131,7 +131,6 @@ export function App() {
         connectionStatus={connectionStatus}
         isCapturing={isCapturing}
         isPlaying={isPlaying}
-        audioLevel={audioLevel}
         onStartCapture={startCapture}
         onStopCapture={stopCapture}
         onSendText={sendText}

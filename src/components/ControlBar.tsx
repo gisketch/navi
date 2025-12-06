@@ -19,7 +19,6 @@ interface ControlBarProps {
   connectionStatus: ConnectionStatus;
   isCapturing: boolean;
   isPlaying: boolean;
-  audioLevel: number;
   onStartCapture: () => void | Promise<void>;
   onStopCapture: () => void;
   onSendText: (text: string) => void;
@@ -48,7 +47,6 @@ export function ControlBar({
   connectionStatus,
   isCapturing,
   isPlaying,
-  audioLevel,
   onStartCapture,
   onStopCapture,
   onSendText,
@@ -126,16 +124,6 @@ export function ControlBar({
       setShowKeyboard(false); // Hide keyboard after sending
     }
   }, [textInput, isConnected, onSendText]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSendText();
-      }
-    },
-    [handleSendText]
-  );
 
   // Calculate which radial button is closest to finger position
   const getClosestButton = useCallback((fingerX: number, fingerY: number) => {
