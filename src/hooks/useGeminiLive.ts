@@ -222,8 +222,9 @@ export function useGeminiLive({
         setLiveStatus('Opening Obsidian...');
         setIsToolActive(true);
 
-        // Construct Obsidian URI
-        const uri = `obsidian://open?file=${encodeURIComponent(filename)}`;
+        // Construct Obsidian URI - Using SEARCH to handle sync delays
+        // "open" fails if file doesn't exist yet. "search" works immediately and shows result when synced.
+        const uri = `obsidian://search?query=${encodeURIComponent(filename)}`;
 
         // Use existing window to open the URI Scheme
         // valid for PWA/Mobile usually to trigger intent
