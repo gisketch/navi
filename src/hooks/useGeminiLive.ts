@@ -163,7 +163,7 @@ export function useGeminiLive({
                   functionResponses: [{
                     id: call.id || 'unknown',
                     name: call.name || 'unknown',
-                    response: { result: `Note saved successfully. File: ${record.message}` }
+                    response: { result: `Note saved successfully. File: ${record.message}. Tell the user you saved it and Ask the user: "Would you like to see it?"` }
                   }]
                 };
 
@@ -215,6 +215,33 @@ export function useGeminiLive({
 
         // We do NOT add to functionResponses here because we are handling it asynchronously via PB.
         // This effectively "holds" the turn.
+      } else if (call.name === 'openObsidianNote') {
+        const { filename } = call.args as any;
+        console.log('[Navi] Tool Call: openObsidianNote', { filename });
+
+        setLiveStatus('Opening Obsidian...');
+        setIsToolActive(true);
+
+        // Construct Obsidian URI
+        const uri = `obsidian://open?file=${encodeURIComponent(filename)}`;
+
+        // Use existing window to open the URI Scheme
+        // valid for PWA/Mobile usually to trigger intent
+        window.open(uri, '_self');
+
+        // Simulate a brief delay for UI feedback
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        setLiveStatus(null);
+        setIsToolActive(false);
+
+        sessionRef.current?.sendToolResponse({
+          functionResponses: [{
+            id: call.id || 'unknown',
+            name: call.name || 'unknown',
+            response: { result: 'Obsidian opened successfully.' }
+          }]
+        });
       }
     }
   }, [saveNoteWebhook]);

@@ -64,7 +64,7 @@ export function SettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-2xl bg-gray-900/90 border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -215,6 +215,12 @@ export function SettingsModal({
             <LogOut className="w-4 h-4" />
             Disconnect Session
           </button>
+
+          <div className="text-center pt-2">
+            <span className="text-[10px] text-gray-600 font-mono">
+              v{__APP_VERSION__} (Build {__COMMIT_COUNT__})
+            </span>
+          </div>
         </div>
       </div>
     </div>

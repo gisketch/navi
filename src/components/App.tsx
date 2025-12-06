@@ -130,17 +130,17 @@ export function App() {
       )}
 
       {/* Navi overlay - positioned absolutely to move across entire screen */}
-      <Navi 
-        state={naviState} 
-        audioLevel={audioLevel} 
-        scale={1.2} 
+      <Navi
+        state={naviState}
+        audioLevel={audioLevel}
+        scale={1.2}
         radialMenuState={radialMenuState}
         spinTrigger={spinTrigger}
       />
 
       {/* Live Status (Agentic Tools) - with animated word display */}
-      <LiveStatus 
-        status={liveStatus} 
+      <LiveStatus
+        status={liveStatus}
         onStatusChange={() => setSpinTrigger(prev => prev + 1)}
       />
 
