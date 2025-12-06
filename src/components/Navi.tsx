@@ -673,7 +673,7 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
             />
           </motion.div>
 
-          <div id="body" className="relative mt-6 z-20">
+          <div id="navi-body-center" className="relative mt-6 z-20">
             {/* Outer glow circle - layered for color transitions (reduced opacity) */}
             {Object.entries(stateColors).map(([colorState, colorValues]) => (
               <motion.div

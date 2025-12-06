@@ -1,4 +1,4 @@
-import { useMemo, memo, useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
+import { useMemo, memo, useRef, useLayoutEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ChatMessage } from '../utils/constants';
 
@@ -8,17 +8,24 @@ interface ChatUIProps {
   isCapturing: boolean;
 }
 
-// Get Navi's approximate center position (relative to viewport)
+// Get Navi's actual center position from DOM
 const getNaviPosition = () => {
-  const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight * 0.2 + window.innerHeight * 0.2 * 0.1; // pt-[20vh] + some offset
-  return { x: centerX, y: centerY };
+  const naviBody = document.getElementById('navi-body-center');
+  if (naviBody) {
+    const rect = naviBody.getBoundingClientRect();
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+  }
+  // Fallback if element not found
+  return { x: window.innerWidth / 2, y: window.innerHeight * 0.25 };
 };
 
 // Get main button position (bottom of screen)
 const getButtonPosition = () => {
   const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight - 80; // Approximate button position
+  const centerY = window.innerHeight - 80;
   return { x: centerX, y: centerY };
 };
 
@@ -29,12 +36,14 @@ const Word = memo(function Word({
   messageId,
   role,
   wordCount,
+  naviPosition,
 }: {
   word: string;
   index: number;
   messageId: string;
   role: 'user' | 'assistant';
   wordCount: number;
+  naviPosition: { x: number; y: number };
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [offsets, setOffsets] = useState({ toNavi: { x: 0, y: 0 }, fromButton: { y: 0 }, fromNavi: { x: 0, y: 0 } });
@@ -48,25 +57,24 @@ const Word = memo(function Word({
         x: rect.left + rect.width / 2,
         y: rect.top + rect.height / 2
       };
-      
-      const naviPos = getNaviPosition();
+
       const buttonPos = getButtonPosition();
-      
+
       setOffsets({
         toNavi: {
-          x: naviPos.x - wordCenter.x,
-          y: naviPos.y - wordCenter.y
+          x: naviPosition.x - wordCenter.x,
+          y: naviPosition.y - wordCenter.y
         },
         fromButton: {
           y: buttonPos.y - wordCenter.y
         },
         fromNavi: {
-          x: naviPos.x - wordCenter.x,
-          y: naviPos.y - wordCenter.y
+          x: naviPosition.x - wordCenter.x,
+          y: naviPosition.y - wordCenter.y
         }
       });
     }
-  }, [isSpace]);
+  }, [isSpace, naviPosition.x, naviPosition.y]);
 
   const wordDelay = index * 0.02;
 
@@ -153,11 +161,13 @@ const MagicText = memo(function MagicText({
   messageId,
   className,
   role,
+  naviPosition,
 }: {
   text: string;
   messageId: string;
   className?: string;
   role: 'user' | 'assistant';
+  naviPosition: { x: number; y: number };
 }) {
   const words = useMemo(() => text.split(/(\s+)/), [text]);
   const wordCounts = useRef(new Map<string, number>()).current;
@@ -179,6 +189,7 @@ const MagicText = memo(function MagicText({
             messageId={messageId}
             role={role}
             wordCount={currentCount}
+            naviPosition={naviPosition}
           />
         );
       })}
@@ -187,6 +198,27 @@ const MagicText = memo(function MagicText({
 });
 
 export function ChatUI({ messages, currentTurn, isCapturing }: ChatUIProps) {
+  // Track Navi's real position, updated periodically
+  const [naviPosition, setNaviPosition] = useState(() => getNaviPosition());
+
+  // Update Navi position periodically (for when Navi moves)
+  useLayoutEffect(() => {
+    const updatePosition = () => setNaviPosition(getNaviPosition());
+
+    // Update immediately
+    updatePosition();
+
+    // Use requestAnimationFrame for smooth tracking
+    let animationId: number;
+    const tick = () => {
+      updatePosition();
+      animationId = requestAnimationFrame(tick);
+    };
+    animationId = requestAnimationFrame(tick);
+
+    return () => cancelAnimationFrame(animationId);
+  }, []);
+
   // Determine content for display
   const content = useMemo(() => {
     if (currentTurn) {
@@ -221,7 +253,7 @@ export function ChatUI({ messages, currentTurn, isCapturing }: ChatUIProps) {
               exit={{ opacity: 1 }}
               className="w-full text-center"
             >
-              <div className={`text-4xl font-medium leading-tight tracking-tight text-white ${
+              <div className={`text-2xl font-medium leading-tight tracking-tight text-white ${
                 content.isPlaceholder ? 'animate-pulse opacity-50' : ''
               }`}>
                 {content.isPlaceholder ? (
@@ -231,6 +263,7 @@ export function ChatUI({ messages, currentTurn, isCapturing }: ChatUIProps) {
                     text={content.text}
                     messageId={content.id}
                     role={content.role}
+                    naviPosition={naviPosition}
                   />
                 )}
               </div>
