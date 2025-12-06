@@ -74,24 +74,41 @@ function Particle({ delay, state }: { delay: number; state: NaviState }) {
   const orbitAngle = useMemo(() => Math.random() * 360, []);
 
   if (state === 'thinking') {
-    // Orbiting particles for thinking state
+    // Orbiting particles for thinking state (Electron-style 3D orbits)
     return (
       <motion.div
-        className="absolute size-2 rounded-full bg-white pointer-events-none"
-        style={{
-          boxShadow: `0 0 6px 2px rgba(255,255,255,0.8), 0 0 12px 4px ${stateColors.thinking.glow}`,
-          left: "50%",
-          top: "50%",
-        }}
-        animate={{
-          rotate: [orbitAngle, orbitAngle + 360],
-          x: [0, 0],
-          y: [-35, -35],
-        }}
-        transition={{
-          rotate: { duration: 1.5, repeat: Infinity, ease: "linear", delay: delay * 0.3 },
-        }}
-      />
+        className="absolute top-1/2 left-1/2 w-0 h-0"
+        style={{ rotate: orbitAngle }} // Rotate the entire orbit plane
+      >
+        <motion.div
+          className="absolute -top-1 -left-1 size-2 rounded-full bg-white pointer-events-none"
+          style={{
+            boxShadow: `0 0 6px 2px rgba(255,255,255,0.8), 0 0 12px 4px ${stateColors.thinking.glow}`,
+          }}
+          initial={{
+            opacity: 0
+          }}
+          animate={{
+            // Elliptical orbit path
+            x: [60, 0, -60, 0, 60],
+            y: [0, -15, 0, 15, 0],
+            // Scale and Opacity to simulate 3D depth (passing behind/in front)
+            scale: [1, 0.5, 1, 1.4, 1],
+            opacity: [1, 0.5, 1, 1, 1],
+            // Z-index switching to actually pass behind/in front of the body (body is z-20)
+            zIndex: [25, 1, 25, 30, 25],
+          }}
+          exit={{
+            opacity: 0
+          }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            ease: "linear",
+            delay: delay,
+          }}
+        />
+      </motion.div>
     );
   }
 
@@ -600,193 +617,193 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
         className="fixed inset-0 flex items-start justify-center cursor-pointer select-none pointer-events-none z-[60] pt-[26vh]"
         style={{ touchAction: 'none' }}
       >
-      {/* Scaled container for all visual elements - combines prop scale with radial menu scale */}
-      <motion.div style={{ scale: useTransform(animatedScale, s => scale * s) }}>
-      {/* Main Navi container */}
-      <motion.div
-        className="relative z-10"
-        style={{ x: bodyX, y: bodyY }}
-        animate={{ scale: isTouching ? 1.15 : (state === 'listening' ? 1.1 : 1) }}
-        transition={{ scale: { duration: 0.3 } }}
-      >
-        {/* Big gradient circle glow - follows body with drag (reduced opacity) */}
-        {Object.entries(stateColors).map(([colorState, colorValues]) => (
+        {/* Scaled container for all visual elements - combines prop scale with radial menu scale */}
+        <motion.div style={{ scale: useTransform(animatedScale, s => scale * s) }}>
+          {/* Main Navi container */}
           <motion.div
-            key={`outer-glow-${colorState}`}
-            className="absolute z-0 size-40 rounded-full blur-xl left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{
-              background: colorValues.outerGradient,
-              x: glowLagX,
-              y: glowLagY,
-            }}
-            animate={{
-              scale: state === 'thinking' ? [1, 1.2, 1] : [1, 1.1, 1],
-              opacity: state === colorState
-                ? [0.2 + glowIntensity, 0.3 + glowIntensity, 0.2 + glowIntensity]
-                : 0,
-            }}
-            transition={{
-              scale: { duration: state === 'thinking' ? 0.5 : 2, repeat: Infinity, ease: "easeInOut" },
-              opacity: state === colorState
-                ? { duration: state === 'thinking' ? 0.5 : 2, repeat: Infinity, ease: "easeInOut" }
-                : { duration: 0.8, ease: "easeInOut" },
-            }}
-          />
-        ))}
-
-        {/* Simple circle glow on top - follows body with drag (reduced opacity) */}
-        {Object.entries(stateColors).map(([colorState, colorValues]) => (
-          <motion.div
-            key={`inner-glow-${colorState}`}
-            className="absolute z-0 size-20 rounded-full blur-md left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{
-              backgroundColor: colorValues.primary,
-              x: glowLagX,
-              y: glowLagY,
-            }}
-            animate={{
-              opacity: state === colorState ? glowIntensity + 0.1 : 0
-            }}
-            transition={{ duration: 0.8, ease: "easeInOut" }}
-          />
-        ))}
-
-        {/* Particles - only show when not offline */}
-        {state !== 'offline' && particles.map((delay, index) => (
-          <Particle key={`${state}-${index}`} delay={delay} state={state} />
-        ))}
-
-        <div className="flex flex-row items-center justify-center">
-          {/* Left wings - with drag/lag effect and reveal animation */}
-          <motion.div
-            className="flex flex-col items-end -mr-4 origin-right"
-            style={{ x: wingLagX, y: wingLagY }}
-            initial={{ scale: 0, rotate: 0 }}
-            animate={{
-              scale: wingScale,
-              rotate: wingScale === 1 ? (hasConnected ? 360 : 0) + wingSpinRotation : 0,
-            }}
-            transition={{
-              scale: { duration: 0.6, ease: "easeOut" },
-              rotate: { duration: 0.5, ease: "easeOut" },
-            }}
+            className="relative z-10"
+            style={{ x: bodyX, y: bodyY }}
+            animate={{ scale: isTouching ? 1.15 : (state === 'listening' ? 1.1 : 1) }}
+            transition={{ scale: { duration: 0.3 } }}
           >
-            <motion.img
-              key={`wing-lt-${effectiveFlapSpeed}-${wingScale}`}
-              className="size-16 origin-right"
-              src='wingtop.png'
-              id="wing-left-top"
-              animate={wingScale === 1 && state !== 'offline' ? { scaleX: [1, 0.4, 1], scaleY: [0.8, 1, 0.8] } : {}}
-              transition={{ duration: effectiveFlapSpeed || 0.32, repeat: Infinity, ease: "easeOut" }}
-            />
-            <motion.img
-              key={`wing-lb-${effectiveFlapSpeed}-${wingScale}`}
-              className="size-8 origin-right"
-              src='wingbot.png'
-              id="wing-left-bot"
-              animate={wingScale === 1 && state !== 'offline' ? { scaleX: [1, 0.4, 1] } : {}}
-              transition={{ duration: effectiveFlapSpeed || 0.32, repeat: Infinity, ease: "easeIn", delay: 0.05 }}
-            />
-          </motion.div>
-
-          <div id="navi-body-center" className="relative mt-6 z-20">
-            {/* Outer glow circle - layered for color transitions (reduced opacity) */}
+            {/* Big gradient circle glow - follows body with drag (reduced opacity) */}
             {Object.entries(stateColors).map(([colorState, colorValues]) => (
               <motion.div
-                key={`body-outer-${colorState}`}
-                className="absolute inset-0 size-16 -translate-x-2 -translate-y-2 rounded-full blur-sm"
-                style={{ background: colorValues.gradient }}
-                animate={{ opacity: state === colorState ? glowIntensity * 0.8 : 0 }}
+                key={`outer-glow-${colorState}`}
+                className="absolute z-0 size-40 rounded-full blur-xl left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                style={{
+                  background: colorValues.outerGradient,
+                  x: glowLagX,
+                  y: glowLagY,
+                }}
+                animate={{
+                  scale: state === 'thinking' ? [1, 1.2, 1] : [1, 1.1, 1],
+                  opacity: state === colorState
+                    ? [0.2 + glowIntensity, 0.3 + glowIntensity, 0.2 + glowIntensity]
+                    : 0,
+                }}
+                transition={{
+                  scale: { duration: state === 'thinking' ? 0.5 : 2, repeat: Infinity, ease: "easeInOut" },
+                  opacity: state === colorState
+                    ? { duration: state === 'thinking' ? 0.5 : 2, repeat: Infinity, ease: "easeInOut" }
+                    : { duration: 0.8, ease: "easeInOut" },
+                }}
+              />
+            ))}
+
+            {/* Simple circle glow on top - follows body with drag (reduced opacity) */}
+            {Object.entries(stateColors).map(([colorState, colorValues]) => (
+              <motion.div
+                key={`inner-glow-${colorState}`}
+                className="absolute z-0 size-20 rounded-full blur-md left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                style={{
+                  backgroundColor: colorValues.primary,
+                  x: glowLagX,
+                  y: glowLagY,
+                }}
+                animate={{
+                  opacity: state === colorState ? glowIntensity + 0.1 : 0
+                }}
                 transition={{ duration: 0.8, ease: "easeInOut" }}
               />
             ))}
-            {/* Main body sphere - layered for color transitions */}
-            <div className="relative size-12">
-              {/* White base body - prevents transparent gaps during color transitions */}
-              <div
-                className="absolute inset-0 size-12 rounded-full"
-                style={{
-                  background: 'radial-gradient(circle, #ffffff 0%, #f0f0f0 50%, #e0e0e0 100%)',
-                  boxShadow: '0 0 10px 3px rgba(255,255,255,0.5)',
-                }}
-              />
-              {/* Colored body layers */}
-              {Object.entries(stateColors).map(([colorState, colorValues]) => {
-                const isActive = state === colorState;
 
-                return (
+            {/* Particles - only show when not offline */}
+            {state !== 'offline' && particles.map((delay, index) => (
+              <Particle key={`${state}-${index}`} delay={delay} state={state} />
+            ))}
+
+            <div className="flex flex-row items-center justify-center">
+              {/* Left wings - with drag/lag effect and reveal animation */}
+              <motion.div
+                className="flex flex-col items-end -mr-4 origin-right"
+                style={{ x: wingLagX, y: wingLagY }}
+                initial={{ scale: 0, rotate: 0 }}
+                animate={{
+                  scale: wingScale,
+                  rotate: wingScale === 1 ? (hasConnected ? 360 : 0) + wingSpinRotation : 0,
+                }}
+                transition={{
+                  scale: { duration: 0.6, ease: "easeOut" },
+                  rotate: { duration: 0.5, ease: "easeOut" },
+                }}
+              >
+                <motion.img
+                  key={`wing-lt-${effectiveFlapSpeed}-${wingScale}`}
+                  className="size-16 origin-right"
+                  src='wingtop.png'
+                  id="wing-left-top"
+                  animate={wingScale === 1 && state !== 'offline' ? { scaleX: [1, 0.4, 1], scaleY: [0.8, 1, 0.8] } : {}}
+                  transition={{ duration: effectiveFlapSpeed || 0.32, repeat: Infinity, ease: "easeOut" }}
+                />
+                <motion.img
+                  key={`wing-lb-${effectiveFlapSpeed}-${wingScale}`}
+                  className="size-8 origin-right"
+                  src='wingbot.png'
+                  id="wing-left-bot"
+                  animate={wingScale === 1 && state !== 'offline' ? { scaleX: [1, 0.4, 1] } : {}}
+                  transition={{ duration: effectiveFlapSpeed || 0.32, repeat: Infinity, ease: "easeIn", delay: 0.05 }}
+                />
+              </motion.div>
+
+              <div id="navi-body-center" className="relative mt-6 z-20">
+                {/* Outer glow circle - layered for color transitions (reduced opacity) */}
+                {Object.entries(stateColors).map(([colorState, colorValues]) => (
                   <motion.div
-                    key={`body-main-${colorState}`}
+                    key={`body-outer-${colorState}`}
+                    className="absolute inset-0 size-16 -translate-x-2 -translate-y-2 rounded-full blur-sm"
+                    style={{ background: colorValues.gradient }}
+                    animate={{ opacity: state === colorState ? glowIntensity * 0.8 : 0 }}
+                    transition={{ duration: 0.8, ease: "easeInOut" }}
+                  />
+                ))}
+                {/* Main body sphere - layered for color transitions */}
+                <div className="relative size-12">
+                  {/* White base body - prevents transparent gaps during color transitions */}
+                  <div
                     className="absolute inset-0 size-12 rounded-full"
                     style={{
-                      background: colorValues.gradient,
-                      boxShadow: `0 0 15px 5px ${colorValues.glow}, 0 0 30px 10px ${colorValues.glowOuter}`,
-                    }}
-                    animate={{
-                      opacity: isActive ? 1 : 0,
-                      scale: isActive
-                        ? (state === 'offline'
-                            ? [1, 1.03, 1]  // Very subtle pulse for offline
-                            : state === 'thinking'
-                              ? [1, 1.15, 1]
-                              : state === 'idle'
-                                ? [1, 1.08, 1]
-                                : bodyScale)
-                        : 1,
-                    }}
-                    transition={{
-                      opacity: { duration: 0.8, ease: "easeInOut" },
-                      scale: state === 'offline'
-                        ? { duration: 3, repeat: Infinity, ease: "easeInOut" }
-                        : state === 'thinking'
-                          ? { duration: 0.4, repeat: Infinity, ease: "easeInOut" }
-                          : state === 'idle'
-                            ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
-                            : { duration: 0.1 },
+                      background: 'radial-gradient(circle, #ffffff 0%, #f0f0f0 50%, #e0e0e0 100%)',
+                      boxShadow: '0 0 10px 3px rgba(255,255,255,0.5)',
                     }}
                   />
-                );
-              })}
-            </div>
-          </div>
+                  {/* Colored body layers */}
+                  {Object.entries(stateColors).map(([colorState, colorValues]) => {
+                    const isActive = state === colorState;
 
-          {/* Right wings - with drag/lag effect and reveal animation */}
-          <motion.div
-            className="flex flex-col -ml-4 origin-left"
-            style={{ x: wingLagX, y: wingLagY }}
-            initial={{ scale: 0, rotate: 0 }}
-            animate={{
-              scale: wingScale,
-              rotate: wingScale === 1 ? (hasConnected ? -360 : 0) - wingSpinRotation : 0,
-            }}
-            transition={{
-              scale: { duration: 0.6, ease: "easeOut", delay: 0.1 },
-              rotate: { duration: 0.5, ease: "easeOut", delay: 0.1  },
-            }}
-          >
-            <motion.img
-              key={`wing-rt-${effectiveFlapSpeed}-${wingScale}`}
-              className="size-16 origin-right -translate-x-full"
-              src='wingtop.png'
-              id="wing-right-top"
-              style={{ scaleX: -1 }}
-              animate={wingScale === 1 && state !== 'offline' ? { scaleX: [-1, -0.4, -1], scaleY: [0.8, 1, 0.8] } : { scaleX: -1 }}
-              transition={{ duration: effectiveFlapSpeed || 0.32, repeat: Infinity, ease: "easeOut" }}
-            />
-            <motion.img
-              key={`wing-rb-${effectiveFlapSpeed}-${wingScale}`}
-              className="size-8 origin-right -translate-x-full"
-              src='wingbot.png'
-              id="wing-right-bot"
-              style={{ scaleX: -1 }}
-              animate={wingScale === 1 && state !== 'offline' ? { scaleX: [-1, -0.4, -1] } : { scaleX: -1 }}
-              transition={{ duration: effectiveFlapSpeed || 0.32, repeat: Infinity, ease: "easeIn", delay: 0.05 }}
-            />
+                    return (
+                      <motion.div
+                        key={`body-main-${colorState}`}
+                        className="absolute inset-0 size-12 rounded-full"
+                        style={{
+                          background: colorValues.gradient,
+                          boxShadow: `0 0 15px 5px ${colorValues.glow}, 0 0 30px 10px ${colorValues.glowOuter}`,
+                        }}
+                        animate={{
+                          opacity: isActive ? 1 : 0,
+                          scale: isActive
+                            ? (state === 'offline'
+                              ? [1, 1.03, 1]  // Very subtle pulse for offline
+                              : state === 'thinking'
+                                ? [1, 1.15, 1]
+                                : state === 'idle'
+                                  ? [1, 1.08, 1]
+                                  : bodyScale)
+                            : 1,
+                        }}
+                        transition={{
+                          opacity: { duration: 0.8, ease: "easeInOut" },
+                          scale: state === 'offline'
+                            ? { duration: 3, repeat: Infinity, ease: "easeInOut" }
+                            : state === 'thinking'
+                              ? { duration: 0.4, repeat: Infinity, ease: "easeInOut" }
+                              : state === 'idle'
+                                ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
+                                : { duration: 0.1 },
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right wings - with drag/lag effect and reveal animation */}
+              <motion.div
+                className="flex flex-col -ml-4 origin-left"
+                style={{ x: wingLagX, y: wingLagY }}
+                initial={{ scale: 0, rotate: 0 }}
+                animate={{
+                  scale: wingScale,
+                  rotate: wingScale === 1 ? (hasConnected ? -360 : 0) - wingSpinRotation : 0,
+                }}
+                transition={{
+                  scale: { duration: 0.6, ease: "easeOut", delay: 0.1 },
+                  rotate: { duration: 0.5, ease: "easeOut", delay: 0.1 },
+                }}
+              >
+                <motion.img
+                  key={`wing-rt-${effectiveFlapSpeed}-${wingScale}`}
+                  className="size-16 origin-right -translate-x-full"
+                  src='wingtop.png'
+                  id="wing-right-top"
+                  style={{ scaleX: -1 }}
+                  animate={wingScale === 1 && state !== 'offline' ? { scaleX: [-1, -0.4, -1], scaleY: [0.8, 1, 0.8] } : { scaleX: -1 }}
+                  transition={{ duration: effectiveFlapSpeed || 0.32, repeat: Infinity, ease: "easeOut" }}
+                />
+                <motion.img
+                  key={`wing-rb-${effectiveFlapSpeed}-${wingScale}`}
+                  className="size-8 origin-right -translate-x-full"
+                  src='wingbot.png'
+                  id="wing-right-bot"
+                  style={{ scaleX: -1 }}
+                  animate={wingScale === 1 && state !== 'offline' ? { scaleX: [-1, -0.4, -1] } : { scaleX: -1 }}
+                  transition={{ duration: effectiveFlapSpeed || 0.32, repeat: Infinity, ease: "easeIn", delay: 0.05 }}
+                />
+              </motion.div>
+            </div>
           </motion.div>
-        </div>
-      </motion.div>
-      </motion.div>
-    </div>
+        </motion.div>
+      </div>
     </>
   );
 }
