@@ -10,11 +10,12 @@ import { SettingsModal } from './SettingsModal';
 import { STORAGE_KEYS, DEFAULT_SETTINGS, DEFAULT_SYSTEM_INSTRUCTION } from '../utils/constants';
 import type { MicMode } from '../utils/constants';
 import { Navi } from './Navi';
-import type { NaviState } from './Navi';
+import type { NaviState, RadialMenuState } from './Navi';
 
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
 
   // Persisted settings
   const [apiKey, setApiKey] = useLocalStorage(STORAGE_KEYS.API_KEY, DEFAULT_SETTINGS.apiKey);
@@ -115,7 +116,7 @@ export function App() {
       )}
 
       {/* Navi overlay - positioned absolutely to move across entire screen */}
-      <Navi state={naviState} audioLevel={audioLevel} scale={1.2} />
+      <Navi state={naviState} audioLevel={audioLevel} scale={1.2} radialMenuState={radialMenuState} />
 
       {/* Chat area */}
       <ChatUI
@@ -137,6 +138,7 @@ export function App() {
         onStopPlayback={stopPlayback}
         onOpenSettings={() => setSettingsOpen(true)}
         onConnect={handleConnect}
+        onRadialMenuChange={setRadialMenuState}
       />
 
       {/* Settings modal */}

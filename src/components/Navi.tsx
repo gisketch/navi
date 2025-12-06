@@ -212,12 +212,13 @@ function ScreenEdgeWaveform({ audioLevel, isActive }: { audioLevel: number; isAc
         }
 
         // Draw multiple layered glows for depth - apply slide opacity
+        // CSS blur handles the blur effect (Safari compatible), so we just draw solid layers
         const slideOpacity = slideEased;
         const layers = [
-          { blur: 60, alpha: 0.15 * slideOpacity, width: baseWidth * 2.5 },
-          { blur: 35, alpha: 0.25 * slideOpacity, width: baseWidth * 1.5 },
-          { blur: 15, alpha: 0.4 * slideOpacity, width: baseWidth * 0.8 },
-          { blur: 5, alpha: 0.6 * slideOpacity, width: baseWidth * 0.3 },
+          { alpha: 0.08 * slideOpacity, width: baseWidth * 2.0 },
+          { alpha: 0.15 * slideOpacity, width: baseWidth * 1.2 },
+          { alpha: 0.25 * slideOpacity, width: baseWidth * 0.6 },
+          { alpha: 0.4 * slideOpacity, width: baseWidth * 0.25 },
         ];
 
         layers.forEach(layer => {
@@ -262,12 +263,9 @@ function ScreenEdgeWaveform({ audioLevel, isActive }: { audioLevel: number; isAc
           gradient.addColorStop(0.7, `rgba(40, 140, 220, ${layer.alpha * 0.3 * (0.5 + effectiveLevel)})`);
           gradient.addColorStop(1, 'rgba(0, 100, 180, 0)');
 
-          ctx.filter = `blur(${layer.blur}px)`;
           ctx.fillStyle = gradient;
           ctx.fill();
         });
-        
-        ctx.filter = 'none';
       };
 
       drawSideGlow(true);  // Left
@@ -287,7 +285,7 @@ function ScreenEdgeWaveform({ audioLevel, isActive }: { audioLevel: number; isAc
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-40"
+      className="fixed inset-0 pointer-events-none z-40 canvas-blur"
     />
   );
 }

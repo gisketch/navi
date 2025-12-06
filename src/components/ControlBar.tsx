@@ -38,7 +38,7 @@ export const RADIAL_BUTTONS = [
 ];
 
 export const RADIAL_RADIUS = 100; // Distance from center
-const HOLD_THRESHOLD = 1000; // ms to trigger radial menu (1 second)
+const HOLD_THRESHOLD = 150; // ms to trigger radial menu (1 second)
 const SELECTION_RADIUS = 40; // How close finger needs to be to select
 
 export function ControlBar({
@@ -63,7 +63,7 @@ export function ControlBar({
   const [fingerOffset, setFingerOffset] = useState({ x: 0, y: 0 });
   const [hasEntered, setHasEntered] = useState(false); // Track if entrance animation is done
   const [isHolding, setIsHolding] = useState(false); // Track if user is holding (for event listeners)
-  
+
   const isConnected = connectionStatus === 'connected';
   const isHoldingRef = useRef(false);
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -90,9 +90,9 @@ export function ControlBar({
   // Notify parent of radial menu state changes
   useEffect(() => {
     if (!onRadialMenuChange) return;
-    
+
     let selectedButtonPosition: { x: number; y: number } | null = null;
-    
+
     if (selectedButton && showRadialMenu) {
       const btn = RADIAL_BUTTONS.find(b => b.id === selectedButton);
       if (btn) {
@@ -103,7 +103,7 @@ export function ControlBar({
         };
       }
     }
-    
+
     onRadialMenuChange({
       isOpen: showRadialMenu,
       selectedButtonId: selectedButton,
@@ -129,7 +129,7 @@ export function ControlBar({
   const getClosestButton = useCallback((fingerX: number, fingerY: number) => {
     const centerX = buttonCenterRef.current.x;
     const centerY = buttonCenterRef.current.y;
-    
+
     let closestId: string | null = null;
     let closestDist = Infinity;
 
@@ -141,7 +141,7 @@ export function ControlBar({
       const angleRad = (btn.angle * Math.PI) / 180;
       const btnX = centerX + Math.cos(angleRad) * RADIAL_RADIUS;
       const btnY = centerY - Math.sin(angleRad) * RADIAL_RADIUS;
-      
+
       const dist = Math.sqrt((fingerX - btnX) ** 2 + (fingerY - btnY) ** 2);
       if (dist < SELECTION_RADIUS && dist < closestDist) {
         closestDist = dist;
@@ -181,7 +181,7 @@ export function ControlBar({
     hasMovedRef.current = false;
     radialTriggeredRef.current = false;
     setIsHolding(true); // Start tracking hold for event listeners
-    
+
     if (mainButtonRef.current) {
       const rect = mainButtonRef.current.getBoundingClientRect();
       buttonCenterRef.current = {
@@ -236,7 +236,7 @@ export function ControlBar({
       clearTimeout(holdTimerRef.current);
       holdTimerRef.current = null;
     }
-    
+
     setIsHolding(false); // Stop tracking hold
 
     // Handle mic hold mode release
@@ -276,13 +276,14 @@ export function ControlBar({
 
     const onMouseMove = (e: MouseEvent) => handlePointerMove(e.clientX, e.clientY);
     const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault(); // Prevent page scrolling
       if (e.touches[0]) handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
     };
     const onMouseUp = () => handlePointerUp();
     const onTouchEnd = () => handlePointerUp();
 
     window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('touchmove', onTouchMove);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('touchend', onTouchEnd);
 
@@ -297,7 +298,7 @@ export function ControlBar({
   const handleMainButtonClick = useCallback(async () => {
     // If radial was triggered, don't do normal click
     if (radialTriggeredRef.current) return;
-    
+
     if (!isConnected) {
       if (connectionStatus !== 'connecting') onConnect();
       return;
@@ -338,44 +339,47 @@ export function ControlBar({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 100 }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="fixed bottom-0 left-0 right-0 z-[100] px-4 pb-[env(safe-area-inset-bottom,16px)]"
+            className="fixed bottom-0 left-0 right-0 z-[100] px-4"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)' }}
           >
-            <div className="max-w-lg mx-auto relative bg-white/10 backdrop-blur-xl rounded-t-2xl border border-white/20 border-b-0 p-3 shadow-2xl ring-1 ring-white/5">
-              {/* Close button */}
-              <button
-                onClick={toggleKeyboard}
-                className="absolute -top-3 right-3 w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all z-10"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              
-              {/* Textarea */}
-              <textarea
-                autoFocus
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendText();
-                  }
-                }}
-                placeholder="Type a message..."
-                disabled={!isConnected}
-                rows={4}
-                className="w-full bg-transparent border-none text-white placeholder-white/50 focus:ring-0 px-3 py-2 outline-none font-medium resize-none"
-              />
-              
-              {/* Send button */}
-              <div className="flex justify-end mt-2">
+            {/* Extra padding wrapper to push above iOS keyboard */}
+            <div className="mb-[env(keyboard-inset-height,0px)]">
+              <div className="max-w-lg mx-auto relative bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-3 shadow-2xl ring-1 ring-white/5">
+                {/* Close button */}
                 <button
-                  onClick={handleSendText}
-                  disabled={!isConnected || !textInput.trim()}
-                  className="px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-all disabled:opacity-30 disabled:scale-100 active:scale-95 flex items-center gap-2"
+                  onClick={toggleKeyboard}
+                  className="absolute -top-3 right-3 w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all z-10"
                 >
-                  <Send className="w-4 h-4" />
-                  <span className="text-sm font-medium">Send</span>
+                  <X className="w-4 h-4" />
                 </button>
+
+                {/* Textarea */}
+                <textarea
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendText();
+                    }
+                  }}
+                  placeholder="Type a message..."
+                  disabled={!isConnected}
+                  rows={4}
+                  className="w-full bg-transparent border-none text-white placeholder-white/50 focus:ring-0 px-3 py-2 outline-none font-medium resize-none select-text"
+                />
+
+                {/* Send button */}
+                <div className="flex justify-end mt-2">
+                  <button
+                    onClick={handleSendText}
+                    disabled={!isConnected || !textInput.trim()}
+                    className="px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-all disabled:opacity-30 disabled:scale-100 active:scale-95 flex items-center gap-2"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span className="text-sm font-medium">Send</span>
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>
@@ -407,10 +411,10 @@ export function ControlBar({
                     <motion.div
                       key={btn.id}
                       initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
-                      animate={{ 
-                        opacity: isDisabled ? 0.4 : 1, 
-                        scale: 1, 
-                        x, 
+                      animate={{
+                        opacity: isDisabled ? 0.4 : 1,
+                        scale: 1,
+                        x,
                         y,
                       }}
                       exit={{ opacity: 0, scale: 0, x: 0, y: 0 }}
@@ -418,7 +422,7 @@ export function ControlBar({
                         type: 'spring',
                         stiffness: 600,
                         damping: 30,
-                      } : { 
+                      } : {
                         type: 'spring',
                         stiffness: 400,
                         damping: 25,

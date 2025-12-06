@@ -13,6 +13,10 @@
 
 html {
   height: -webkit-fill-available;
+  /* Prevent selection globally on iOS */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 body {
@@ -28,6 +32,10 @@ body {
   /* Prevent pull-to-refresh on iOS */
   overscroll-behavior-y: contain;
   position: relative;
+  /* Prevent selection globally on iOS */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 body::before,
@@ -100,4 +108,16 @@ body::after {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
+}
+
+/* Allow text selection where needed (e.g., text inputs) */
+.select-text {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Safari doesn't support canvas ctx.filter, use CSS blur instead */
+.canvas-blur {
+  filter: blur(8px);
+  -webkit-filter: blur(8px);
 }
