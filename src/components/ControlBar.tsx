@@ -108,7 +108,7 @@ export function ControlBar({
   );
 
   return (
-    <div className="border-t border-white/10 bg-black/20 backdrop-blur-lg p-4">
+    <div data-control-bar className="border-t border-white/10 bg-black/20 backdrop-blur-lg p-4">
       {/* Audio level indicator when capturing */}
       {isCapturing && (
         <div className="mb-3 flex items-center justify-center gap-2">

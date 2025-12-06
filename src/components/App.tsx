@@ -95,12 +95,12 @@ export function App() {
   const naviState: NaviState = (() => {
     if (isPlaying) return 'speaking';
     if (isCapturing) return 'listening';
-    if (connectionStatus === 'connecting') return 'thinking';
-    return 'idle';
+    if (connectionStatus === 'connected' || connectionStatus === 'connecting') return 'idle';
+    return 'offline';
   })();
 
   return (
-    <div className="flex h-screen flex-col bg-black text-white">
+    <div className="flex h-screen flex-col bg-black text-white overflow-hidden relative">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
@@ -147,7 +147,9 @@ export function App() {
         </div>
       )}
 
+      {/* Navi overlay - positioned absolutely to move across entire screen */}
       <Navi state={naviState} audioLevel={audioLevel} />
+
       {/* Chat area */}
       <ChatUI
         messages={messages}
