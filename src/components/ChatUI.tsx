@@ -1,5 +1,5 @@
-import { useMemo, memo, useRef } from 'react';
-import { motion, AnimatePresence, type Transition } from 'framer-motion';
+import { useMemo, memo, useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import type { ChatMessage } from '../utils/constants';
 
 interface ChatUIProps {
@@ -8,16 +8,156 @@ interface ChatUIProps {
   isCapturing: boolean;
 }
 
+// Get Navi's approximate center position (relative to viewport)
+const getNaviPosition = () => {
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight * 0.2 + window.innerHeight * 0.2 * 0.1; // pt-[20vh] + some offset
+  return { x: centerX, y: centerY };
+};
+
+// Get main button position (bottom of screen)
+const getButtonPosition = () => {
+  const centerX = window.innerWidth / 2;
+  const centerY = window.innerHeight - 80; // Approximate button position
+  return { x: centerX, y: centerY };
+};
+
+// Individual word component that calculates its own position
+const Word = memo(function Word({
+  word,
+  index,
+  messageId,
+  role,
+  wordCount,
+}: {
+  word: string;
+  index: number;
+  messageId: string;
+  role: 'user' | 'assistant';
+  wordCount: number;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [offsets, setOffsets] = useState({ toNavi: { x: 0, y: 0 }, fromButton: { y: 0 }, fromNavi: { x: 0, y: 0 } });
+  const isSpace = word === ' ';
+
+  // Calculate this specific word's offset to Navi center
+  useLayoutEffect(() => {
+    if (ref.current && !isSpace) {
+      const rect = ref.current.getBoundingClientRect();
+      const wordCenter = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2
+      };
+      
+      const naviPos = getNaviPosition();
+      const buttonPos = getButtonPosition();
+      
+      setOffsets({
+        toNavi: {
+          x: naviPos.x - wordCenter.x,
+          y: naviPos.y - wordCenter.y
+        },
+        fromButton: {
+          y: buttonPos.y - wordCenter.y
+        },
+        fromNavi: {
+          x: naviPos.x - wordCenter.x,
+          y: naviPos.y - wordCenter.y
+        }
+      });
+    }
+  }, [isSpace]);
+
+  const wordDelay = index * 0.02;
+
+  if (role === 'user') {
+    // User input: words come from button area, exit towards Navi CENTER
+    return (
+      <motion.span
+        ref={ref}
+        key={`${messageId}-${index}`}
+        initial={{
+          opacity: 0,
+          y: offsets.fromButton.y * 0.3,
+          scale: 0.5,
+        }}
+        animate={{
+          opacity: 1,
+          y: 0,
+          x: 0,
+          scale: 1,
+        }}
+        exit={{
+          opacity: 0,
+          y: offsets.toNavi.y,
+          x: offsets.toNavi.x,
+          scale: 0,
+          transition: {
+            duration: 0.5,
+            delay: index * 0.015,
+            ease: [0.4, 0, 0.2, 1]
+          }
+        }}
+        transition={{
+          duration: 0.4,
+          delay: wordDelay,
+          ease: [0.2, 0.8, 0.2, 1]
+        }}
+        className="inline-block"
+      >
+        {isSpace ? '\u00A0' : word}
+      </motion.span>
+    );
+  } else {
+    // Assistant output: words emerge from Navi, exit by fading down
+    return (
+      <motion.span
+        ref={ref}
+        key={`${messageId}-${index}`}
+        initial={{
+          opacity: 0,
+          y: offsets.fromNavi.y,
+          x: offsets.fromNavi.x,
+          scale: 0.3,
+        }}
+        animate={{
+          opacity: 1,
+          y: 0,
+          x: 0,
+          scale: 1,
+        }}
+        exit={{
+          opacity: 0,
+          y: 30,
+          transition: {
+            duration: 0.3,
+            delay: index * 0.01,
+            ease: 'easeIn'
+          }
+        }}
+        transition={{
+          duration: 0.5,
+          delay: wordDelay,
+          ease: [0.2, 0.8, 0.2, 1]
+        }}
+        className="inline-block"
+      >
+        {isSpace ? '\u00A0' : word}
+      </motion.span>
+    );
+  }
+});
+
 const MagicText = memo(function MagicText({
   text,
   messageId,
   className,
-  transition
+  role,
 }: {
   text: string;
   messageId: string;
   className?: string;
-  transition?: Transition
+  role: 'user' | 'assistant';
 }) {
   const words = useMemo(() => text.split(/(\s+)/), [text]);
   const wordCounts = useRef(new Map<string, number>()).current;
@@ -28,37 +168,18 @@ const MagicText = memo(function MagicText({
   return (
     <span className={className}>
       {words.map((word, index) => {
-        const isSpace = word === ' ';
-
-        // Generate a stable ID based on content + occurrence index
-        // This ensures "is" only morphs into "is", even if indices shift due to trimming
         const currentCount = wordCounts.get(word) || 0;
         wordCounts.set(word, currentCount + 1);
 
-        const layoutId = `${messageId}-${word}-${currentCount}`;
-
         return (
-          <motion.span
-            key={`${layoutId}-${index}`} // unique key for React
-            initial={{
-              opacity: 0,
-              y: 20
-            }}
-            animate={{
-              opacity: 1,
-              y: 0
-            }}
-            layoutId={layoutId}
-            transition={transition || {
-              layout: {
-                duration: 0.25,
-                delay: index * 0.005
-              },
-            }}
-            className="inline-block"
-          >
-            {isSpace ? '\u00A0' : word}
-          </motion.span>
+          <Word
+            key={`${messageId}-${word}-${currentCount}-${index}`}
+            word={word}
+            index={index}
+            messageId={messageId}
+            role={role}
+            wordCount={currentCount}
+          />
         );
       })}
     </span>
@@ -66,26 +187,8 @@ const MagicText = memo(function MagicText({
 });
 
 export function ChatUI({ messages, currentTurn, isCapturing }: ChatUIProps) {
-  // Get the ID of the current turn to exclude it from aboveMessage
-  const currentTurnId = currentTurn?.id;
-  
-  // Find the last message that is NOT the current turn
-  // This prevents the same message from appearing in both spots simultaneously
-  const aboveMessage = useMemo(() => {
-    if (messages.length === 0) return null;
-    
-    // Filter out any message that matches the currentTurn ID
-    // This handles the brief moment when message is added but currentTurn hasn't cleared yet
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].id !== currentTurnId) {
-        return messages[i];
-      }
-    }
-    return null;
-  }, [messages, currentTurnId]);
-
-  // Determine content for the Below spot
-  const belowContent = useMemo(() => {
+  // Determine content for display
+  const content = useMemo(() => {
     if (currentTurn) {
       return {
         id: currentTurn.id,
@@ -106,56 +209,30 @@ export function ChatUI({ messages, currentTurn, isCapturing }: ChatUIProps) {
   }, [currentTurn, isCapturing]);
 
   return (
-    <div className="flex flex-1 flex-col p-6 overflow-hidden relative">
-      {/* ABOVE SPOT (History) */}
-      <div className="flex-1 flex flex-col justify-end pb-8 min-h-0">
-        <AnimatePresence mode="popLayout">
-          {aboveMessage && (
-            <motion.div
-              key={aboveMessage.id}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.6, y: 0 }}
-              exit={{ opacity: 0, y: -20, transition: { duration: 0.3 } }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-              className={`w-full text-xl font-medium ${
-                aboveMessage.role === 'user' ? 'text-right' : 'text-left'
-              }`}
-            >
-              <MagicText
-                text={aboveMessage.text}
-                messageId={aboveMessage.id}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* BELOW SPOT (Active) */}
-      <div className="flex-[2] flex flex-col justify-start pt-4 min-h-0">
+    <div className="flex flex-1 flex-col p-6 overflow-hidden relative justify-center">
+      {/* Single centered text area */}
+      <div className="flex flex-col items-center justify-center">
         <AnimatePresence mode="wait">
-          {belowContent ? (
+          {content ? (
             <motion.div
-              key={belowContent.id}
-              initial={{ opacity: 0 }}
-              animate={{
-                opacity: belowContent.isPlaceholder ? 0.5 : 1,
-              }}
-              exit={{ opacity: 0, transition: { duration: 0.15 } }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              key={content.id}
+              initial={{ opacity: 1 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 1 }}
               className="w-full text-center"
             >
               <div className={`text-4xl font-medium leading-tight tracking-tight text-white ${
-                belowContent.isPlaceholder ? 'animate-pulse' : ''
+                content.isPlaceholder ? 'animate-pulse opacity-50' : ''
               }`}>
-                <MagicText
-                  text={belowContent.text}
-                  messageId={belowContent.id}
-                  transition={{
-                    layout: { duration: 0 },
-                    opacity: { duration: 0.5 },
-                    y: { duration: 0.5 },
-                  }}
-                />
+                {content.isPlaceholder ? (
+                  <span>{content.text}</span>
+                ) : (
+                  <MagicText
+                    text={content.text}
+                    messageId={content.id}
+                    role={content.role}
+                  />
+                )}
               </div>
             </motion.div>
           ) : (

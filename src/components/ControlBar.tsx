@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Mic, Send, Keyboard, Settings, Radio, Fingerprint, Sparkles, FileText, LogOut } from 'lucide-react';
+import { Mic, Send, Keyboard, Settings, Radio, Fingerprint, Sparkles, FileText, LogOut, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { MicMode } from '../utils/constants';
 import type { ConnectionStatus } from '../hooks/useGeminiLive';
@@ -123,6 +123,7 @@ export function ControlBar({
     if (textInput.trim() && isConnected) {
       onSendText(textInput.trim());
       setTextInput('');
+      setShowKeyboard(false); // Hide keyboard after sending
     }
   }, [textInput, isConnected, onSendText]);
 
@@ -341,32 +342,60 @@ export function ControlBar({
   return (
     <div className="relative w-full flex flex-col items-center justify-end pb-16 pt-4 px-6 z-50" data-control-bar>
 
-      {/* Floating Input Field */}
-      {showKeyboard && (
-        <div className="mb-8 w-full max-w-lg animate-in slide-in-from-bottom-5 fade-in duration-300">
-          <div className="relative flex items-center bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-2 shadow-2xl ring-1 ring-white/5">
-            <input
-              autoFocus
-              type="text"
-              value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type a message..."
-              disabled={!isConnected}
-              className="flex-1 bg-transparent border-none text-white placeholder-white/50 focus:ring-0 px-4 py-2 outline-none font-medium"
-            />
-            <button
-              onClick={handleSendText}
-              disabled={!isConnected || !textInput.trim()}
-              className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-all disabled:opacity-30 disabled:scale-100 active:scale-95"
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Keyboard Mode - Fixed overlay at bottom, doesn't affect layout */}
+      <AnimatePresence>
+        {showKeyboard && (
+          <motion.div
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="fixed bottom-0 left-0 right-0 z-[100] px-4 pb-[env(safe-area-inset-bottom,16px)]"
+          >
+            <div className="max-w-lg mx-auto relative bg-white/10 backdrop-blur-xl rounded-t-2xl border border-white/20 border-b-0 p-3 shadow-2xl ring-1 ring-white/5">
+              {/* Close button */}
+              <button
+                onClick={toggleKeyboard}
+                className="absolute -top-3 right-3 w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all z-10"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              
+              {/* Textarea */}
+              <textarea
+                autoFocus
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendText();
+                  }
+                }}
+                placeholder="Type a message..."
+                disabled={!isConnected}
+                rows={4}
+                className="w-full bg-transparent border-none text-white placeholder-white/50 focus:ring-0 px-3 py-2 outline-none font-medium resize-none"
+              />
+              
+              {/* Send button */}
+              <div className="flex justify-end mt-2">
+                <button
+                  onClick={handleSendText}
+                  disabled={!isConnected || !textInput.trim()}
+                  className="px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-all disabled:opacity-30 disabled:scale-100 active:scale-95 flex items-center gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  <span className="text-sm font-medium">Send</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Control Buttons Container - Only main button now */}
+      {/* Control Buttons Container - Hidden when keyboard is shown */}
+      {!showKeyboard && (
       <div className="flex items-center justify-center glass-button-vars">
 
         {/* Center: Main Action Button with Radial Menu */}
@@ -527,6 +556,7 @@ export function ControlBar({
         </div>
 
       </div>
+      )}
     </div>
   );
 }
