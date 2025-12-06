@@ -4,4 +4,4 @@ services:
     container_name: navi
     restart: always
     ports:
-      - "3000:80"
+      - "5173:80"
