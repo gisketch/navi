@@ -1,4 +1,4 @@
-export const GEMINI_MODEL = 'models/gemini-2.0-flash-exp';
+export const GEMINI_MODEL = 'models/gemini-2.5-flash-native-audio-preview-09-2025';
 
 export const AUDIO_CONFIG = {
   INPUT_SAMPLE_RATE: 16000,
