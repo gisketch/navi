@@ -13,6 +13,8 @@ interface SettingsModalProps {
   onN8nWebhookUrlChange: (url: string) => void;
   saveNoteWebhook: string;
   onSaveNoteWebhookChange: (url: string) => void;
+  searchNotesWebhook: string;
+  onSearchNotesWebhookChange: (url: string) => void;
   onDisconnect: () => void;
 }
 
@@ -27,6 +29,8 @@ export function SettingsModal({
   onN8nWebhookUrlChange,
   saveNoteWebhook,
   onSaveNoteWebhookChange,
+  searchNotesWebhook,
+  onSearchNotesWebhookChange,
   onDisconnect,
 }: SettingsModalProps) {
   const [tempApiKey, setTempApiKey] = useState(apiKey);
@@ -34,6 +38,7 @@ export function SettingsModal({
   const [tempN8nUrl, setTempN8nUrl] = useState(n8nWebhookUrl);
   // Functions Webhooks
   const [tempSaveNoteWebhook, setTempSaveNoteWebhook] = useState(saveNoteWebhook);
+  const [tempSearchWebhook, setTempSearchWebhook] = useState(searchNotesWebhook);
 
   const [activeTab, setActiveTab] = useState<'general' | 'functions'>('general');
 
@@ -44,6 +49,7 @@ export function SettingsModal({
     onMicModeChange(tempMicMode);
     onN8nWebhookUrlChange(tempN8nUrl);
     onSaveNoteWebhookChange(tempSaveNoteWebhook);
+    onSearchNotesWebhookChange(tempSearchWebhook);
     onClose();
   };
 
@@ -52,6 +58,7 @@ export function SettingsModal({
     setTempMicMode(micMode);
     setTempN8nUrl(n8nWebhookUrl);
     setTempSaveNoteWebhook(saveNoteWebhook);
+    setTempSearchWebhook(searchNotesWebhook);
     setActiveTab('general');
     onClose();
   };
@@ -169,6 +176,19 @@ export function SettingsModal({
                     value={tempSaveNoteWebhook}
                     onChange={(e) => setTempSaveNoteWebhook(e.target.value)}
                     placeholder="https://automate.gisketch.com/webhook/save-note"
+                    className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                  />
+                </div>
+                {/* Search Notes Webhook */}
+                <div className="mb-4">
+                  <label className="mb-2 block text-sm font-medium text-gray-300">
+                    Search Notes Webhook
+                  </label>
+                  <input
+                    type="url"
+                    value={tempSearchWebhook}
+                    onChange={(e) => setTempSearchWebhook(e.target.value)}
+                    placeholder="https://automate.gisketch.com/webhook/search-notes"
                     className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
                   />
                 </div>

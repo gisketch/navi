@@ -26,6 +26,32 @@ export const TOOLS: Tool[] = [
                 },
             },
             {
+                name: 'searchNotes',
+                description: "Searches the user's notes for information. Use this when the user asks a question about their notes or asks you to find something they wrote down. Like saveNote, reply with a short confirmation like 'Searching...' and WAIT.",
+                parameters: {
+                    type: 'OBJECT' as any,
+                    properties: {
+                        query: {
+                            type: 'STRING' as any,
+                            description: 'The search query or question to answer from the notes.',
+                        },
+                        processingText: {
+                            type: 'STRING' as any,
+                            description: "Status text for 'processing' state. Example: 'Processing request...'",
+                        },
+                        searchingText: {
+                            type: 'STRING' as any,
+                            description: "Status text for 'searching' state (finding files). Example: 'Searching vault...'",
+                        },
+                        readingText: {
+                            type: 'STRING' as any,
+                            description: "Status text for 'reading' state (reading content). Example: 'Reading notes...'",
+                        },
+                    },
+                    required: ['query', 'processingText', 'searchingText', 'readingText'],
+                },
+            },
+            {
                 name: 'openObsidianNote',
                 description: "Opens a note in the user's Obsidian app. Use this ONLY when the user explicitly agrees to open the note after a successful save.",
                 parameters: {

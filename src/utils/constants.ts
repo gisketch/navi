@@ -5,6 +5,7 @@ export const STORAGE_KEYS = {
   MIC_MODE: 'navi-mic-mode',
   N8N_WEBHOOK_URL: 'navi-n8n-webhook-url',
   SAVE_NOTE_WEBHOOK: 'navi-save-note-webhook',
+  SEARCH_NOTES_WEBHOOK: 'navi-search-notes-webhook',
 } as const;
 
 export const AUDIO_CONFIG = {
@@ -28,10 +29,12 @@ export interface NaviSettings {
   micMode: MicMode;
   n8nWebhookUrl: string; // General/Legacy
   saveNoteWebhook: string; // Specific tool webhook
+  searchNotesWebhook: string;
 }
 
 export const DEFAULT_WEBHOOKS = {
   SAVE_NOTE: 'https://automate.gisketch.com/webhook-test/save-note',
+  SEARCH_NOTES: 'https://automate.gisketch.com/webhook-test/search-notes',
 } as const;
 
 export const DEFAULT_SETTINGS: NaviSettings = {
@@ -39,6 +42,7 @@ export const DEFAULT_SETTINGS: NaviSettings = {
   micMode: 'hold',
   n8nWebhookUrl: '',
   saveNoteWebhook: DEFAULT_WEBHOOKS.SAVE_NOTE,
+  searchNotesWebhook: DEFAULT_WEBHOOKS.SEARCH_NOTES,
 };
 
 export const DEFAULT_SYSTEM_INSTRUCTION = `

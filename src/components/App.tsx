@@ -24,6 +24,7 @@ export function App() {
   const [micMode, setMicMode] = useLocalStorage<MicMode>(STORAGE_KEYS.MIC_MODE, DEFAULT_SETTINGS.micMode);
   const [n8nWebhookUrl, setN8nWebhookUrl] = useLocalStorage(STORAGE_KEYS.N8N_WEBHOOK_URL, DEFAULT_SETTINGS.n8nWebhookUrl);
   const [saveNoteWebhook, setSaveNoteWebhook] = useLocalStorage(STORAGE_KEYS.SAVE_NOTE_WEBHOOK, DEFAULT_SETTINGS.saveNoteWebhook);
+  const [searchNotesWebhook, setSearchNotesWebhook] = useLocalStorage(STORAGE_KEYS.SEARCH_NOTES_WEBHOOK, DEFAULT_SETTINGS.searchNotesWebhook);
 
   // Audio playback hook
   const { isPlaying, queueAudio, stopPlayback } = useAudioPlayback();
@@ -45,6 +46,7 @@ export function App() {
     onAudioResponse: queueAudio,
     onError: (err) => setError(err.message),
     saveNoteWebhook,
+    searchNotesWebhook,
   });
 
   // Audio capture hook
@@ -179,6 +181,8 @@ export function App() {
         onN8nWebhookUrlChange={setN8nWebhookUrl}
         saveNoteWebhook={saveNoteWebhook}
         onSaveNoteWebhookChange={setSaveNoteWebhook}
+        searchNotesWebhook={searchNotesWebhook}
+        onSearchNotesWebhookChange={setSearchNotesWebhook}
         onDisconnect={handleDisconnect}
       />
     </div>

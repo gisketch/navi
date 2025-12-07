@@ -30,6 +30,7 @@ interface UseGeminiLiveOptions {
   onAudioResponse?: (audioData: string) => void;
   onError?: (error: Error) => void;
   saveNoteWebhook: string;
+  searchNotesWebhook: string;
 }
 
 interface UseGeminiLiveReturn {
@@ -51,6 +52,7 @@ export function useGeminiLive({
   onAudioResponse,
   onError,
   saveNoteWebhook,
+  searchNotesWebhook,
 }: UseGeminiLiveOptions): UseGeminiLiveReturn {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -243,9 +245,111 @@ export function useGeminiLive({
             response: { result: 'Obsidian opened successfully.' }
           }]
         });
+      } else if (call.name === 'searchNotes') {
+        const { query, processingText, searchingText, readingText } = call.args as any;
+        const taskId = crypto.randomUUID();
+
+        console.log('[Navi] Tool Call: searchNotes', { taskId, query });
+
+        // 1. Set Status UI
+        setLiveStatus(processingText);
+        setIsToolActive(true);
+
+        // 2. Trigger Webhook
+        try {
+          await fetch(searchNotesWebhook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: taskId, query }),
+          });
+        } catch (err) {
+          console.error('[Navi] Search Webhook failed', err);
+          setLiveStatus(null);
+          setIsToolActive(false);
+
+          sessionRef.current?.sendToolResponse({
+            functionResponses: [{
+              id: call.id || 'unknown',
+              name: call.name || 'unknown',
+              response: { error: `Failed to trigger search. Error: ${err instanceof Error ? err.message : String(err)}` }
+            }]
+          });
+          return;
+        }
+
+        // 3. Subscribe to PocketBase updates
+        try {
+          await pb.collection('task_updates').subscribe('*', (e) => {
+            const record = e.record;
+            if (record.task_id === taskId) {
+              console.log('[Navi] Search Update:', record.status);
+
+              if (record.status === 'processing') {
+                setLiveStatus(processingText);
+              } else if (record.status === 'searching') {
+                setLiveStatus(searchingText);
+              } else if (record.status === 'reading') {
+                setLiveStatus(readingText);
+              } else if (record.status === 'completed') {
+                setLiveStatus(null);
+                setIsToolActive(false);
+                pb.collection('task_updates').unsubscribe();
+
+                // Raw string output - DO NOT PARSE JSON
+                const resultData = record.message;
+
+                const response: ToolResponse = {
+                  functionResponses: [{
+                    id: call.id || 'unknown',
+                    name: call.name || 'unknown',
+                    response: {
+                      result: resultData
+                    }
+                  }]
+                };
+
+                // Add whitespace for UI
+                if (currentTranscriptRef.current.assistant && !currentTranscriptRef.current.assistant.endsWith(' ')) {
+                  currentTranscriptRef.current.assistant += ' ';
+                  setCurrentTurn(prev => {
+                    if (prev && prev.role === 'assistant' && prev.id === currentTranscriptRef.current.assistantId) {
+                      return { ...prev, text: currentTranscriptRef.current.assistant };
+                    }
+                    return prev;
+                  });
+                }
+
+                sessionRef.current?.sendToolResponse(response);
+              } else if (record.status === 'error') {
+                setLiveStatus(null);
+                setIsToolActive(false);
+                pb.collection('task_updates').unsubscribe();
+
+                sessionRef.current?.sendToolResponse({
+                  functionResponses: [{
+                    id: call.id || 'unknown',
+                    name: call.name || 'unknown',
+                    response: { error: record.message || "Search failed." }
+                  }]
+                });
+              }
+            }
+          });
+        } catch (pbError) {
+          console.error('[Navi] PB Subscribe Error', pbError);
+          setLiveStatus(null);
+          setIsToolActive(false);
+          sessionRef.current?.sendToolResponse({
+            functionResponses: [{
+              id: call.id || 'unknown',
+              name: call.name || 'unknown',
+              response: { error: `Failed to subscribe to updates: ${pbError}` }
+            }]
+          });
+        }
       }
     }
-  }, [saveNoteWebhook]);
+  }, [saveNoteWebhook, searchNotesWebhook]);
 
   const processResponseQueue = useCallback(async () => {
     if (processingRef.current) return;
