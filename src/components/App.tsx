@@ -9,7 +9,6 @@ import { useOvernightSummaries } from '../hooks/useOvernightSummaries';
 import { ChatUI } from './ChatUI';
 import { ControlBar } from './ControlBar';
 import { SettingsModal } from './SettingsModal';
-import { LiveStatus } from './LiveStatus';
 import { Dashboard } from './Dashboard';
 import { BottomNavBar } from './BottomNavBar';
 import { Sidebar } from './Sidebar';
@@ -26,7 +25,6 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
-  const [spinTrigger, setSpinTrigger] = useState(0);
 
   // App mode (dashboard vs chat)
   const [mode, setMode] = useState<AppMode>('dashboard');
@@ -280,7 +278,6 @@ export function App() {
           audioLevel={audioLevel}
           scale={1}
           radialMenuState={mode === 'chat' ? radialMenuState : undefined}
-          spinTrigger={spinTrigger}
           position={mode === 'dashboard' ? 'top-right' : 'center'}
           onPositionChange={mode === 'dashboard' ? handleNaviPositionChange : undefined}
         />
@@ -321,19 +318,15 @@ export function App() {
             transition={{ duration: 0.3 }}
             className="flex-1 flex flex-col"
           >
-            {/* Live Status (Agentic Tools) */}
-            <LiveStatus
-              status={liveStatus}
-              onStatusChange={() => setSpinTrigger(prev => prev + 1)}
-            />
-
-            {/* Chat area */}
+            {/* Chat area with integrated live status */}
             <ChatUI
               messages={messages}
               currentTurn={currentTurn}
               isCapturing={isCapturing}
               activeCards={activeCards}
               onCloseCards={clearCards}
+              naviState={naviState}
+              liveStatus={liveStatus}
             />
 
             {/* Control bar - only in chat mode */}
