@@ -12,7 +12,7 @@ export interface RadialMenuState {
 }
 
 // Position presets for different app modes
-export type NaviPosition = 'center' | 'top-left';
+export type NaviPosition = 'center' | 'top-left' | 'top-right';
 
 interface NaviProps {
   state?: NaviState;
@@ -21,6 +21,7 @@ interface NaviProps {
   radialMenuState?: RadialMenuState; // For positioning Navi above radial menu buttons
   spinTrigger?: number; // Increment to trigger a wing spin animation
   position?: NaviPosition; // Where Navi should be positioned
+  onPositionChange?: (pos: { x: number; y: number }) => void; // Callback for position updates
 }
 
 // Color schemes for each state
@@ -323,26 +324,32 @@ const getWingSpeed = (state: NaviState) => {
   }
 };
 
-export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuState, spinTrigger = 0, position = 'center' }: NaviProps) {
+export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuState, spinTrigger = 0, position = 'center', onPositionChange }: NaviProps) {
   const particles = [0, 0.35, 0.7, 1.05, 1.4, 1.75, 2.1];
   const flapSpeed = getWingSpeed(state);
 
   // Track if we've connected (transitioned from offline)
   const [hasConnected, setHasConnected] = useState(false);
-  const [wingScale, setWingScale] = useState(0); // Start at 0 when offline
+  const [wingScale, setWingScale] = useState(state !== 'offline' ? 1 : 0); // Start based on initial state
   const [wingSpinRotation, setWingSpinRotation] = useState(0); // For triggered spins
   const prevStateRef = useRef<NaviState>(state);
   const prevSpinTriggerRef = useRef(spinTrigger);
 
   // Calculate position-based offset
   const getPositionOffset = useCallback(() => {
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight * 0.2; // Default center Y
+
     if (position === 'top-left') {
-      // Position in top-left corner with some padding
-      const centerX = window.innerWidth / 2;
-      const centerY = window.innerHeight * 0.2; // Default center Y
       return {
-        x: -centerX + 60, // 60px from left edge
-        y: -centerY + 100, // 100px from top
+        x: -centerX + 60,
+        y: -centerY + 100,
+      };
+    }
+    if (position === 'top-right') {
+      return {
+        x: centerX - 100, // 80px from right edge
+        y: -centerY + 12, // 120px from top
       };
     }
     return { x: 0, y: 0 }; // Center position
@@ -392,9 +399,61 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
   const bodyX = useSpring(touchTargetX, { stiffness: 150, damping: 20 });
   const bodyY = useSpring(touchTargetY, { stiffness: 150, damping: 20 });
 
+  // Report position changes to parent (for glow effects on nearby elements)
+  // Throttled to prevent excessive re-renders
+  const lastReportedPos = useRef({ x: 0, y: 0 });
+  const throttleRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!onPositionChange) return;
+
+    const reportPosition = () => {
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight * 0.2;
+      const newX = centerX + bodyX.get();
+      const newY = centerY + bodyY.get();
+
+      // Only report if position changed significantly (> 5px)
+      const dx = Math.abs(newX - lastReportedPos.current.x);
+      const dy = Math.abs(newY - lastReportedPos.current.y);
+
+      if (dx > 5 || dy > 5) {
+        lastReportedPos.current = { x: newX, y: newY };
+        onPositionChange({ x: newX, y: newY });
+      }
+    };
+
+    // Throttled update - only report every 50ms max
+    const unsubX = bodyX.on('change', () => {
+      if (throttleRef.current) return;
+      throttleRef.current = window.setTimeout(() => {
+        throttleRef.current = null;
+        reportPosition();
+      }, 50);
+    });
+    const unsubY = bodyY.on('change', () => {
+      if (throttleRef.current) return;
+      throttleRef.current = window.setTimeout(() => {
+        throttleRef.current = null;
+        reportPosition();
+      }, 50);
+    });
+
+    // Initial position report
+    reportPosition();
+
+    return () => {
+      unsubX();
+      unsubY();
+      if (throttleRef.current) {
+        clearTimeout(throttleRef.current);
+      }
+    };
+  }, [bodyX, bodyY, onPositionChange]);
+
   // Springs that follow the body with dampening/drag effect (for glows)
-  const glowX = useSpring(bodyX, { stiffness: 300, damping: 20 });
-  const glowY = useSpring(bodyY, { stiffness: 300, damping: 20 });
+  const glowX = useSpring(bodyX, { stiffness: 1000, damping: 20 });
+  const glowY = useSpring(bodyY, { stiffness: 1000, damping: 20 });
 
   // Wings follow body with very short lag - higher stiffness = faster follow, higher damping = less bounce
   const wingRawX = useSpring(bodyX, { stiffness: 1000, damping: 50 });

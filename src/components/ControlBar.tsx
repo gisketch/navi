@@ -265,7 +265,8 @@ export function ControlBar({
   }, [handlePointerDown]);
 
   const handleMainButtonTouchStart = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
+    // Don't preventDefault here - it causes passive listener warning
+    // The touch behavior is handled by the pointer events
     const touch = e.touches[0];
     handlePointerDown(touch.clientX, touch.clientY);
   }, [handlePointerDown]);
@@ -430,14 +431,17 @@ export function ControlBar({
                       }}
                       className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-40"
                     >
+                      {/* Radial button - matches BottomNavBar main button style */}
                       <div
-                        className={`flex items-center justify-center w-14 h-14 rounded-full border backdrop-blur-sm transition-all duration-150 ${
+                        className={`relative w-14 h-14 rounded-full flex items-center justify-center backdrop-blur-xl transition-all duration-150 ${
                           isSelected && !isDisabled
-                            ? 'border-white border-2 shadow-[0_0_15px_rgba(255,255,255,0.4),inset_0_1px_1px_rgba(255,255,255,0.2)] bg-[var(--glass-bg)]'
-                            : 'border-[var(--glass-border)] bg-[var(--glass-bg)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)]'
+                            ? 'bg-white/[0.08] border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+                            : 'bg-white/[0.08] border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
                         }`}
                       >
-                        <Icon className={`w-6 h-6 ${isSelected && !isDisabled ? 'text-white' : 'text-white/70'}`} />
+                        {/* Inner highlight - same as BottomNavBar */}
+                        <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+                        <Icon className={`w-6 h-6 relative ${isSelected && !isDisabled ? 'text-cyan-400' : 'text-white/70'}`} />
                       </div>
                     </motion.div>
                   );
@@ -454,8 +458,8 @@ export function ControlBar({
             )}
           </AnimatePresence>
 
-          {/* Active Glow - White for listening, Indigo for speaking */}
-          <div className={`absolute inset-0 rounded-full blur-2xl transition-all duration-1000 ${iconState === 'listening' || iconState === 'speaking' ? 'bg-white/40 opacity-100 scale-150 animate-pulse' : 'opacity-0'
+          {/* Active Glow - subtle cyan for listening, speaking */}
+          <div className={`absolute inset-0 rounded-full blur-2xl transition-all duration-1000 ${iconState === 'listening' || iconState === 'speaking' ? 'bg-cyan-400/30 opacity-100 scale-150' : 'opacity-0'
             }`} />
 
           <button
@@ -464,16 +468,16 @@ export function ControlBar({
             onTouchStart={handleMainButtonTouchStart}
             onClick={handleMainButtonClick}
             disabled={connectionStatus === 'connecting'}
-            className={`relative flex items-center justify-center w-20 h-20 rounded-full border border-[var(--glass-border)] backdrop-blur-sm shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95 disabled:scale-100 disabled:opacity-70 ${
+            className={`relative flex items-center justify-center w-[72px] h-[72px] rounded-full backdrop-blur-xl transition-all duration-300 hover:scale-105 active:scale-95 disabled:scale-100 disabled:opacity-70 ${
               showRadialMenu
-                ? 'bg-white/20 border-white/50 scale-95'
-                : iconState === 'listening'
-                  ? 'bg-[var(--glass-bg)] text-white border-white/50 shadow-[0_0_20px_rgba(255,255,255,0.3),inset_0_0_20px_rgba(255,255,255,0.2)]'
-                  : iconState === 'speaking'
-                    ? 'bg-[var(--glass-bg)] text-white border-white/50 shadow-[0_0_20px_rgba(255,255,255,0.3),inset_0_0_20px_rgba(255,255,255,0.2)]'
-                    : 'bg-[var(--glass-bg)] text-white shadow-[inset_0_1px_1px_rgba(255,255,255,0.15)] hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+                ? 'bg-white/[0.08] border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)] scale-95'
+                : iconState === 'listening' || iconState === 'speaking'
+                  ? 'bg-white/[0.08] text-white border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+                  : 'bg-white/[0.08] text-white border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
             }`}
           >
+            {/* Inner highlight - same as BottomNavBar */}
+            <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
             <AnimatePresence mode="popLayout">
               {iconState === 'connecting' && (
                 <motion.div

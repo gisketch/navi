@@ -12,6 +12,7 @@ import { SettingsModal } from './SettingsModal';
 import { LiveStatus } from './LiveStatus';
 import { Dashboard } from './Dashboard';
 import { BottomNavBar } from './BottomNavBar';
+import { Sidebar } from './Sidebar';
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../utils/constants';
 import type { MicMode } from '../utils/constants';
 import { Navi } from './Navi';
@@ -26,10 +27,29 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
   const [spinTrigger, setSpinTrigger] = useState(0);
-  
-  // New: App mode (dashboard vs chat)
+
+  // App mode (dashboard vs chat)
   const [mode, setMode] = useState<AppMode>('dashboard');
   const [activeTab, setActiveTab] = useState<NavTab>('home');
+
+  // Track Navi's position for glow effects
+  const [naviPosition, setNaviPosition] = useState<{ x: number; y: number } | undefined>();
+
+  // Handle Navi position changes for card glow effects
+  const handleNaviPositionChange = useCallback((pos: { x: number; y: number }) => {
+    setNaviPosition(pos);
+  }, []);
+
+  // Reset naviPosition when returning to dashboard mode so glow recalculates
+  useEffect(() => {
+    if (mode === 'dashboard') {
+      // Reset to undefined so Navi will report fresh position
+      setNaviPosition(undefined);
+    }
+  }, [mode]);
+
+  // Track if initial data has loaded (for Navi state)
+  const [hasInitialDataLoaded, setHasInitialDataLoaded] = useState(false);
 
   // Persisted settings
   const [apiKey, setApiKey] = useLocalStorage(STORAGE_KEYS.API_KEY, DEFAULT_SETTINGS.apiKey);
@@ -49,6 +69,15 @@ export function App() {
     isMock,
     refetch: refetchSummaries,
   } = useOvernightSummaries();
+
+  // Mark initial data as loaded when summaries finish loading
+  useEffect(() => {
+    if (!summariesLoading && !hasInitialDataLoaded) {
+      // Small delay for visual effect
+      const timer = setTimeout(() => setHasInitialDataLoaded(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [summariesLoading, hasInitialDataLoaded]);
 
   // Audio playback hook
   const { isPlaying, queueAudio, stopPlayback } = useAudioPlayback();
@@ -131,7 +160,7 @@ export function App() {
 
     // Connect to Gemini
     await connect();
-    
+
     // Enter chat mode
     setMode('chat');
   }, [apiKey, audioInitialized, initializeAudio, connect]);
@@ -176,7 +205,14 @@ export function App() {
   }, [error]);
 
   // Compute Navi's visual state based on app state
+  // In dashboard mode: offline until data loads, then idle
+  // In chat mode: based on connection/audio state
   const naviState: NaviState = (() => {
+    if (mode === 'dashboard') {
+      // Dashboard mode: Navi is "idle" once data loads (not connected to Gemini)
+      return hasInitialDataLoaded ? 'idle' : 'offline';
+    }
+    // Chat mode: based on actual connection state
     if (isToolActive) return 'thinking';
     if (isPlaying) return 'speaking';
     if (isCapturing) return 'listening';
@@ -211,50 +247,64 @@ export function App() {
   const isConnected = connectionStatus === 'connected';
 
   return (
-    <div className="flex h-screen flex-col text-white overflow-hidden relative bg-[#050910]">
-      {/* Error banner */}
-      <AnimatePresence>
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-0 left-0 right-0 z-50 bg-red-900/80 px-4 py-2 text-center text-sm text-red-200 backdrop-blur-sm"
-          >
-            {error}
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="flex h-screen text-white overflow-hidden relative bg-[#050910]">
+      {/* Desktop Sidebar - only in dashboard mode */}
+      {mode === 'dashboard' && (
+        <Sidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onChatClick={handleConnect}
+          onSettingsClick={() => setSettingsOpen(true)}
+        />
+      )}
 
-      {/* Navi - Position changes based on mode */}
-      <Navi
-        state={naviState}
-        audioLevel={audioLevel}
-        scale={mode === 'chat' ? 1 : 0.6}
-        radialMenuState={mode === 'chat' ? radialMenuState : undefined}
-        spinTrigger={spinTrigger}
-        position={mode === 'dashboard' ? 'top-left' : 'center'}
-      />
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Error banner */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed top-0 left-0 right-0 z-50 bg-red-900/80 px-4 py-2 text-center text-sm text-red-200 backdrop-blur-sm"
+            >
+              {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Dashboard Mode */}
-      <AnimatePresence>
-        {mode === 'dashboard' && (
-          <motion.div
-            key="dashboard"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.3 }}
-            className="flex-1 flex flex-col"
-          >
-            <Dashboard
-              cards={cards}
+        {/* Navi - Position changes based on mode */}
+        <Navi
+          state={naviState}
+          audioLevel={audioLevel}
+          scale={1}
+          radialMenuState={mode === 'chat' ? radialMenuState : undefined}
+          spinTrigger={spinTrigger}
+          position={mode === 'dashboard' ? 'top-right' : 'center'}
+          onPositionChange={mode === 'dashboard' ? handleNaviPositionChange : undefined}
+        />
+
+        {/* Dashboard Mode */}
+        <AnimatePresence>
+          {mode === 'dashboard' && (
+            <motion.div
+              key="dashboard"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3 }}
+              className="flex-1 flex flex-col"
+            >
+              <Dashboard
+                cards={cards}
               dailySummary={dailySummary}
               isLoading={summariesLoading}
               error={summariesError}
               lastUpdated={lastUpdated}
               isMock={isMock}
               onRefresh={refetchSummaries}
+              naviPosition={naviPosition}
             />
           </motion.div>
         )}
@@ -306,18 +356,22 @@ export function App() {
         )}
       </AnimatePresence>
 
-      {/* Bottom Nav Bar - only in dashboard mode */}
-      <AnimatePresence>
-        {mode === 'dashboard' && (
-          <BottomNavBar
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            onMainButtonClick={handleMainButtonClick}
-            mainButtonContent={getMainButtonIcon()}
-            isMainButtonActive={isConnected}
-          />
-        )}
-      </AnimatePresence>
+        {/* Bottom Nav Bar - only in dashboard mode, hidden on desktop */}
+        <AnimatePresence>
+          {mode === 'dashboard' && (
+            <div className="lg:hidden">
+              <BottomNavBar
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                onMainButtonClick={handleMainButtonClick}
+                mainButtonContent={getMainButtonIcon()}
+                isMainButtonActive={isConnected}
+                naviPosition={naviPosition}
+              />
+            </div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* Settings modal */}
       <SettingsModal

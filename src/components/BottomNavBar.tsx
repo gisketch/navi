@@ -1,5 +1,7 @@
+import { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Home, Search, User, Bell } from 'lucide-react';
+import { calculateProximityGlow, createGlowGradient, cn, glass } from '../utils/glass';
 
 type NavTab = 'home' | 'search' | 'notifications' | 'profile';
 
@@ -9,6 +11,9 @@ interface BottomNavBarProps {
   onMainButtonClick: () => void;
   mainButtonContent: React.ReactNode;
   isMainButtonActive?: boolean;
+  onMainButtonPointerDown?: (e: React.PointerEvent) => void;
+  onMainButtonPointerUp?: () => void;
+  naviPosition?: { x: number; y: number };
 }
 
 const NAV_ITEMS: { id: NavTab; icon: typeof Home; label: string }[] = [
@@ -25,92 +30,151 @@ export function BottomNavBar({
   onMainButtonClick,
   mainButtonContent,
   isMainButtonActive = false,
+  onMainButtonPointerDown,
+  onMainButtonPointerUp,
+  naviPosition,
 }: BottomNavBarProps) {
+  const mainButtonRef = useRef<HTMLButtonElement>(null);
+  const [glow, setGlow] = useState({ intensity: 0, position: { x: 50, y: 50 } });
+
+  // Calculate glow for main button based on Navi proximity
+  useEffect(() => {
+    if (!mainButtonRef.current) return;
+    const rect = mainButtonRef.current.getBoundingClientRect();
+    const result = calculateProximityGlow(rect, naviPosition, 350);
+    setGlow(result);
+  }, [naviPosition]);
+
   return (
     <motion.nav
-      initial={{ y: 100 }}
-      animate={{ y: 0 }}
-      exit={{ y: 100 }}
+      initial={{ y: 100, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: 100, opacity: 0 }}
       transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-      className="fixed bottom-0 left-0 right-0 z-40 px-4"
-      style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 8px), 8px)' }}
+      className="fixed bottom-0 left-0 right-0 z-40 px-6"
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 20px), 20px)' }}
     >
-      <div className="mx-auto max-w-md">
-        <div className="bg-[#0b1220]/90 backdrop-blur-xl border border-white/10 rounded-2xl px-2 py-2 flex items-center justify-around">
-          {/* Left nav items */}
-          {NAV_ITEMS.slice(0, 2).map((item) => (
-            <NavButton
-              key={item.id}
-              icon={item.icon}
-              label={item.label}
-              isActive={activeTab === item.id}
-              onClick={() => onTabChange(item.id)}
-            />
-          ))}
+      <div className="mx-auto max-w-md flex items-end justify-around gap-4">
+        {/* Left nav items - Icons only */}
+        {NAV_ITEMS.slice(0, 2).map((item) => (
+          <NavIconButton
+            key={item.id}
+            icon={item.icon}
+            isActive={activeTab === item.id}
+            onClick={() => onTabChange(item.id)}
+          />
+        ))}
 
-          {/* Center main button - pass through the control bar button */}
-          <div className="relative -mt-6">
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={onMainButtonClick}
-              className={`
-                w-16 h-16 rounded-full flex items-center justify-center
-                bg-[#0b1220] border-2 border-white/20
-                shadow-lg shadow-black/30
-                transition-all duration-300
-                ${isMainButtonActive ? 'border-cyan-400/50 shadow-cyan-500/20' : ''}
-              `}
-            >
-              {mainButtonContent}
-            </motion.button>
-            {/* Glow effect when active */}
-            {isMainButtonActive && (
-              <div className="absolute inset-0 rounded-full bg-cyan-400/20 blur-xl -z-10 animate-pulse" />
+        {/* Center main button - Glassmorphism orb with proximity glow */}
+        <div className="relative -mb-1">
+          {/* Base ambient glow */}
+          <div
+            className={cn(
+              'absolute inset-0 rounded-full blur-2xl transition-all duration-500',
+              isMainButtonActive ? 'bg-cyan-400/30 scale-150' : 'bg-cyan-400/10 scale-100'
             )}
-          </div>
+          />
 
-          {/* Right nav items */}
-          {NAV_ITEMS.slice(2).map((item) => (
-            <NavButton
-              key={item.id}
-              icon={item.icon}
-              label={item.label}
-              isActive={activeTab === item.id}
-              onClick={() => onTabChange(item.id)}
-              disabled={item.id !== 'home'} // Only home is functional for now
+          {/* Navi proximity glow */}
+          <div
+            className="absolute inset-[-8px] rounded-full pointer-events-none transition-opacity duration-300"
+            style={{
+              opacity: glow.intensity,
+              background: createGlowGradient(glow.position, 'rgba(34, 211, 238, 0.6)'),
+              filter: 'blur(8px)',
+            }}
+          />
+
+          <motion.button
+            ref={mainButtonRef}
+            whileTap={{ scale: 0.92 }}
+            onClick={onMainButtonClick}
+            onPointerDown={onMainButtonPointerDown}
+            onPointerUp={onMainButtonPointerUp}
+            data-interactive
+            className={cn(
+              'relative w-[72px] h-[72px] rounded-full flex items-center justify-center',
+              glass.blur.xl,
+              'bg-white/[0.08]',
+              'transition-all duration-300',
+              isMainButtonActive
+                ? 'border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+                : 'border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
+            )}
+          >
+            {/* Inner highlight */}
+            <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+
+            {/* Navi proximity inner glow */}
+            <div
+              className="absolute inset-0 rounded-full pointer-events-none transition-opacity duration-300"
+              style={{
+                opacity: glow.intensity * 0.5,
+                background: createGlowGradient(glow.position, 'rgba(34, 211, 238, 0.3)'),
+              }}
             />
-          ))}
+
+            {mainButtonContent}
+          </motion.button>
         </div>
+
+        {/* Right nav items - Icons only */}
+        {NAV_ITEMS.slice(2).map((item) => (
+          <NavIconButton
+            key={item.id}
+            icon={item.icon}
+            isActive={activeTab === item.id}
+            onClick={() => onTabChange(item.id)}
+            disabled={item.id !== 'home'}
+          />
+        ))}
       </div>
     </motion.nav>
   );
 }
 
-interface NavButtonProps {
+// Simple icon-only nav button (no glassmorphism container)
+interface NavIconButtonProps {
   icon: typeof Home;
-  label: string;
   isActive: boolean;
   onClick: () => void;
   disabled?: boolean;
 }
 
-function NavButton({ icon: Icon, label, isActive, onClick, disabled }: NavButtonProps) {
+function NavIconButton({ icon: Icon, isActive, onClick, disabled }: NavIconButtonProps) {
   return (
-    <button
+    <motion.button
+      whileTap={{ scale: 0.85 }}
       onClick={onClick}
       disabled={disabled}
-      className={`
-        flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all
-        ${isActive 
-          ? 'text-cyan-400' 
-          : disabled 
-            ? 'text-white/20 cursor-not-allowed' 
-            : 'text-white/50 hover:text-white/70 active:scale-95'
-        }
-      `}
+      data-interactive
+      className={cn(
+        'relative p-3 transition-all duration-300',
+        disabled && 'opacity-30 cursor-not-allowed'
+      )}
     >
-      <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-      <span className="text-[10px] font-medium">{label}</span>
-    </button>
+      {/* Active indicator - subtle glow below icon */}
+      {isActive && (
+        <motion.div
+          layoutId="navIndicator"
+          className="absolute inset-0 flex items-center justify-center"
+          initial={false}
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        >
+          <div className="w-10 h-10 rounded-full bg-cyan-400/20 blur-lg" />
+        </motion.div>
+      )}
+
+      <Icon
+        size={24}
+        strokeWidth={isActive ? 2.5 : 1.5}
+        className={cn(
+          'relative transition-all duration-300',
+          isActive
+            ? 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]'
+            : 'text-white/40 hover:text-white/60'
+        )}
+      />
+    </motion.button>
   );
 }
