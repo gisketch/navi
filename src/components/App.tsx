@@ -1,23 +1,35 @@
 import { useState, useEffect, useCallback } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useGeminiLive } from '../hooks/useGeminiLive';
 import { useAudioCapture } from '../hooks/useAudioCapture';
 import { useAudioPlayback } from '../hooks/useAudioPlayback';
+import { useOvernightSummaries } from '../hooks/useOvernightSummaries';
 import { ChatUI } from './ChatUI';
 import { ControlBar } from './ControlBar';
 import { SettingsModal } from './SettingsModal';
 import { LiveStatus } from './LiveStatus';
+import { Dashboard } from './Dashboard';
+import { BottomNavBar } from './BottomNavBar';
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../utils/constants';
 import type { MicMode } from '../utils/constants';
 import { Navi } from './Navi';
 import type { NaviState, RadialMenuState } from './Navi';
+import { Mic, Radio, Fingerprint, Sparkles } from 'lucide-react';
+
+type AppMode = 'dashboard' | 'chat';
+type NavTab = 'home' | 'search' | 'notifications' | 'profile';
 
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
   const [spinTrigger, setSpinTrigger] = useState(0);
+  
+  // New: App mode (dashboard vs chat)
+  const [mode, setMode] = useState<AppMode>('dashboard');
+  const [activeTab, setActiveTab] = useState<NavTab>('home');
 
   // Persisted settings
   const [apiKey, setApiKey] = useLocalStorage(STORAGE_KEYS.API_KEY, DEFAULT_SETTINGS.apiKey);
@@ -26,6 +38,17 @@ export function App() {
   const [naviBrainWebhook, setNaviBrainWebhook] = useLocalStorage(STORAGE_KEYS.NAVI_BRAIN_WEBHOOK, DEFAULT_SETTINGS.naviBrainWebhook);
   const [voiceName, setVoiceName] = useLocalStorage(STORAGE_KEYS.VOICE_NAME, DEFAULT_SETTINGS.voiceName);
   const [receiveNoteContent, setReceiveNoteContent] = useLocalStorage(STORAGE_KEYS.RECEIVE_NOTE_CONTENT, DEFAULT_SETTINGS.receiveNoteContent);
+
+  // Overnight summaries hook
+  const {
+    cards,
+    dailySummary,
+    isLoading: summariesLoading,
+    error: summariesError,
+    lastUpdated,
+    isMock,
+    refetch: refetchSummaries,
+  } = useOvernightSummaries();
 
   // Audio playback hook
   const { isPlaying, queueAudio, stopPlayback } = useAudioPlayback();
@@ -36,6 +59,7 @@ export function App() {
     messages,
     currentTurn,
     connect,
+    disconnect,
     sendAudio,
     sendText,
     liveStatus,
@@ -65,18 +89,6 @@ export function App() {
     onError: (err) => setError(err.message),
   });
 
-  // // Auto-resume listening when tool finishes (if micMode is auto and connected)
-  // useEffect(() => {
-  //   if (!isToolActive && micMode === 'auto' && connectionStatus === 'connected' && audioInitialized && !isCapturing && !isPlaying) {
-  //     // Small delay to ensure state is settled?
-  //     const timer = setTimeout(() => {
-  //       startCapture();
-  //     }, 500);
-  //     return () => clearTimeout(timer);
-  //   }
-  // }, [isToolActive, micMode, connectionStatus, audioInitialized, isCapturing, isPlaying, startCapture]);
-
-
   // Show settings on first load if no API key
   useEffect(() => {
     if (!apiKey) {
@@ -101,9 +113,9 @@ export function App() {
       }
     };
     fetchPrompt();
-  }, []); // Run once on mount
+  }, []);
 
-  // Handle connection
+  // Handle connection and enter chat mode
   const handleConnect = useCallback(async () => {
     if (!apiKey) {
       setSettingsOpen(true);
@@ -119,7 +131,41 @@ export function App() {
 
     // Connect to Gemini
     await connect();
+    
+    // Enter chat mode
+    setMode('chat');
   }, [apiKey, audioInitialized, initializeAudio, connect]);
+
+  // Handle disconnect and return to dashboard
+  const handleDisconnect = useCallback(() => {
+    disconnect();
+    stopCapture();
+    stopPlayback();
+    setMode('dashboard');
+  }, [disconnect, stopCapture, stopPlayback]);
+
+  // Handle main button click (different behavior per mode)
+  const handleMainButtonClick = useCallback(async () => {
+    if (mode === 'dashboard') {
+      // Enter chat mode / connect
+      await handleConnect();
+    } else {
+      // In chat mode - handle mic toggle
+      const isConnected = connectionStatus === 'connected';
+      if (!isConnected) {
+        if (connectionStatus !== 'connecting') await handleConnect();
+        return;
+      }
+      if (micMode === 'auto') {
+        if (isPlaying && !isCapturing) stopPlayback();
+        if (isCapturing) {
+          stopCapture();
+        } else {
+          await startCapture();
+        }
+      }
+    }
+  }, [mode, handleConnect, connectionStatus, micMode, isPlaying, isCapturing, stopPlayback, stopCapture, startCapture]);
 
   // Clear error after timeout
   useEffect(() => {
@@ -145,59 +191,133 @@ export function App() {
     }
   }, [isToolActive, isCapturing, stopCapture]);
 
+  // Get icon for main button based on state
+  const getMainButtonIcon = () => {
+    if (connectionStatus === 'connecting') {
+      return <div className="w-6 h-6 rounded-full border-t-2 border-white/50 animate-spin" />;
+    }
+    if (naviState === 'listening') {
+      return <Mic className="w-6 h-6 text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]" />;
+    }
+    if (naviState === 'speaking') {
+      return <Sparkles className="w-6 h-6 text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]" />;
+    }
+    if (naviState === 'idle' || naviState === 'thinking') {
+      return <Fingerprint className="w-6 h-6 text-white/80" />;
+    }
+    return <Radio className="w-6 h-6 text-white" />;
+  };
+
+  const isConnected = connectionStatus === 'connected';
+
   return (
-    <div className="flex h-screen flex-col text-white overflow-hidden relative">
-      {/* Header */}
-      <header className="flex items-center justify-center px-6 py-16">
-        <h1 className="text-2xl font-semibold tracking-tight text-white/90">Navi</h1>
-      </header>
-
+    <div className="flex h-screen flex-col text-white overflow-hidden relative bg-[#050910]">
       {/* Error banner */}
-      {error && (
-        <div className="bg-red-900/50 px-4 py-2 text-center text-sm text-red-200 backdrop-blur-sm">
-          {error}
-        </div>
-      )}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-0 left-0 right-0 z-50 bg-red-900/80 px-4 py-2 text-center text-sm text-red-200 backdrop-blur-sm"
+          >
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Navi overlay - positioned absolutely to move across entire screen */}
+      {/* Navi - Position changes based on mode */}
       <Navi
         state={naviState}
         audioLevel={audioLevel}
-        scale={1.2}
-        radialMenuState={radialMenuState}
+        scale={mode === 'chat' ? 1 : 0.6}
+        radialMenuState={mode === 'chat' ? radialMenuState : undefined}
         spinTrigger={spinTrigger}
+        position={mode === 'dashboard' ? 'top-left' : 'center'}
       />
 
-      {/* Live Status (Agentic Tools) - with animated word display */}
-      <LiveStatus
-        status={liveStatus}
-        onStatusChange={() => setSpinTrigger(prev => prev + 1)}
-      />
+      {/* Dashboard Mode */}
+      <AnimatePresence>
+        {mode === 'dashboard' && (
+          <motion.div
+            key="dashboard"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.3 }}
+            className="flex-1 flex flex-col"
+          >
+            <Dashboard
+              cards={cards}
+              dailySummary={dailySummary}
+              isLoading={summariesLoading}
+              error={summariesError}
+              lastUpdated={lastUpdated}
+              isMock={isMock}
+              onRefresh={refetchSummaries}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Chat area */}
-      <ChatUI
-        messages={messages}
-        currentTurn={currentTurn}
-        isCapturing={isCapturing}
-        activeCards={activeCards}
-        onCloseCards={clearCards}
-      />
+      {/* Chat Mode */}
+      <AnimatePresence>
+        {mode === 'chat' && (
+          <motion.div
+            key="chat"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="flex-1 flex flex-col"
+          >
+            {/* Live Status (Agentic Tools) */}
+            <LiveStatus
+              status={liveStatus}
+              onStatusChange={() => setSpinTrigger(prev => prev + 1)}
+            />
 
-      {/* Control bar */}
-      <ControlBar
-        state={naviState}
-        micMode={micMode}
-        connectionStatus={connectionStatus}
-        isCapturing={isCapturing}
-        isPlaying={isPlaying}
-        onStartCapture={startCapture}
-        onStopCapture={stopCapture}
-        onSendText={sendText}
-        onStopPlayback={stopPlayback}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onConnect={handleConnect}
-        onRadialMenuChange={setRadialMenuState}
-      />
+            {/* Chat area */}
+            <ChatUI
+              messages={messages}
+              currentTurn={currentTurn}
+              isCapturing={isCapturing}
+              activeCards={activeCards}
+              onCloseCards={clearCards}
+            />
+
+            {/* Control bar - only in chat mode */}
+            <ControlBar
+              state={naviState}
+              micMode={micMode}
+              connectionStatus={connectionStatus}
+              isCapturing={isCapturing}
+              isPlaying={isPlaying}
+              onStartCapture={startCapture}
+              onStopCapture={stopCapture}
+              onSendText={sendText}
+              onStopPlayback={stopPlayback}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onConnect={handleConnect}
+              onDisconnect={handleDisconnect}
+              onRadialMenuChange={setRadialMenuState}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bottom Nav Bar - only in dashboard mode */}
+      <AnimatePresence>
+        {mode === 'dashboard' && (
+          <BottomNavBar
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onMainButtonClick={handleMainButtonClick}
+            mainButtonContent={getMainButtonIcon()}
+            isMainButtonActive={isConnected}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Settings modal */}
       <SettingsModal

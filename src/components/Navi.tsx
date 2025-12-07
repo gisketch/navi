@@ -1,5 +1,5 @@
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 
 export type NaviState = 'offline' | 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -11,12 +11,16 @@ export interface RadialMenuState {
   mainButtonCenter: { x: number; y: number };
 }
 
+// Position presets for different app modes
+export type NaviPosition = 'center' | 'top-left';
+
 interface NaviProps {
   state?: NaviState;
   audioLevel?: number; // 0-1, for mic input or output volume
   scale?: number; // Overall scale of Navi (default 1)
   radialMenuState?: RadialMenuState; // For positioning Navi above radial menu buttons
   spinTrigger?: number; // Increment to trigger a wing spin animation
+  position?: NaviPosition; // Where Navi should be positioned
 }
 
 // Color schemes for each state
@@ -319,7 +323,7 @@ const getWingSpeed = (state: NaviState) => {
   }
 };
 
-export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuState, spinTrigger = 0 }: NaviProps) {
+export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuState, spinTrigger = 0, position = 'center' }: NaviProps) {
   const particles = [0, 0.35, 0.7, 1.05, 1.4, 1.75, 2.1];
   const flapSpeed = getWingSpeed(state);
 
@@ -329,6 +333,20 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
   const [wingSpinRotation, setWingSpinRotation] = useState(0); // For triggered spins
   const prevStateRef = useRef<NaviState>(state);
   const prevSpinTriggerRef = useRef(spinTrigger);
+
+  // Calculate position-based offset
+  const getPositionOffset = useCallback(() => {
+    if (position === 'top-left') {
+      // Position in top-left corner with some padding
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight * 0.2; // Default center Y
+      return {
+        x: -centerX + 60, // 60px from left edge
+        y: -centerY + 100, // 100px from top
+      };
+    }
+    return { x: 0, y: 0 }; // Center position
+  }, [position]);
 
   // Detect spin trigger changes
   useEffect(() => {
@@ -544,36 +562,37 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
       }
 
       const elapsed = (Date.now() - startTime) / 1000;
+      const posOffset = getPositionOffset();
 
-      let newX = 0;
-      let newY = 0;
+      let newX = posOffset.x;
+      let newY = posOffset.y;
 
       if (state === 'offline') {
         // Very subtle floating when offline
         const t = (elapsed % 4) / 4 * Math.PI * 2;
-        newX = 0;
-        newY = Math.sin(t) * -3;
+        newX += 0;
+        newY += Math.sin(t) * -3;
       } else if (state === 'idle') {
         // Figure-8 movement
         const t = (elapsed % 3) / 3 * Math.PI * 2;
-        newX = Math.sin(t) * 12;
-        newY = Math.sin(t * 2) * -8;
+        newX += Math.sin(t) * 12;
+        newY += Math.sin(t * 2) * -8;
       } else if (state === 'listening') {
         // Gentle bobbing
         const t = (elapsed % 0.5) / 0.5 * Math.PI * 2;
-        newX = 0;
-        newY = Math.sin(t) * -5;
+        newX += 0;
+        newY += Math.sin(t) * -5;
       } else if (state === 'thinking') {
         // Excited bobbing and slight wandering
         const t = (elapsed % 0.6) / 0.6 * Math.PI * 2;
         const wanderT = (elapsed % 2) / 2 * Math.PI * 2;
-        newX = Math.sin(wanderT) * 8;
-        newY = Math.sin(t) * -6 + Math.cos(wanderT * 0.5) * 4;
+        newX += Math.sin(wanderT) * 8;
+        newY += Math.sin(t) * -6 + Math.cos(wanderT * 0.5) * 4;
       } else if (state === 'speaking') {
         // Gentle floating
         const t = (elapsed % 1.5) / 1.5 * Math.PI * 2;
-        newX = 0;
-        newY = Math.sin(t) * -6;
+        newX += 0;
+        newY += Math.sin(t) * -6;
       }
 
       idleX.set(newX);
@@ -590,7 +609,7 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
 
     animate();
     return () => cancelAnimationFrame(animationFrame);
-  }, [state, idleX, idleY, touchTargetX, touchTargetY, isTouching, isRadialMenuOpen]);
+  }, [state, idleX, idleY, touchTargetX, touchTargetY, isTouching, isRadialMenuOpen, getPositionOffset, position]);
 
   // Dynamic wing speed - faster when touching/moving
   const effectiveFlapSpeed = isTouching ? Math.max(0.08, flapSpeed * 0.5) : flapSpeed;
