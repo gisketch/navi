@@ -81,7 +81,7 @@ export function ResultCards({ cards, className = '', onClose }: ResultCardsProps
                     dragConstraints={constraints}
                     dragElastic={0.1} /* Spring feel */
                     dragTransition={{ bounceStiffness: 300, bounceDamping: 20 }} /* Smooth finish */
-                    className="flex gap-3 px-4 min-w-min cursor-grab active:cursor-grabbing"
+                    className="flex gap-3 px-4 min-w-min cursor-grab active:cursor-grabbing touch-pan-x overscroll-x-contain"
                     whileTap={{ cursor: "grabbing" }}
                 >
                     {cards.map((card, index) => (

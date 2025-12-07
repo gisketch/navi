@@ -110,8 +110,8 @@ export function useGeminiLive({
 
         console.log('[Navi] Tool Call: access_digital_brain', { taskId, instruction, processingText });
 
-        // 0. Reset Cards on new Search
-        setActiveCards([]);
+        // 0. Reset Cards on new Search - REMOVED for persistence
+        // setActiveCards([]);
 
         // 1. Set Status UI
         activeTaskRef.current = { id: taskId, processingText };
@@ -319,6 +319,11 @@ export function useGeminiLive({
         if (content.inputTranscription?.text) {
           const text = content.inputTranscription.text;
 
+          // Clear cards at the start of a new user utterance - REMOVED for persistence
+          // if (!currentTranscriptRef.current.user) {
+          //   setActiveCards([]);
+          // }
+
           if (!currentTranscriptRef.current.userId) {
             currentTranscriptRef.current.userId = `user-${Date.now()}`;
           }
@@ -341,8 +346,7 @@ export function useGeminiLive({
             addMessage('user', currentTranscriptRef.current.user, currentTranscriptRef.current.userId || undefined);
             currentTranscriptRef.current.user = '';
             currentTranscriptRef.current.userId = null;
-            // Clear cards on new user message?
-            setActiveCards([]);
+            // Removed: setActiveCards([]) - This was causing cards to disappear when assistant replied to a tool
           }
 
           if (!currentTranscriptRef.current.assistantId) {
@@ -361,8 +365,7 @@ export function useGeminiLive({
         if (content.turnComplete) {
           if (currentTranscriptRef.current.user) {
             addMessage('user', currentTranscriptRef.current.user, currentTranscriptRef.current.userId || undefined);
-            // Clear cards if user spoke
-            setActiveCards([]);
+            // Removed: setActiveCards([]) - Same reason
 
             currentTranscriptRef.current.user = '';
             currentTranscriptRef.current.userId = null;
@@ -408,7 +411,7 @@ export function useGeminiLive({
       };
 
       if (systemInstruction) {
-        config.systemInstruction = { parts: [{ text: systemInstruction }] };
+        config.systemInstruction = { parts: [{ text: systemInstruction + "\n\nIMPORTANT: ALWAYS speak to the user before running any tool. Describe what you are about to do." }] };
       }
 
       const session = await aiRef.current.live.connect({
@@ -498,7 +501,6 @@ export function useGeminiLive({
     try {
       // Add user message immediately for text input
       addMessage('user', text);
-      setActiveCards([]); // Clear cards on new text input
 
       sessionRef.current.sendClientContent({
         turns: text,
