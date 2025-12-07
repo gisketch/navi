@@ -82,6 +82,25 @@ export function App() {
     }
   }, [apiKey]);
 
+  // Fetch System Prompt on Mount
+  useEffect(() => {
+    const fetchPrompt = async () => {
+      try {
+        const response = await fetch('https://automate.gisketch.com/webhook/navi-prompt');
+        if (!response.ok) throw new Error('Failed to fetch prompt');
+
+        const data = await response.json();
+        if (data.exists && data.content) {
+          console.log('[Navi] Updated system instruction from webhook');
+          setSystemInstruction(data.content);
+        }
+      } catch (e) {
+        console.error('[Navi] Failed to fetch system prompt:', e);
+      }
+    };
+    fetchPrompt();
+  }, []); // Run once on mount
+
   // Handle connection
   const handleConnect = useCallback(async () => {
     if (!apiKey) {

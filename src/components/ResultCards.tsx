@@ -52,7 +52,7 @@ export function ResultCards({ cards, className = '', onClose }: ResultCardsProps
     };
 
     return (
-        <div className={`relative w-full group ${className}`}>
+        <div className={`relative w-full group ${className} z-100`}>
             {/* Close Button */}
             {onClose && (
                 <motion.button

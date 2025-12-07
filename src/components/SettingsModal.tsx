@@ -68,7 +68,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 z-[1000]">
       <div className="bg-[#1e1e1e] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
 
         {/* Header */}
@@ -151,8 +151,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <button
                         onClick={() => onMicModeChange('manual')}
                         className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${micMode === 'manual'
-                            ? 'bg-white/10 text-white shadow-sm'
-                            : 'text-white/40 hover:text-white/60'
+                          ? 'bg-white/10 text-white shadow-sm'
+                          : 'text-white/40 hover:text-white/60'
                           }`}
                       >
                         Push-to-Talk
@@ -160,8 +160,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <button
                         onClick={() => onMicModeChange('auto')}
                         className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${micMode === 'auto'
-                            ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30'
-                            : 'text-white/40 hover:text-white/60'
+                          ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30'
+                          : 'text-white/40 hover:text-white/60'
                           }`}
                       >
                         Auto
@@ -199,12 +199,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </label>
                   <textarea
                     value={tempSystemInstruction}
+                    readOnly
+                    disabled
                     onChange={(e) => setTempSystemInstruction(e.target.value)}
-                    placeholder="Give Navi a personality or specific rules..."
-                    className="w-full h-32 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all text-sm resize-none"
+                    placeholder="Fetching system instructions..."
+                    className="w-full h-32 bg-black/20 border border-white/5 rounded-xl px-4 py-3 text-white/50 cursor-not-allowed resize-none focus:outline-none"
                   />
                   <p className="text-xs text-white/30">
-                    Define how Navi should behave.
+                    System instructions are managed centrally and cannot be edited here.
                   </p>
                 </div>
               </div>

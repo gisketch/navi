@@ -48,11 +48,19 @@ export const DEFAULT_WEBHOOKS = {
 };
 
 export const VOICE_OPTIONS = [
-  { value: 'Puck', label: 'Puck (Male)' },
-  { value: 'Charon', label: 'Charon (Male)' },
-  { value: 'Kore', label: 'Kore (Female)' },
-  { value: 'Fenrir', label: 'Fenrir (Male)' },
-  { value: 'Aoede', label: 'Aoede (Female)' },
+  { value: 'Achird', label: 'Achird (Youthful)' },
+  { value: 'Algenib', label: 'Algenib (Warm)' },
+  { value: 'Aoede', label: 'Aoede (Clear)' },
+  { value: 'Callirrhoe', label: 'Callirrhoe (Confident)' },
+  { value: 'Despina', label: 'Despina (Warm)' },
+  { value: 'Erinome', label: 'Erinome (Professional)' },
+  { value: 'Kore', label: 'Kore (Energetic)' },
+  { value: 'Laomedeia', label: 'Laomedeia (Clear)' },
+  { value: 'Leda', label: 'Leda (Composed)' },
+  { value: 'Pulcherrima', label: 'Pulcherrima (Bright)' },
+  { value: 'Sulafat', label: 'Sulafat (Warm)' },
+  { value: 'Vindemiatrix', label: 'Vindemiatrix (Calm)' },
+  { value: 'Zephyr', label: 'Zephyr (Energetic)' },
 ] as const;
 
 export type VoiceName = typeof VOICE_OPTIONS[number]['value'];
@@ -61,5 +69,5 @@ export const DEFAULT_SETTINGS: NaviSettings = {
   apiKey: '',
   micMode: 'manual',
   naviBrainWebhook: DEFAULT_WEBHOOKS.NAVI_BRAIN,
-  voiceName: 'Aoede',
+  voiceName: 'Kore',
 };
