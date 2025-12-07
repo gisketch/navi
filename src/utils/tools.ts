@@ -4,51 +4,21 @@ export const TOOLS: Tool[] = [
     {
         functionDeclarations: [
             {
-                name: 'saveNote',
-                description: "Saves a note to the user's obsidian vault. The model should generate the 'processingText' and 'savingText' arguments based on the context of the note to provide a personalized experience. When calling this tool do not say \"I have saved it\" or \"It is done\" immediately. REPLY SHORT AND CONCISE. You must wait for the tool to complete. Instead, say something like \"On it...\" or \"Checking...\" or \"Let me handle that...\" and then WAIT. Upon successful completion (when you receive the result), you MUST say something along the lines of 'I generated the note for you, would you like to see it?' (not really word for word but the same idea, just put personality into it or context)",
+                name: 'access_digital_brain',
+                description: "The Master Tool. Use this for ANY request involving the user's notes, knowledge base, or Obsidian vault. This includes searching, reading, writing, modifying, or summarizing notes. You simply pass the user's natural language instruction, and the digital brain will figure out the necessary steps (search -> read -> write). When using this, just reply SHORT MESSAGE like (on it, let me check, or something with a personality)",
                 parameters: {
                     type: 'OBJECT' as any,
                     properties: {
-                        content: {
+                        instruction: {
                             type: 'STRING' as any,
-                            description: 'The content of the note to be saved. Should be the exact transcript of what the user said. So no need for clarifications, when this tool is called, just say verbatim in here what the user want in the note saved. Even if its gibberish',
+                            description: 'The user\'s request or instruction regarding their notes. Pass the intent clearly. Example: "Find my grocery list and add milk" or "What did I say about Project X?"',
                         },
                         processingText: {
                             type: 'STRING' as any,
-                            description: "Text to show while the note is being processed (status: processing). Example: 'Drafting your note about Castlevania...'",
-                        },
-                        savingText: {
-                            type: 'STRING' as any,
-                            description: "Text to show while the note is being saved to storage (status: saving). Example: 'Saving to your Vault...'",
+                            description: "Initial status text to show the user. Example: 'Consulting the brain...'",
                         },
                     },
-                    required: ['content', 'processingText', 'savingText'],
-                },
-            },
-            {
-                name: 'searchNotes',
-                description: "Searches the user's notes for information. Use this when the user asks a question about their notes or asks you to find something they wrote down. Like saveNote, reply with a short confirmation like 'Searching...' and WAIT.",
-                parameters: {
-                    type: 'OBJECT' as any,
-                    properties: {
-                        query: {
-                            type: 'STRING' as any,
-                            description: 'The search query or question to answer from the notes.',
-                        },
-                        processingText: {
-                            type: 'STRING' as any,
-                            description: "Status text for 'processing' state. Example: 'Processing request...'",
-                        },
-                        searchingText: {
-                            type: 'STRING' as any,
-                            description: "Status text for 'searching' state (finding files). Example: 'Searching vault...'",
-                        },
-                        readingText: {
-                            type: 'STRING' as any,
-                            description: "Status text for 'reading' state (reading content). Example: 'Reading notes...'",
-                        },
-                    },
-                    required: ['query', 'processingText', 'searchingText', 'readingText'],
+                    required: ['instruction', 'processingText'],
                 },
             },
             {

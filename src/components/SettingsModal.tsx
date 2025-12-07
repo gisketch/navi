@@ -1,261 +1,273 @@
-import { useState } from 'react';
-import { Settings, X, LogOut } from 'lucide-react';
-import type { MicMode } from '../utils/constants';
+import React, { useState, useEffect } from 'react';
+import { X, Mic, Key, Save, Trash2, Webhook, Info, Volume2 } from 'lucide-react';
+import { NaviSettings, VOICE_OPTIONS } from '../utils/constants';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   apiKey: string;
   onApiKeyChange: (key: string) => void;
-  micMode: MicMode;
-  onMicModeChange: (mode: MicMode) => void;
-  n8nWebhookUrl: string;
-  onN8nWebhookUrlChange: (url: string) => void;
-  saveNoteWebhook: string;
-  onSaveNoteWebhookChange: (url: string) => void;
-  searchNotesWebhook: string;
-  onSearchNotesWebhookChange: (url: string) => void;
-  onDisconnect: () => void;
+  systemInstruction: string;
+  onSystemInstructionChange: (instruction: string) => void;
+  naviBrainWebhook: string;
+  onNaviBrainWebhookChange: (url: string) => void;
+  onSave: () => void;
+  micMode: 'manual' | 'auto';
+  onMicModeChange: (mode: 'manual' | 'auto') => void;
+  voiceName: string;
+  onVoiceNameChange: (voice: string) => void;
 }
 
-export function SettingsModal({
+export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   apiKey,
   onApiKeyChange,
+  systemInstruction,
+  onSystemInstructionChange,
+  naviBrainWebhook,
+  onNaviBrainWebhookChange,
+  onSave,
   micMode,
   onMicModeChange,
-  n8nWebhookUrl,
-  onN8nWebhookUrlChange,
-  saveNoteWebhook,
-  onSaveNoteWebhookChange,
-  searchNotesWebhook,
-  onSearchNotesWebhookChange,
-  onDisconnect,
-}: SettingsModalProps) {
+  voiceName,
+  onVoiceNameChange
+}) => {
   const [tempApiKey, setTempApiKey] = useState(apiKey);
-  const [tempMicMode, setTempMicMode] = useState(micMode);
-  const [tempN8nUrl, setTempN8nUrl] = useState(n8nWebhookUrl);
-  // Functions Webhooks
-  const [tempSaveNoteWebhook, setTempSaveNoteWebhook] = useState(saveNoteWebhook);
-  const [tempSearchWebhook, setTempSearchWebhook] = useState(searchNotesWebhook);
-
+  const [tempSystemInstruction, setTempSystemInstruction] = useState(systemInstruction);
+  const [tempNaviBrainWebhook, setTempNaviBrainWebhook] = useState(naviBrainWebhook);
+  const [tempVoiceName, setTempVoiceName] = useState(voiceName);
   const [activeTab, setActiveTab] = useState<'general' | 'functions'>('general');
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      setTempApiKey(apiKey);
+      setTempSystemInstruction(systemInstruction);
+      setTempNaviBrainWebhook(naviBrainWebhook);
+      setTempVoiceName(voiceName);
+    }
+  }, [isOpen, apiKey, systemInstruction, naviBrainWebhook, voiceName]);
 
   const handleSave = () => {
     onApiKeyChange(tempApiKey);
-    onMicModeChange(tempMicMode);
-    onN8nWebhookUrlChange(tempN8nUrl);
-    onSaveNoteWebhookChange(tempSaveNoteWebhook);
-    onSearchNotesWebhookChange(tempSearchWebhook);
+    onSystemInstructionChange(tempSystemInstruction);
+    onNaviBrainWebhookChange(tempNaviBrainWebhook);
+    onVoiceNameChange(tempVoiceName);
+    onSave();
     onClose();
   };
 
   const handleCancel = () => {
     setTempApiKey(apiKey);
-    setTempMicMode(micMode);
-    setTempN8nUrl(n8nWebhookUrl);
-    setTempSaveNoteWebhook(saveNoteWebhook);
-    setTempSearchWebhook(searchNotesWebhook);
-    setActiveTab('general');
+    setTempSystemInstruction(systemInstruction);
+    setTempNaviBrainWebhook(naviBrainWebhook);
+    setTempVoiceName(voiceName);
     onClose();
   };
 
-  const handleDisconnectClick = () => {
-    if (confirm('Are you sure you want to disconnect?')) {
-      onDisconnect();
-      onClose();
-    }
-  };
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl bg-gray-900/90 border border-white/10 p-6 shadow-2xl backdrop-blur-xl">
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Settings className="h-5 w-5 text-gray-400" />
-            <h2 className="text-lg font-semibold text-white">Settings</h2>
-          </div>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[#1e1e1e] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/5 bg-white/5">
+          <h2 className="text-lg font-medium text-white flex items-center gap-2">
+            Settings
+          </h2>
           <button
             onClick={handleCancel}
-            className="rounded-lg p-2 text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+            className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/70 hover:text-white"
           >
-            <X className="h-5 w-5" />
+            <X size={18} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-4 border-b border-white/10 mb-6 pb-2">
+        <div className="flex border-b border-white/5">
           <button
             onClick={() => setActiveTab('general')}
-            className={`text-sm font-medium pb-1 transition-colors ${activeTab === 'general' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white'}`}
+            className={`flex-1 py-3 text-sm font-medium transition-colors relative ${activeTab === 'general' ? 'text-white' : 'text-white/40 hover:text-white/70'
+              }`}
           >
             General
+            {activeTab === 'general' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
+            )}
           </button>
           <button
             onClick={() => setActiveTab('functions')}
-            className={`text-sm font-medium pb-1 transition-colors ${activeTab === 'functions' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400 hover:text-white'}`}
+            className={`flex-1 py-3 text-sm font-medium transition-colors relative ${activeTab === 'functions' ? 'text-white' : 'text-white/40 hover:text-white/70'
+              }`}
           >
             Functions
+            {activeTab === 'functions' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500" />
+            )}
           </button>
         </div>
 
-        <div className="space-y-5">
-          {activeTab === 'general' ? (
-            <>
-              {/* API Key */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-300">
-                  Gemini API Key
-                </label>
-                <input
-                  type="password"
-                  value={tempApiKey}
-                  onChange={(e) => setTempApiKey(e.target.value)}
-                  placeholder="Enter your API key"
-                  className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                />
-                <p className="mt-1.5 text-xs text-gray-500">
-                  Get your API key from{' '}
-                  <a
-                    href="https://aistudio.google.com/apikey"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-cyan-400 hover:underline"
-                  >
-                    Google AI Studio
-                  </a>
-                </p>
-              </div>
+        {/* Content */}
+        <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
 
-              {/* Mic Mode */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-300">
-                  Microphone Mode
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setTempMicMode('hold')}
-                    className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${tempMicMode === 'hold'
-                      ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/20'
-                      : 'bg-black/40 text-gray-300 hover:bg-white/10'
-                      }`}
-                  >
-                    Hold to Talk
-                  </button>
-                  <button
-                    onClick={() => setTempMicMode('auto')}
-                    className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${tempMicMode === 'auto'
-                      ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/20'
-                      : 'bg-black/40 text-gray-300 hover:bg-white/10'
-                      }`}
-                  >
-                    Auto (VAD)
-                  </button>
-                </div>
-                <p className="mt-1.5 text-xs text-gray-500">
-                  {tempMicMode === 'hold'
-                    ? 'Press and hold the mic button to speak'
-                    : 'Automatic voice detection - starts/stops recording automatically'}
-                </p>
-              </div>
-            </>
-          ) : (
+          {activeTab === 'general' && (
             <>
-              <div>
-                <h3 className="text-sm font-semibold text-gray-200 mb-3">Function Webhooks</h3>
-                {/* Save Note Webhook */}
-                <div className="mb-4">
-                  <label className="mb-2 block text-sm font-medium text-gray-300">
-                    Save Note Webhook
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-white/50 uppercase tracking-wider flex items-center gap-2">
+                    <Key size={12} /> Gemini API Key
                   </label>
                   <input
-                    type="url"
-                    value={tempSaveNoteWebhook}
-                    onChange={(e) => setTempSaveNoteWebhook(e.target.value)}
-                    placeholder="https://automate.gisketch.com/webhook/save-note"
-                    className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                    type="password"
+                    value={tempApiKey}
+                    onChange={(e) => setTempApiKey(e.target.value)}
+                    placeholder="Paste your API key here..."
+                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all text-sm font-mono"
                   />
+                  <p className="text-xs text-white/30">
+                    Your key is stored locally in your browser.
+                  </p>
                 </div>
-                {/* Search Notes Webhook */}
-                <div className="mb-4">
-                  <label className="mb-2 block text-sm font-medium text-gray-300">
-                    Search Notes Webhook
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-white/50 uppercase tracking-wider flex items-center gap-2">
+                      <Mic size={12} /> Microphone Mode
+                    </label>
+                    <div className="flex bg-black/20 p-1 rounded-xl border border-white/10">
+                      {/* Custom small toggle for Mic Mode */}
+                      <select
+                        value={micMode}
+                        onChange={(e) => onMicModeChange(e.target.value as any)}
+                        className="w-full bg-transparent text-white text-sm focus:outline-none px-2 py-1 appearance-none cursor-pointer"
+                      >
+                        <option value="manual" className="bg-[#1e1e1e]">Push-to-Talk</option>
+                        <option value="auto" className="bg-[#1e1e1e]">Automated (VAD)</option>
+                      </select>
+                      {/* Reverting to button style for consistency or keep select? The previous design had buttons. I'll stick to the previous button design but maybe make it vertically stacked or side-by-side with Voice? */}
+                    </div>
+                    <div className="flex bg-black/20 p-1 rounded-xl border border-white/10">
+                      <button
+                        onClick={() => onMicModeChange('manual')}
+                        className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${micMode === 'manual'
+                            ? 'bg-white/10 text-white shadow-sm'
+                            : 'text-white/40 hover:text-white/60'
+                          }`}
+                      >
+                        Push-to-Talk
+                      </button>
+                      <button
+                        onClick={() => onMicModeChange('auto')}
+                        className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${micMode === 'auto'
+                            ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30'
+                            : 'text-white/40 hover:text-white/60'
+                          }`}
+                      >
+                        Auto
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-white/50 uppercase tracking-wider flex items-center gap-2">
+                      <Volume2 size={12} /> Voice
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={tempVoiceName}
+                        onChange={(e) => setTempVoiceName(e.target.value)}
+                        className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all text-sm appearance-none cursor-pointer"
+                      >
+                        {VOICE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value} className="bg-[#1e1e1e] text-white">
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-white/50">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-white/50 uppercase tracking-wider flex items-center gap-2">
+                    <Info size={12} /> System Instructions
                   </label>
-                  <input
-                    type="url"
-                    value={tempSearchWebhook}
-                    onChange={(e) => setTempSearchWebhook(e.target.value)}
-                    placeholder="https://automate.gisketch.com/webhook/search-notes"
-                    className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+                  <textarea
+                    value={tempSystemInstruction}
+                    onChange={(e) => setTempSystemInstruction(e.target.value)}
+                    placeholder="Give Navi a personality or specific rules..."
+                    className="w-full h-32 bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all text-sm resize-none"
                   />
+                  <p className="text-xs text-white/30">
+                    Define how Navi should behave.
+                  </p>
                 </div>
-              </div>
-              {/* n8n Webhook URL (Legacy) */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-300">
-                  General/Legacy Webhook (Optional)
-                </label>
-                <input
-                  type="url"
-                  value={tempN8nUrl}
-                  onChange={(e) => setTempN8nUrl(e.target.value)}
-                  placeholder="https://your-n8n-instance.com/webhook/..."
-                  className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
-                />
               </div>
             </>
           )}
 
+          {activeTab === 'functions' && (
+            <div className="space-y-6">
+              <div className="bg-purple-500/5 border border-purple-500/10 rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
+                    <Webhook size={18} />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-medium text-white">Navi Brain Webhook</h3>
+                    <p className="text-xs text-white/50 leading-relaxed">
+                      Connects Navi to your backend agent (n8n). All "Brain" requests (Search/Save/Read) are sent here.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-white/50 uppercase tracking-wider">
+                  Webhook URL
+                </label>
+                <input
+                  type="text"
+                  value={tempNaviBrainWebhook}
+                  onChange={(e) => setTempNaviBrainWebhook(e.target.value)}
+                  placeholder="https://your-n8n-instance.com/webhook/..."
+                  className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-purple-500/30 focus:ring-1 focus:ring-purple-500/30 transition-all text-sm font-mono"
+                />
+              </div>
+            </div>
+          )}
+
         </div>
 
-        {/* Actions */}
-        <div className="mt-8 flex flex-col gap-3">
-          <div className="flex gap-3">
+        {/* Footer */}
+        <div className="p-4 border-t border-white/5 bg-white/5 flex items-center justify-between gap-3">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-white/20 font-mono">v{__APP_VERSION__}</span>
+            <span className="text-[10px] text-white/20 font-mono">b{__COMMIT_COUNT__}</span>
+          </div>
+          <div className="flex items-center gap-3">
             <button
               onClick={handleCancel}
-              className="flex-1 rounded-lg bg-black/40 px-4 py-2.5 text-sm font-medium text-gray-300 hover:bg-white/10 transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-medium text-white/60 hover:text-white hover:bg-white/5 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              className="flex-1 rounded-lg bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-500 shadow-lg shadow-cyan-500/20 transition-all hover:scale-[1.02]"
+              className="px-6 py-2 rounded-xl text-xs font-medium bg-white text-black hover:bg-gray-200 transition-colors shadow-lg shadow-white/5 flex items-center gap-2"
             >
+              <Save size={14} />
               Save Changes
             </button>
           </div>
-
-          <button
-            onClick={handleDisconnectClick}
-            className="w-full flex items-center justify-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Disconnect Session
-          </button>
-
-          <div className="text-center pt-2">
-            <span className="text-[10px] text-gray-600 font-mono">
-              v{__APP_VERSION__} (Build {__COMMIT_COUNT__})
-            </span>
-          </div>
         </div>
+
       </div>
     </div>
   );
-}
-
-// Settings button for opening the modal
-export function SettingsButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="rounded-full p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
-      aria-label="Settings"
-    >
-      <Settings className="h-5 w-5" />
-    </button>
-  );
-}
+};

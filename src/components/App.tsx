@@ -8,7 +8,7 @@ import { ChatUI } from './ChatUI';
 import { ControlBar } from './ControlBar';
 import { SettingsModal } from './SettingsModal';
 import { LiveStatus } from './LiveStatus';
-import { STORAGE_KEYS, DEFAULT_SETTINGS, DEFAULT_SYSTEM_INSTRUCTION } from '../utils/constants';
+import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../utils/constants';
 import type { MicMode } from '../utils/constants';
 import { Navi } from './Navi';
 import type { NaviState, RadialMenuState } from './Navi';
@@ -21,10 +21,10 @@ export function App() {
 
   // Persisted settings
   const [apiKey, setApiKey] = useLocalStorage(STORAGE_KEYS.API_KEY, DEFAULT_SETTINGS.apiKey);
+  const [systemInstruction, setSystemInstruction] = useLocalStorage(STORAGE_KEYS.SYSTEM_INSTRUCTION, '');
   const [micMode, setMicMode] = useLocalStorage<MicMode>(STORAGE_KEYS.MIC_MODE, DEFAULT_SETTINGS.micMode);
-  const [n8nWebhookUrl, setN8nWebhookUrl] = useLocalStorage(STORAGE_KEYS.N8N_WEBHOOK_URL, DEFAULT_SETTINGS.n8nWebhookUrl);
-  const [saveNoteWebhook, setSaveNoteWebhook] = useLocalStorage(STORAGE_KEYS.SAVE_NOTE_WEBHOOK, DEFAULT_SETTINGS.saveNoteWebhook);
-  const [searchNotesWebhook, setSearchNotesWebhook] = useLocalStorage(STORAGE_KEYS.SEARCH_NOTES_WEBHOOK, DEFAULT_SETTINGS.searchNotesWebhook);
+  const [naviBrainWebhook, setNaviBrainWebhook] = useLocalStorage(STORAGE_KEYS.NAVI_BRAIN_WEBHOOK, DEFAULT_SETTINGS.naviBrainWebhook);
+  const [voiceName, setVoiceName] = useLocalStorage(STORAGE_KEYS.VOICE_NAME, DEFAULT_SETTINGS.voiceName);
 
   // Audio playback hook
   const { isPlaying, queueAudio, stopPlayback } = useAudioPlayback();
@@ -40,13 +40,15 @@ export function App() {
     sendText,
     liveStatus,
     isToolActive,
+    activeCards,
+    clearCards,
   } = useGeminiLive({
     apiKey,
-    systemInstruction: DEFAULT_SYSTEM_INSTRUCTION,
+    systemInstruction,
     onAudioResponse: queueAudio,
     onError: (err) => setError(err.message),
-    saveNoteWebhook,
-    searchNotesWebhook,
+    naviBrainWebhook,
+    voiceName,
   });
 
   // Audio capture hook
@@ -61,6 +63,18 @@ export function App() {
     onAudioData: sendAudio,
     onError: (err) => setError(err.message),
   });
+
+  // // Auto-resume listening when tool finishes (if micMode is auto and connected)
+  // useEffect(() => {
+  //   if (!isToolActive && micMode === 'auto' && connectionStatus === 'connected' && audioInitialized && !isCapturing && !isPlaying) {
+  //     // Small delay to ensure state is settled?
+  //     const timer = setTimeout(() => {
+  //       startCapture();
+  //     }, 500);
+  //     return () => clearTimeout(timer);
+  //   }
+  // }, [isToolActive, micMode, connectionStatus, audioInitialized, isCapturing, isPlaying, startCapture]);
+
 
   // Show settings on first load if no API key
   useEffect(() => {
@@ -151,6 +165,8 @@ export function App() {
         messages={messages}
         currentTurn={currentTurn}
         isCapturing={isCapturing}
+        activeCards={activeCards}
+        onCloseCards={clearCards}
       />
 
       {/* Control bar */}
@@ -175,15 +191,15 @@ export function App() {
         onClose={() => setSettingsOpen(false)}
         apiKey={apiKey}
         onApiKeyChange={setApiKey}
+        systemInstruction={systemInstruction}
+        onSystemInstructionChange={setSystemInstruction}
         micMode={micMode}
         onMicModeChange={setMicMode}
-        n8nWebhookUrl={n8nWebhookUrl}
-        onN8nWebhookUrlChange={setN8nWebhookUrl}
-        saveNoteWebhook={saveNoteWebhook}
-        onSaveNoteWebhookChange={setSaveNoteWebhook}
-        searchNotesWebhook={searchNotesWebhook}
-        onSearchNotesWebhookChange={setSearchNotesWebhook}
-        onDisconnect={handleDisconnect}
+        naviBrainWebhook={naviBrainWebhook}
+        onNaviBrainWebhookChange={setNaviBrainWebhook}
+        voiceName={voiceName}
+        onVoiceNameChange={setVoiceName}
+        onSave={() => { }}
       />
     </div>
   );

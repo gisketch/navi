@@ -1,11 +1,14 @@
 import { useMemo, memo, useRef, useLayoutEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { ChatMessage } from '../utils/constants';
+import type { ChatMessage, CardData } from '../utils/constants';
+import { ResultCards } from './ResultCards';
 
 interface ChatUIProps {
   messages: ChatMessage[];
   currentTurn: { role: 'user' | 'assistant'; text: string; id: string } | null;
   isCapturing: boolean;
+  activeCards?: CardData[];
+  onCloseCards?: () => void;
 }
 
 // Get Navi's actual center position from DOM
@@ -194,7 +197,7 @@ const MagicText = memo(function MagicText({
   );
 });
 
-export function ChatUI({ currentTurn, isCapturing }: ChatUIProps) {
+export function ChatUI({ currentTurn, isCapturing, activeCards, onCloseCards }: ChatUIProps) {
   // Track Navi's real position, updated periodically
   const [naviPosition, setNaviPosition] = useState(() => getNaviPosition());
   const lastPositionRef = useRef(naviPosition);
@@ -242,9 +245,9 @@ export function ChatUI({ currentTurn, isCapturing }: ChatUIProps) {
   }, [currentTurn, isCapturing]);
 
   return (
-    <div className="flex flex-1 flex-col p-6 overflow-hidden relative justify-start">
+    <div className="flex flex-1 flex-col py-6 overflow-hidden relative justify-start">
       {/* Single centered text area */}
-      <div className="flex flex-col items-start justify-start h-[24em] pt-56">
+      <div className="flex flex-col items-center justify-between h-[24em] pt-56 w-full max-w-4xl mx-auto flex-1">
         <AnimatePresence mode="wait">
           {content ? (
             <motion.div
@@ -252,11 +255,10 @@ export function ChatUI({ currentTurn, isCapturing }: ChatUIProps) {
               initial={{ opacity: 1 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 1 }}
-              className="w-full text-center"
+              className="w-full text-center flex flex-col items-center gap-8 px-6"
             >
-              <div className={`text-2xl font-medium leading-tight tracking-tight text-white ${
-                content.isPlaceholder ? 'animate-pulse opacity-50' : ''
-              }`}>
+              <div className={`text-2xl font-medium leading-tight tracking-tight text-white ${content.isPlaceholder ? 'animate-pulse opacity-50' : ''
+                }`}>
                 {content.isPlaceholder ? (
                   <span>{content.text}</span>
                 ) : (
@@ -279,6 +281,14 @@ export function ChatUI({ currentTurn, isCapturing }: ChatUIProps) {
             />
           )}
         </AnimatePresence>
+
+        {/* Render Cards outside AnimatePresence of text, so they persist */}
+        <AnimatePresence>
+          {activeCards && activeCards.length > 0 && (
+            <ResultCards cards={activeCards} onClose={onCloseCards} />
+          )}
+        </AnimatePresence>
+
       </div>
     </div>
   );
