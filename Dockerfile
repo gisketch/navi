@@ -6,6 +6,9 @@ WORKDIR /app
 # Install Bun globally using npm (since we are on a Node image)
 RUN npm install -g bun
 
+# Install git for versioning
+RUN apk add --no-cache git
+
 # Copy package files
 COPY package.json bun.lockb* ./
 
