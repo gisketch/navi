@@ -5,7 +5,7 @@ export const TOOLS: Tool[] = [
         functionDeclarations: [
             {
                 name: 'access_digital_brain',
-                description: "The Master Tool. Use this for ANY request involving the user's notes, knowledge base, or Obsidian vault. This includes searching, reading, writing, modifying, or summarizing notes. You simply pass the user's natural language instruction, and the digital brain will figure out the necessary steps (search -> read -> write). When using this, just reply SHORT MESSAGE like (on it, let me check, or something with a personality)",
+                description: "The Master Tool. Use this for ANY request involving the user's notes, knowledge base, or Obsidian vault. CRITICIAL: You MUST speaks to the user using audio BEFORE calling this tool. Say something like 'Checking your notes...' or 'I'll look that up for you'. DO NOT CALL THIS TOOL SILENTLY. Pass the user's natural language instruction, and the digital brain will figure out the necessary steps.",
                 parameters: {
                     type: 'OBJECT' as any,
                     properties: {

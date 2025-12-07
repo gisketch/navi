@@ -296,7 +296,7 @@ export function ChatUI({ currentTurn, isCapturing, activeCards, onCloseCards }: 
                 WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)'
               }}
             >
-              <div className={`text-2xl font-medium leading-tight tracking-tight text-white ${content.isPlaceholder ? 'animate-pulse opacity-50' : ''
+              <div className={`text-lg font-medium leading-tight tracking-tight text-white ${content.isPlaceholder ? 'animate-pulse opacity-50' : ''
                 }`}>
                 {content.isPlaceholder ? (
                   <span>{content.text}</span>

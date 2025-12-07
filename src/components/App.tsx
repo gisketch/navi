@@ -25,6 +25,7 @@ export function App() {
   const [micMode, setMicMode] = useLocalStorage<MicMode>(STORAGE_KEYS.MIC_MODE, DEFAULT_SETTINGS.micMode);
   const [naviBrainWebhook, setNaviBrainWebhook] = useLocalStorage(STORAGE_KEYS.NAVI_BRAIN_WEBHOOK, DEFAULT_SETTINGS.naviBrainWebhook);
   const [voiceName, setVoiceName] = useLocalStorage(STORAGE_KEYS.VOICE_NAME, DEFAULT_SETTINGS.voiceName);
+  const [receiveNoteContent, setReceiveNoteContent] = useLocalStorage(STORAGE_KEYS.RECEIVE_NOTE_CONTENT, DEFAULT_SETTINGS.receiveNoteContent);
 
   // Audio playback hook
   const { isPlaying, queueAudio, stopPlayback } = useAudioPlayback();
@@ -48,6 +49,7 @@ export function App() {
     onError: (err) => setError(err.message),
     naviBrainWebhook,
     voiceName,
+    receiveNoteContent,
   });
 
   // Audio capture hook
@@ -211,6 +213,8 @@ export function App() {
         onNaviBrainWebhookChange={setNaviBrainWebhook}
         voiceName={voiceName}
         onVoiceNameChange={setVoiceName}
+        receiveNoteContent={receiveNoteContent}
+        onReceiveNoteContentChange={setReceiveNoteContent}
         onSave={() => { }}
       />
     </div>

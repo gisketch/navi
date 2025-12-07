@@ -16,6 +16,8 @@ interface SettingsModalProps {
   onMicModeChange: (mode: 'manual' | 'auto') => void;
   voiceName: string;
   onVoiceNameChange: (voice: string) => void;
+  receiveNoteContent: boolean;
+  onReceiveNoteContentChange: (enabled: boolean) => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -31,12 +33,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   micMode,
   onMicModeChange,
   voiceName,
-  onVoiceNameChange
+  onVoiceNameChange,
+  receiveNoteContent,
+  onReceiveNoteContentChange
 }) => {
   const [tempApiKey, setTempApiKey] = useState(apiKey);
   const [tempSystemInstruction, setTempSystemInstruction] = useState(systemInstruction);
   const [tempNaviBrainWebhook, setTempNaviBrainWebhook] = useState(naviBrainWebhook);
   const [tempVoiceName, setTempVoiceName] = useState(voiceName);
+  const [tempReceiveNoteContent, setTempReceiveNoteContent] = useState(receiveNoteContent);
   const [activeTab, setActiveTab] = useState<'general' | 'functions'>('general');
 
   useEffect(() => {
@@ -45,14 +50,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setTempSystemInstruction(systemInstruction);
       setTempNaviBrainWebhook(naviBrainWebhook);
       setTempVoiceName(voiceName);
+      setTempReceiveNoteContent(receiveNoteContent);
     }
-  }, [isOpen, apiKey, systemInstruction, naviBrainWebhook, voiceName]);
+  }, [isOpen, apiKey, systemInstruction, naviBrainWebhook, voiceName, receiveNoteContent]);
 
   const handleSave = () => {
     onApiKeyChange(tempApiKey);
     onSystemInstructionChange(tempSystemInstruction);
     onNaviBrainWebhookChange(tempNaviBrainWebhook);
     onVoiceNameChange(tempVoiceName);
+    onReceiveNoteContentChange(tempReceiveNoteContent);
     onSave();
     onClose();
   };
@@ -62,6 +69,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setTempSystemInstruction(systemInstruction);
     setTempNaviBrainWebhook(naviBrainWebhook);
     setTempVoiceName(voiceName);
+    setTempReceiveNoteContent(receiveNoteContent);
     onClose();
   };
 
@@ -145,18 +153,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <label className="text-xs font-medium text-white/50 uppercase tracking-wider flex items-center gap-2">
                       <Mic size={12} /> Microphone Mode
                     </label>
-                    <div className="flex bg-black/20 p-1 rounded-xl border border-white/10">
-                      {/* Custom small toggle for Mic Mode */}
-                      <select
-                        value={micMode}
-                        onChange={(e) => onMicModeChange(e.target.value as any)}
-                        className="w-full bg-transparent text-white text-sm focus:outline-none px-2 py-1 appearance-none cursor-pointer"
-                      >
-                        <option value="manual" className="bg-[#1e1e1e]">Push-to-Talk</option>
-                        <option value="auto" className="bg-[#1e1e1e]">Automated (VAD)</option>
-                      </select>
-                      {/* Reverting to button style for consistency or keep select? The previous design had buttons. I'll stick to the previous button design but maybe make it vertically stacked or side-by-side with Voice? */}
-                    </div>
+
                     <div className="flex bg-black/20 p-1 rounded-xl border border-white/10">
                       <button
                         onClick={() => onMicModeChange('manual')}
@@ -237,6 +234,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* Note Content Context Toggle */}
+              <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4 flex items-center justify-between">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-medium text-white flex items-center gap-2">
+                    Use Notes for Context
+                  </h3>
+                  <p className="text-xs text-white/50">
+                    If enabled, Navi will remember the content of notes she retrieves.
+                  </p>
+                </div>
+                <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                  <input
+                    type="checkbox"
+                    name="toggle"
+                    id="toggle"
+                    checked={tempReceiveNoteContent}
+                    onChange={(e) => setTempReceiveNoteContent(e.target.checked)}
+                    className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out request-switch-thumb"
+                    style={{ transform: tempReceiveNoteContent ? 'translateX(100%)' : 'translateX(0)', borderColor: tempReceiveNoteContent ? '#3b82f6' : '#E5E7EB' }}
+                  />
+                  <label htmlFor="toggle" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer transition-colors duration-200 ease-in-out ${tempReceiveNoteContent ? 'bg-blue-500' : 'bg-gray-300'}`}></label>
+                </div>
+                {/* Fallback simple checkbox if toggle css is complex */}
+                {/* <input
+                    type="checkbox"
+                    checked={tempReceiveNoteContent}
+                    onChange={(e) => setTempReceiveNoteContent(e.target.checked)}
+                    className="w-5 h-5 rounded border-white/20 bg-black/40 text-blue-500 focus:ring-offset-0 focus:ring-blue-500/50"
+                  /> */}
               </div>
 
               <div className="space-y-2">

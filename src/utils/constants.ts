@@ -12,6 +12,7 @@ export const STORAGE_KEYS = {
   MIC_MODE: 'navi_mic_mode',
   NAVI_BRAIN_WEBHOOK: 'navi_brain_webhook',
   VOICE_NAME: 'navi_voice_name',
+  RECEIVE_NOTE_CONTENT: 'navi_receive_note_content',
 };
 
 export interface CardData {
@@ -39,6 +40,7 @@ export interface NaviSettings {
   micMode: 'manual' | 'auto';
   naviBrainWebhook: string;
   voiceName: string;
+  receiveNoteContent: boolean;
 }
 
 export type MicMode = NaviSettings['micMode'];
@@ -67,7 +69,8 @@ export type VoiceName = typeof VOICE_OPTIONS[number]['value'];
 
 export const DEFAULT_SETTINGS: NaviSettings = {
   apiKey: '',
-  micMode: 'manual',
+  micMode: 'auto',
   naviBrainWebhook: DEFAULT_WEBHOOKS.NAVI_BRAIN,
   voiceName: 'Kore',
+  receiveNoteContent: true,
 };

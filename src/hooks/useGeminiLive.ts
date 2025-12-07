@@ -31,6 +31,7 @@ interface UseGeminiLiveOptions {
   onError?: (error: Error) => void;
   naviBrainWebhook: string;
   voiceName: string;
+  receiveNoteContent?: boolean;
 }
 
 interface UseGeminiLiveReturn {
@@ -55,6 +56,7 @@ export function useGeminiLive({
   onError,
   naviBrainWebhook,
   voiceName,
+  receiveNoteContent = true,
 }: UseGeminiLiveOptions): UseGeminiLiveReturn {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -144,6 +146,8 @@ export function useGeminiLive({
                 let summary = "";
                 let cards = []
                 let nextSteps = "";
+                let contentContext = "";
+
                 try {
                   // Try to get data from final_output first (for completion), then fallback to message
                   const rawData = record.final_output || record.message;
@@ -156,6 +160,20 @@ export function useGeminiLive({
                   if (data && Array.isArray(data.relevant_data)) {
                     setActiveCards(data.relevant_data);
                     cards = data.relevant_data;
+
+                    // Extract Content for Context if enabled
+                    if (receiveNoteContent) {
+                      const notesContent = cards.map((card: any) => {
+                        const title = card.card_title || 'Untitled';
+                        // Prefer explicit content field if available, otherwise description
+                        const content = card.card_content || card.card_description || '';
+                        return `File: ${title}\n---\n${content}\n---`;
+                      }).join('\n\n');
+
+                      if (notesContent) {
+                        contentContext = `\n\n[CONTEXT FROM SAVED NOTES]:\n${notesContent}\n\n(System: I have injected the note contents above for your reference. Just save it in your memory context. DO NOT discuss the contents unless the user explicitly asks you to.)`;
+                      }
+                    }
                   }
 
                   if (data && data.summary) {
@@ -180,7 +198,7 @@ export function useGeminiLive({
                   functionResponses: [{
                     id: call.id || 'unknown',
                     name: call.name || 'unknown',
-                    response: { result: `The Brain Result: ${summary} || ${cards.length > 0 ? "Showing these data to the user through UI: " + cards.toString() : ""} ${!!nextSteps && "|| Brain's Suggested next steps: " + nextSteps}` }
+                    response: { result: `The Brain Result: ${summary} || ${cards.length > 0 ? "Showing these data to the user through UI: " + cards.toString() : ""} ${!!nextSteps && "|| Brain's Suggested next steps: " + nextSteps}${contentContext}` }
                   }]
                 };
 
