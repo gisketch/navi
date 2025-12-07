@@ -118,35 +118,7 @@ export function useGeminiLive({
         setLiveStatus(processingText);
         setIsToolActive(true);
 
-        // 2. Trigger Webhook
-        try {
-          const response = await fetch(naviBrainWebhook, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ task_id: taskId, instruction }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`Webhook returned ${response.status} ${response.statusText}`);
-          }
-        } catch (err) {
-          console.error('[Navi] Brain Webhook failed', err);
-          setLiveStatus(null);
-          setIsToolActive(false);
-          activeTaskRef.current = null;
-
-          // Send Error Response as a Result so the model acknowledges it verbally
-          sessionRef.current?.sendToolResponse({
-            functionResponses: [{
-              id: call.id || 'unknown',
-              name: call.name || 'unknown',
-              response: { result: `SYSTEM ERROR: The digital brain is unreachable. Error details: ${err instanceof Error ? err.message : String(err)}. Inform the user that you cannot access the notes right now.` }
-            }]
-          });
-          return;
-        }
-
-        // 3. Subscribe to PocketBase updates
+        // 2. Subscribe to PocketBase updates BEFORE triggering webhook (Avoid Race Condition)
         console.log(`[Navi] Subscribing to task_updates for ${taskId}`);
         try {
           await pb.collection('task_updates').subscribe('*', (e) => {
@@ -208,7 +180,7 @@ export function useGeminiLive({
                   functionResponses: [{
                     id: call.id || 'unknown',
                     name: call.name || 'unknown',
-                    response: { result: `The Brain Result: ${summary} || ${cards.length > 0 ? "Showing these data to the user through UI: " + cards.toString() : "" } ${nextSteps && "|| Brain's Suggested next steps: " + nextSteps}` }
+                    response: { result: `The Brain Result: ${summary} || ${cards.length > 0 ? "Showing these data to the user through UI: " + cards.toString() : ""} ${!!nextSteps && "|| Brain's Suggested next steps: " + nextSteps}` }
                   }]
                 };
 
@@ -256,7 +228,41 @@ export function useGeminiLive({
               response: { error: `Failed to subscribe to updates. Error: ${pbError}` }
             }]
           });
+          return;
         }
+
+        // 3. Trigger Webhook
+        try {
+          const response = await fetch(naviBrainWebhook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: taskId, instruction }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Webhook returned ${response.status} ${response.statusText}`);
+          }
+        } catch (err) {
+          console.error('[Navi] Brain Webhook failed', err);
+
+          // Cleanup subscription since webhook failed
+          pb.collection('task_updates').unsubscribe();
+
+          setLiveStatus(null);
+          setIsToolActive(false);
+          activeTaskRef.current = null;
+
+          // Send Error Response as a Result so the model acknowledges it verbally
+          sessionRef.current?.sendToolResponse({
+            functionResponses: [{
+              id: call.id || 'unknown',
+              name: call.name || 'unknown',
+              response: { result: `SYSTEM ERROR: The digital brain is unreachable. Error details: ${err instanceof Error ? err.message : String(err)}. Inform the user that you cannot access the notes right now.` }
+            }]
+          });
+          return;
+        }
+
       } else if (call.name === 'openObsidianNote') {
         const { filename } = call.args as any;
         console.log('[Navi] Tool Call: openObsidianNote', { filename });
