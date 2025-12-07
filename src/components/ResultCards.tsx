@@ -79,8 +79,8 @@ export function ResultCards({ cards, className = '', onClose }: ResultCardsProps
                     ref={sliderRef}
                     drag="x"
                     dragConstraints={constraints}
-                    dragElastic={0.2} /* Spring feel */
-                    dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }} /* Smooth finish */
+                    dragElastic={0.1} /* Spring feel */
+                    dragTransition={{ bounceStiffness: 300, bounceDamping: 20 }} /* Smooth finish */
                     className="flex gap-3 px-4 min-w-min cursor-grab active:cursor-grabbing"
                     whileTap={{ cursor: "grabbing" }}
                 >

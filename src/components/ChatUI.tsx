@@ -1,4 +1,4 @@
-import { useMemo, memo, useRef, useLayoutEffect, useState } from 'react';
+import { useMemo, memo, useRef, useLayoutEffect, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ChatMessage, CardData } from '../utils/constants';
 import { ResultCards } from './ResultCards';
@@ -157,6 +157,29 @@ const Word = memo(function Word({
   }
 });
 
+// const mockCardData: CardData[] = [
+//   {
+//     card_type: 'notes',
+//     card_title: 'Project Meeting Notes',
+//     card_description: 'Discussion points from the Q4 planning session including budget allocation and timeline updates.'
+//   },
+//   {
+//     card_type: 'calendar',
+//     card_title: 'Team Sprint Review',
+//     card_description: 'Weekly sprint review scheduled for Friday at 2:00 PM with the development team.'
+//   },
+//   {
+//     card_type: 'notes',
+//     card_title: 'Feature Requirements',
+//     card_description: 'Detailed specifications for the new user authentication system and security protocols.'
+//   },
+//   {
+//     card_type: 'other',
+//     card_title: 'Resource Links',
+//     card_description: 'Collection of helpful documentation, tutorials, and third-party tools for the project.'
+//   }
+// ];
+
 const MagicText = memo(function MagicText({
   text,
   messageId,
@@ -244,10 +267,21 @@ export function ChatUI({ currentTurn, isCapturing, activeCards, onCloseCards }: 
     return null;
   }, [currentTurn, isCapturing]);
 
+  // Auto-scroll to bottom of chat
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [content?.text, content?.id]);
+
   return (
     <div className="flex flex-1 flex-col py-6 overflow-hidden relative justify-start">
       {/* Single centered text area */}
-      <div className="flex flex-col items-center justify-between h-[24em] pt-56 w-full max-w-4xl mx-auto flex-1">
+      <div className="flex flex-col items-center justify-between h-[24em] pt-48 w-full max-w-4xl mx-auto flex-1">
         <AnimatePresence mode="wait">
           {content ? (
             <motion.div
@@ -255,7 +289,12 @@ export function ChatUI({ currentTurn, isCapturing, activeCards, onCloseCards }: 
               initial={{ opacity: 1 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 1 }}
-              className="w-full text-center flex flex-col items-center gap-8 px-6"
+              className="w-full text-center flex flex-col items-center gap-8 px-6 max-h-72 overflow-y-auto hide-scrollbar overscroll-contain touch-pan-y pt-12 pb-12"
+              ref={scrollRef}
+              style={{
+                maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)'
+              }}
             >
               <div className={`text-2xl font-medium leading-tight tracking-tight text-white ${content.isPlaceholder ? 'animate-pulse opacity-50' : ''
                 }`}>
@@ -285,8 +324,8 @@ export function ChatUI({ currentTurn, isCapturing, activeCards, onCloseCards }: 
         {/* Render Cards outside AnimatePresence of text, so they persist */}
         <AnimatePresence>
           {activeCards && activeCards.length > 0 && (
-            <ResultCards cards={activeCards} onClose={onCloseCards} />
-          )}
+          <ResultCards cards={activeCards} onClose={onCloseCards} />
+           )}
         </AnimatePresence>
 
       </div>
