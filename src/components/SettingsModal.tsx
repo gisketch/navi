@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mic, Key, Save, Trash2, Webhook, Info, Volume2 } from 'lucide-react';
-import { NaviSettings, VOICE_OPTIONS } from '../utils/constants';
+import { X, Mic, Key, Save, Webhook, Info, Volume2 } from 'lucide-react';
+import { VOICE_OPTIONS } from '../utils/constants';
 
 interface SettingsModalProps {
   isOpen: boolean;

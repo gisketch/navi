@@ -200,8 +200,8 @@ export function ControlBar({
       setTimeout(() => setHasEntered(true), RADIAL_BUTTONS.length * 50 + 200);
     }, HOLD_THRESHOLD);
 
-    // Handle mic hold mode (only when connected)
-    if (isConnected && micMode === 'hold') {
+    // Handle push-to-talk when mic mode is manual
+    if (isConnected && micMode === 'manual') {
       isHoldingRef.current = true;
       if (isPlaying) onStopPlayback();
       onStartCapture();
@@ -239,8 +239,8 @@ export function ControlBar({
 
     setIsHolding(false); // Stop tracking hold
 
-    // Handle mic hold mode release
-    if (micMode === 'hold' && isHoldingRef.current) {
+    // Handle push-to-talk release when mic mode is manual
+    if (micMode === 'manual' && isHoldingRef.current) {
       isHoldingRef.current = false;
       onStopCapture();
     }

@@ -35,7 +35,6 @@ export function App() {
     messages,
     currentTurn,
     connect,
-    disconnect,
     sendAudio,
     sendText,
     liveStatus,
@@ -100,12 +99,6 @@ export function App() {
     // Connect to Gemini
     await connect();
   }, [apiKey, audioInitialized, initializeAudio, connect]);
-
-  const handleDisconnect = useCallback(() => {
-    stopCapture();
-    stopPlayback();
-    disconnect();
-  }, [stopCapture, stopPlayback, disconnect]);
 
   // Clear error after timeout
   useEffect(() => {

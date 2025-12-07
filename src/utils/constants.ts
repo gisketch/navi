@@ -3,6 +3,7 @@ export const GEMINI_MODEL = 'models/gemini-2.0-flash-exp';
 export const AUDIO_CONFIG = {
   INPUT_SAMPLE_RATE: 16000,
   OUTPUT_SAMPLE_RATE: 24000, // Gemini currently outputs 24kHz
+  CHANNEL_COUNT: 1,
 };
 
 export const STORAGE_KEYS = {
@@ -39,6 +40,8 @@ export interface NaviSettings {
   naviBrainWebhook: string;
   voiceName: string;
 }
+
+export type MicMode = NaviSettings['micMode'];
 
 export const DEFAULT_WEBHOOKS = {
   NAVI_BRAIN: 'https://automate.gisketch.com/webhook/navi-brain',

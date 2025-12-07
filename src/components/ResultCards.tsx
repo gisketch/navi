@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { motion, PanInfo } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { FileText, Calendar, Box, X } from 'lucide-react';
 import type { CardData } from '../utils/constants';
 
