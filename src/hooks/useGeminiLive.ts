@@ -170,6 +170,8 @@ export function useGeminiLive({
 
                 // Extract summary from JSON message
                 let summary = "";
+                let cards = []
+                let nextSteps = "";
                 try {
                   // Try to get data from final_output first (for completion), then fallback to message
                   const rawData = record.final_output || record.message;
@@ -180,8 +182,8 @@ export function useGeminiLive({
 
                   // Handle Card Data Extraction
                   if (data && Array.isArray(data.relevant_data)) {
-                    console.log({ cards: data.relevant_data })
                     setActiveCards(data.relevant_data);
+                    cards = data.relevant_data;
                   }
 
                   if (data && data.summary) {
@@ -189,6 +191,13 @@ export function useGeminiLive({
                   } else {
                     // Fallback implies the entire message is the result
                     summary = typeof rawData === 'string' ? rawData : JSON.stringify(rawData);
+                  }
+
+                  if (data && data.suggested_next_step) {
+                    nextSteps = data.suggested_next_step;
+                  } else {
+                    // Fallback implies the entire message is the result
+                    nextSteps = typeof rawData === 'string' ? rawData : JSON.stringify(rawData);
                   }
                 } catch (e) {
                   // Not JSON, use raw text from message as fallback
@@ -199,7 +208,7 @@ export function useGeminiLive({
                   functionResponses: [{
                     id: call.id || 'unknown',
                     name: call.name || 'unknown',
-                    response: { result: summary }
+                    response: { result: `The Brain Result: ${summary} || ${cards.length > 0 ? "Showing these data to the user through UI: " + cards.toString() : "" } ${nextSteps && "|| Brain's Suggested next steps: " + nextSteps}` }
                   }]
                 };
 

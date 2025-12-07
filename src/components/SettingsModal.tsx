@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mic, Key, Save, Webhook, Info, Volume2 } from 'lucide-react';
-import { VOICE_OPTIONS } from '../utils/constants';
+import { X, Mic, Key, Save, Webhook, Info, Volume2, Cpu } from 'lucide-react';
+import { VOICE_OPTIONS, GEMINI_MODEL } from '../utils/constants';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -128,6 +128,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <p className="text-xs text-white/30">
                     Your key is stored locally in your browser.
                   </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-white/50 uppercase tracking-wider flex items-center gap-2">
+                    <Cpu size={12} /> Model Version
+                  </label>
+                  <div className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white/50 text-sm font-mono flex items-center justify-between">
+                    <span>{GEMINI_MODEL}</span>
+                    <span className="text-[10px] text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20">Active</span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
