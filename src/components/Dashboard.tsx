@@ -42,7 +42,7 @@ function formatLastUpdated(isoString: string | null): string {
 const urgencyColors: Record<UrgencyLevel, { accent: string; glow: string }> = {
   urgent: { accent: 'rgb(248, 113, 113)', glow: 'rgba(248, 113, 113, 0.4)' },
   high: { accent: 'rgb(251, 191, 36)', glow: 'rgba(251, 191, 36, 0.4)' },
-  normal: { accent: 'rgb(52, 211, 153)', glow: 'rgba(52, 211, 153, 0.4)' },
+  medium: { accent: 'rgb(52, 211, 153)', glow: 'rgba(52, 211, 153, 0.4)' },
   low: { accent: 'rgb(34, 211, 238)', glow: 'rgba(34, 211, 238, 0.4)' },
 };
 

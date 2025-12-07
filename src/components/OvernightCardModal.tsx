@@ -21,7 +21,7 @@ const urgencyStyles: Record<UrgencyLevel, { accent: string; glow: string; badge:
     glow: 'rgba(251, 191, 36, 0.3)',
     badge: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
   },
-  normal: {
+  medium: {
     accent: 'rgb(52, 211, 153)',
     glow: 'rgba(52, 211, 153, 0.3)',
     badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
@@ -34,32 +34,41 @@ const urgencyStyles: Record<UrgencyLevel, { accent: string; glow: string; badge:
 };
 
 export function OvernightCardModal({ card, isOpen, onClose }: OvernightCardModalProps) {
-  if (!card) return null;
-
-  const styles = urgencyStyles[card.urgency];
+  const styles = card ? urgencyStyles[card.urgency] : urgencyStyles.low;
 
   return (
-    <AnimatePresence>
-      {isOpen && (
+    <AnimatePresence mode="wait">
+      {isOpen && card && (
         <>
           {/* Backdrop with blur */}
           <motion.div
+            key="modal-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
             className="fixed inset-0 bg-black/70 backdrop-blur-md z-50"
             onClick={onClose}
           />
 
-          {/* Modal - Glassmorphism style */}
+          {/* Modal - Glassmorphism style with safe area */}
           <motion.div
-            initial={{ opacity: 0, y: '100%', scale: 0.95 }}
+            key="modal-content"
+            initial={{ opacity: 0, y: 100, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: '100%', scale: 0.95 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+            transition={{
+              type: 'spring',
+              damping: 28,
+              stiffness: 400,
+              mass: 0.8,
+            }}
             className={cn(
-              'fixed inset-4 z-50 flex flex-col',
+              'fixed z-50 flex flex-col',
+              // Mobile: respect safe area (notch/dynamic island)
+              'left-4 right-4 bottom-4',
+              'top-[max(1rem,env(safe-area-inset-top))]',
+              // Desktop: centered modal
               'md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2',
               'md:w-full md:max-w-2xl md:max-h-[85vh]',
               rounded.xl,

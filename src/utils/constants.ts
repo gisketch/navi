@@ -79,7 +79,7 @@ export const DEFAULT_SETTINGS: NaviSettings = {
 // OVERNIGHT SUMMARY / DASHBOARD TYPES
 // ============================================
 
-export type UrgencyLevel = 'urgent' | 'high' | 'normal' | 'low';
+export type UrgencyLevel = 'urgent' | 'high' | 'medium' | 'low';
 
 export interface OvernightCard {
   id: string;
@@ -176,7 +176,7 @@ Budget is $20/month - you're well under! The decrease is from stopping that test
 - Morning until 10am ✅
 - 10:30am - 2pm ✅
 - After 2:30pm ✅`,
-    urgency: 'normal',
+    urgency: 'medium',
     icon: 'Calendar',
     category: 'calendar',
     created: new Date().toISOString(),
@@ -198,7 +198,7 @@ Budget is $20/month - you're well under! The decrease is from stopping that test
 
 ### Action Items
 - [ ] Review PR #145`,
-    urgency: 'normal',
+    urgency: 'medium',
     icon: 'Github',
     category: 'work',
     created: new Date().toISOString(),

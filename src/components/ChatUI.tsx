@@ -2,6 +2,7 @@ import { useMemo, memo, useRef, useLayoutEffect, useState, useEffect } from 'rea
 import { motion, AnimatePresence } from 'framer-motion';
 import type { ChatMessage, CardData } from '../utils/constants';
 import { ResultCards } from './ResultCards';
+import { cn, glass, rounded, calculateProximityGlow, createGlowGradient } from '../utils/glass';
 
 interface ChatUIProps {
   messages: ChatMessage[];
@@ -9,6 +10,7 @@ interface ChatUIProps {
   isCapturing: boolean;
   activeCards?: CardData[];
   onCloseCards?: () => void;
+  naviPosition?: { x: number; y: number };
 }
 
 // Get Navi's actual center position from DOM
@@ -25,310 +27,276 @@ const getNaviPosition = () => {
   return { x: window.innerWidth / 2, y: window.innerHeight * 0.25 };
 };
 
-// Get main button position (bottom of screen)
-const getButtonPosition = () => {
-  const centerX = window.innerWidth / 2;
-  const centerY = window.innerHeight - 80;
-  return { x: centerX, y: centerY };
-};
-
-// Individual word component that calculates its own position
-const Word = memo(function Word({
-  word,
-  index,
-  messageId,
-  role,
-  naviPosition,
-}: {
-  word: string;
-  index: number;
-  messageId: string;
+// ============================================
+// Chat Bubble Component with Glassmorphism
+// ============================================
+interface ChatBubbleProps {
   role: 'user' | 'assistant';
-  naviPosition: { x: number; y: number };
-}) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const [offsets, setOffsets] = useState({ toNavi: { x: 0, y: 0 }, fromButton: { y: 0 }, fromNavi: { x: 0, y: 0 } });
-  const isSpace = word === ' ';
-
-  // Calculate this specific word's offset to Navi center
-  useLayoutEffect(() => {
-    if (ref.current && !isSpace) {
-      const rect = ref.current.getBoundingClientRect();
-      const wordCenter = {
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2
-      };
-
-      const buttonPos = getButtonPosition();
-
-      setOffsets({
-        toNavi: {
-          x: naviPosition.x - wordCenter.x,
-          y: naviPosition.y - wordCenter.y
-        },
-        fromButton: {
-          y: buttonPos.y - wordCenter.y
-        },
-        fromNavi: {
-          x: naviPosition.x - wordCenter.x,
-          y: naviPosition.y - wordCenter.y
-        }
-      });
-    }
-  }, [isSpace, naviPosition.x, naviPosition.y]);
-
-  const wordDelay = index * 0.02;
-
-  if (role === 'user') {
-    // User input: words come from button area, exit towards Navi CENTER
-    return (
-      <motion.span
-        ref={ref}
-        key={`${messageId}-${index}`}
-        initial={{
-          opacity: 0,
-          y: offsets.fromButton.y * 0.3,
-          scale: 0.5,
-        }}
-        animate={{
-          opacity: 1,
-          y: 0,
-          x: 0,
-          scale: 1,
-        }}
-        exit={{
-          opacity: 0,
-          y: offsets.toNavi.y,
-          x: offsets.toNavi.x,
-          scale: 0,
-          transition: {
-            duration: 0.5,
-            delay: index * 0.015,
-            ease: [0.4, 0, 0.2, 1]
-          }
-        }}
-        transition={{
-          duration: 0.4,
-          delay: wordDelay,
-          ease: [0.2, 0.8, 0.2, 1]
-        }}
-        className="inline-block"
-      >
-        {isSpace ? '\u00A0' : word}
-      </motion.span>
-    );
-  } else {
-    // Assistant output: words emerge from Navi, exit by fading down
-    return (
-      <motion.span
-        ref={ref}
-        key={`${messageId}-${index}`}
-        initial={{
-          opacity: 0,
-          y: offsets.fromNavi.y,
-          x: offsets.fromNavi.x,
-          scale: 0.3,
-        }}
-        animate={{
-          opacity: 1,
-          y: 0,
-          x: 0,
-          scale: 1,
-        }}
-        exit={{
-          opacity: 0,
-          y: 30,
-          transition: {
-            duration: 0.3,
-            delay: index * 0.01,
-            ease: 'easeIn'
-          }
-        }}
-        transition={{
-          duration: 0.5,
-          delay: wordDelay,
-          ease: [0.2, 0.8, 0.2, 1]
-        }}
-        className="inline-block"
-      >
-        {isSpace ? '\u00A0' : word}
-      </motion.span>
-    );
-  }
-});
-
-// const mockCardData: CardData[] = [
-//   {
-//     card_type: 'notes',
-//     card_title: 'Project Meeting Notes',
-//     card_description: 'Discussion points from the Q4 planning session including budget allocation and timeline updates.'
-//   },
-//   {
-//     card_type: 'calendar',
-//     card_title: 'Team Sprint Review',
-//     card_description: 'Weekly sprint review scheduled for Friday at 2:00 PM with the development team.'
-//   },
-//   {
-//     card_type: 'notes',
-//     card_title: 'Feature Requirements',
-//     card_description: 'Detailed specifications for the new user authentication system and security protocols.'
-//   },
-//   {
-//     card_type: 'other',
-//     card_title: 'Resource Links',
-//     card_description: 'Collection of helpful documentation, tutorials, and third-party tools for the project.'
-//   }
-// ];
-
-const MagicText = memo(function MagicText({
-  text,
-  messageId,
-  className,
-  role,
-  naviPosition,
-}: {
   text: string;
-  messageId: string;
-  className?: string;
-  role: 'user' | 'assistant';
   naviPosition: { x: number; y: number };
-}) {
-  const words = useMemo(() => text.split(/(\s+)/), [text]);
-  const wordCounts = useRef(new Map<string, number>()).current;
+  index: number;
+}
 
-  // Reset counts for each render
-  wordCounts.clear();
+const ChatBubble = memo(function ChatBubble({
+  role,
+  text,
+  naviPosition,
+  index,
+}: ChatBubbleProps) {
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const [glowIntensity, setGlowIntensity] = useState(0);
+  const [glowPosition, setGlowPosition] = useState({ x: 50, y: 50 });
+
+  // Calculate proximity glow based on Navi position
+  useLayoutEffect(() => {
+    if (bubbleRef.current) {
+      const rect = bubbleRef.current.getBoundingClientRect();
+      const glow = calculateProximityGlow(rect, naviPosition, 350);
+      setGlowIntensity(glow.intensity);
+      setGlowPosition(glow.position);
+    }
+  }, [naviPosition.x, naviPosition.y]);
+
+  const isUser = role === 'user';
 
   return (
-    <span className={className}>
-      {words.map((word, index) => {
-        const currentCount = wordCounts.get(word) || 0;
-        wordCounts.set(word, currentCount + 1);
+    <motion.div
+      ref={bubbleRef}
+      initial={{
+        opacity: 0,
+        y: isUser ? 30 : -20,
+        x: isUser ? 20 : -20,
+        scale: 0.9,
+      }}
+      animate={{
+        opacity: 1,
+        y: 0,
+        x: 0,
+        scale: 1,
+      }}
+      exit={{
+        opacity: 0,
+        y: -20,
+        scale: 0.95,
+      }}
+      transition={{
+        type: 'spring',
+        damping: 25,
+        stiffness: 350,
+        delay: index * 0.05,
+      }}
+      className={cn(
+        'relative max-w-[85%] px-4 py-3',
+        rounded.lg,
+        // User: right-aligned, almost clear glass
+        isUser
+          ? 'self-end bg-white/[0.06] border border-white/[0.12] backdrop-blur-xl'
+          : 'self-start bg-white/[0.10] border border-white/[0.15] backdrop-blur-2xl'
+      )}
+      style={{
+        // Proximity glow effect
+        boxShadow: glowIntensity > 0.05
+          ? `inset 0 0 ${20 * glowIntensity}px rgba(34, 211, 238, ${glowIntensity * 0.15}), 0 0 ${30 * glowIntensity}px rgba(34, 211, 238, ${glowIntensity * 0.2})`
+          : !isUser
+            ? '0 0 20px rgba(34, 211, 238, 0.1)' // Subtle default glow for Navi
+            : 'none',
+      }}
+    >
+      {/* Proximity glow gradient overlay */}
+      {glowIntensity > 0.05 && (
+        <div
+          className="absolute inset-0 pointer-events-none rounded-xl overflow-hidden"
+          style={{
+            background: createGlowGradient(glowPosition),
+          }}
+        />
+      )}
 
-        return (
-          <Word
-            key={`${messageId}-${word}-${currentCount}-${index}`}
-            word={word}
-            index={index}
-            messageId={messageId}
-            role={role}
-            naviPosition={naviPosition}
-          />
-        );
-      })}
-    </span>
+      {/* Navi bubble top highlight */}
+      {!isUser && (
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/30 to-transparent rounded-t-xl" />
+      )}
+
+      {/* Role indicator */}
+      <div className={cn(
+        'text-[10px] font-medium uppercase tracking-wider mb-1',
+        isUser ? 'text-white/40' : 'text-cyan-400/60'
+      )}>
+        {isUser ? 'Ghegi' : 'Navi'}
+      </div>
+
+      {/* Message text */}
+      <p className={cn(
+        'text-sm leading-relaxed',
+        isUser ? 'text-white/80' : 'text-white/90'
+      )}>
+        {text}
+      </p>
+    </motion.div>
   );
 });
 
-export function ChatUI({ currentTurn, isCapturing, activeCards, onCloseCards }: ChatUIProps) {
-  // Track Navi's real position, updated periodically
-  const [naviPosition, setNaviPosition] = useState(() => getNaviPosition());
-  const lastPositionRef = useRef(naviPosition);
+// ============================================
+// Listening Indicator
+// ============================================
+const ListeningIndicator = memo(function ListeningIndicator() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className={cn(
+        'self-end max-w-[85%] px-4 py-3',
+        rounded.lg,
+        'bg-white/[0.04]',
+        'border border-white/[0.08]',
+        glass.blur.xl,
+      )}
+    >
+      <div className="text-[10px] font-medium uppercase tracking-wider mb-1 text-white/40">
+        You
+      </div>
+      <div className="flex items-center gap-1.5">
+        {/* <span className="text-sm text-white/50">Listening</span> */}
+        <div className="flex gap-1">
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={i}
+              className="w-1.5 h-1.5 rounded-full bg-cyan-400/60"
+              animate={{
+                opacity: [0.3, 1, 0.3],
+                scale: [0.8, 1, 0.8],
+              }}
+              transition={{
+                duration: 1,
+                repeat: Infinity,
+                delay: i * 0.2,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+});
+
+// ============================================
+// Main ChatUI Component
+// ============================================
+export function ChatUI({
+  messages,
+  currentTurn,
+  isCapturing,
+  activeCards,
+  onCloseCards,
+  naviPosition: externalNaviPosition,
+}: ChatUIProps) {
+  // Track Navi's real position
+  const [internalNaviPosition, setInternalNaviPosition] = useState(() => getNaviPosition());
+  const lastPositionRef = useRef(internalNaviPosition);
+
+  // Use external position if provided, otherwise track internally
+  const naviPosition = externalNaviPosition || internalNaviPosition;
 
   // Update Navi position periodically (for when Navi moves)
-  // Optimized: only trigger re-render when position actually changes
   useLayoutEffect(() => {
+    if (externalNaviPosition) return; // Skip if external position provided
+
     let animationId: number;
     const tick = () => {
       const newPos = getNaviPosition();
-      // Only update state if position changed significantly (> 1px)
       if (
         Math.abs(newPos.x - lastPositionRef.current.x) > 1 ||
         Math.abs(newPos.y - lastPositionRef.current.y) > 1
       ) {
         lastPositionRef.current = newPos;
-        setNaviPosition(newPos);
+        setInternalNaviPosition(newPos);
       }
       animationId = requestAnimationFrame(tick);
     };
     animationId = requestAnimationFrame(tick);
 
     return () => cancelAnimationFrame(animationId);
-  }, []);
+  }, [externalNaviPosition]);
 
-  // Determine content for display
-  const content = useMemo(() => {
-    if (currentTurn) {
-      return {
+  // Build conversation list: past messages + current turn
+  const conversationItems = useMemo(() => {
+    const items: Array<{ id: string; role: 'user' | 'assistant'; text: string }> = [];
+
+    // Add past messages
+    messages.forEach((msg) => {
+      items.push({
+        id: msg.id,
+        role: msg.role,
+        text: msg.text,
+      });
+    });
+
+    // Add current turn if exists
+    if (currentTurn && currentTurn.text.trim()) {
+      items.push({
         id: currentTurn.id,
         role: currentTurn.role,
         text: currentTurn.text,
-        isPlaceholder: false
-      };
+      });
     }
-    if (isCapturing) {
-      return {
-        id: 'listening-placeholder',
-        role: 'user' as const,
-        text: 'Listening...',
-        isPlaceholder: true
-      };
-    }
-    return null;
-  }, [currentTurn, isCapturing]);
 
-  // Auto-scroll to bottom of chat
+    return items;
+  }, [messages, currentTurn]);
+
+  // Auto-scroll to bottom
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
-        behavior: 'smooth'
+        behavior: 'smooth',
       });
     }
-  }, [content?.text, content?.id]);
+  }, [conversationItems.length, currentTurn?.text]);
 
   return (
-    <div className="flex flex-1 flex-col py-6 overflow-hidden relative justify-start">
-      {/* Single centered text area */}
-      <div className="flex flex-col items-center justify-between h-[24em] pt-48 w-full max-w-4xl mx-auto flex-1">
-        <AnimatePresence mode="wait">
-          {content ? (
-            <motion.div
-              key={content.id}
-              initial={{ opacity: 1 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 1 }}
-              className="w-full text-center flex flex-col items-center gap-8 px-6 max-h-72 overflow-y-auto hide-scrollbar overscroll-contain touch-pan-y pt-12 pb-12"
-              ref={scrollRef}
-              style={{
-                maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
-                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)'
-              }}
-            >
-              <div className={`text-lg font-medium leading-tight tracking-tight text-white ${content.isPlaceholder ? 'animate-pulse opacity-50' : ''
-                }`}>
-                {content.isPlaceholder ? (
-                  <span>{content.text}</span>
-                ) : (
-                  <MagicText
-                    text={content.text}
-                    messageId={content.id}
-                    role={content.role}
-                    naviPosition={naviPosition}
-                  />
-                )}
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="empty-state"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="w-full text-center"
+    <div className="flex flex-1 flex-col overflow-hidden relative">
+      {/* Chat messages container */}
+      <div
+        ref={scrollRef}
+        className={cn(
+          'flex flex-col gap-3 px-4 py-6 overflow-y-auto flex-1',
+          'hide-scrollbar overscroll-contain touch-pan-y',
+          // Add padding for Navi at top
+          'pt-32'
+        )}
+        style={{
+          maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
+        }}
+      >
+        <AnimatePresence mode="popLayout">
+          {conversationItems.map((item, index) => (
+            <ChatBubble
+              key={item.id}
+              role={item.role}
+              text={item.text}
+              naviPosition={naviPosition}
+              index={index}
             />
+          ))}
+
+          {/* Show listening indicator when capturing but no current turn text */}
+          {isCapturing && (!currentTurn || !currentTurn.text.trim()) && (
+            <ListeningIndicator key="listening" />
           )}
         </AnimatePresence>
-
-        {/* Render Cards outside AnimatePresence of text, so they persist */}
-        <AnimatePresence>
-          {activeCards && activeCards.length > 0 && (
-          <ResultCards cards={activeCards} onClose={onCloseCards} />
-           )}
-        </AnimatePresence>
-
       </div>
+
+      {/* Result Cards overlay */}
+      <AnimatePresence>
+        {activeCards && activeCards.length > 0 && (
+          <div className="absolute bottom-24 left-0 right-0 px-4">
+            <ResultCards cards={activeCards} onClose={onCloseCards} />
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
