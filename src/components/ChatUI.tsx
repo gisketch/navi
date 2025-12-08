@@ -444,11 +444,14 @@ export function ChatUI({
   }, [externalNaviPosition]);
 
   return (
-    <div className="flex flex-col overflow-hidden flex-1 min-h-0 relative justify-end gap-4">
+    <div className="flex flex-col overflow-hidden flex-1 min-h-0 relative justify-end gap-4 touch-none">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="px-4 pt-8 pb-4"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 20px) + 12px)',
+        }}
       >
         <h1 className="text-2xl font-semibold text-white/80 text-center flex-none">
           Navi

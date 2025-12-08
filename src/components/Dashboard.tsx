@@ -325,10 +325,15 @@ export function Dashboard({
     >
       {/* Desktop: Bento Grid Layout / Mobile: Stack Layout */}
       <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:grid-rows-[auto_1fr] lg:gap-6 lg:py-8 overflow-hidden">
-        
+
         {/* ===== GREETING SECTION ===== */}
         {/* Mobile: Top / Desktop: Top-left spanning 8 cols */}
-        <header className="pt-14 pb-2 shrink-0 lg:col-span-8 lg:pt-0 lg:pb-0 lg:flex lg:flex-col lg:justify-center">
+        <header
+          className="pb-2 shrink-0 lg:col-span-8 lg:pt-0 lg:pb-0 lg:flex lg:flex-col lg:justify-center touch-none"
+          style={{
+            paddingTop: 'calc(env(safe-area-inset-top, 20px) + 36px)',
+          }}
+        >
           {/* Greeting with word animation */}
           <h1 className="text-3xl lg:text-5xl font-bold text-white tracking-tight">
             {greetingWords.map((word, i) => (
@@ -391,7 +396,7 @@ export function Dashboard({
         {/* ===== MAIN CONTENT AREA ===== */}
         {/* Desktop: Bento grid with speech bubble and cards side by side */}
         <div className="flex-1 min-h-0 overflow-hidden flex flex-col lg:col-span-12 lg:grid lg:grid-cols-12 lg:gap-6 lg:overflow-visible">
-          
+
           {/* ===== SPEECH BUBBLE ===== */}
           {/* Mobile: Full width / Desktop: Left side, takes 5 cols */}
           <div className="shrink-0 lg:col-span-5 lg:flex lg:flex-col">
@@ -403,7 +408,7 @@ export function Dashboard({
                 entranceDelay={speechBubbleDelay}
               />
             )}
-            
+
             {/* Desktop: Quick Stats Card (placeholder for future) */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
