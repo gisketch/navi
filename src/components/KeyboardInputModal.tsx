@@ -102,11 +102,12 @@ export function KeyboardInputModal({
             className="fixed left-0 right-0 z-[101] px-4"
             style={{
               // Position above keyboard with safe area consideration
+              // Use dvh (dynamic viewport height) which updates when mobile UI elements appear/disappear
               top: `calc(env(safe-area-inset-top, 20px) + 12px)`,
               bottom: keyboardHeight > 0 ? `${keyboardHeight + 12}px` : 'auto',
-              maxHeight: keyboardHeight > 0 
-                ? `calc(100vh - ${keyboardHeight}px - env(safe-area-inset-top, 20px) - 24px)`
-                : '50vh',
+              maxHeight: keyboardHeight > 0
+                ? `calc(100dvh - ${keyboardHeight}px - env(safe-area-inset-top, 20px) - 24px)`
+                : '50dvh',
             }}
           >
             <div className="max-w-lg mx-auto h-full flex flex-col">

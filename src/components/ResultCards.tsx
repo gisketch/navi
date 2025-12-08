@@ -187,8 +187,8 @@ export function ResultCards({ cards, className = '', onDismiss, naviPosition, na
     
     // Check for dismiss (dragged right past threshold)
     if (currentX >= DISMISS_THRESHOLD && onDismiss) {
-      // Animate out to left then dismiss
-      rawX.set(-400);
+      // Animate out to the RIGHT (continue the swipe direction) then dismiss
+      rawX.set(400);
       setTimeout(() => onDismiss(), 200);
       return;
     }
