@@ -14,6 +14,9 @@
 // ============================================
 
 export type CycleStatus = 'upcoming' | 'active' | 'completed';
+// PocketBase uses 'type' with values: wallet, bill, debt, savings
+// We map these to our UI categories
+export type AllocationType = 'wallet' | 'bill' | 'debt' | 'savings';
 export type AllocationCategory = 'living' | 'play' | 'bills' | 'debt' | 'savings';
 export type TransactionType = 'expense' | 'transfer' | 'payment';
 
@@ -34,26 +37,38 @@ export interface Income {
   is_confirmed: boolean; // false = expected, true = received
 }
 
+// Raw allocation from PocketBase
+export interface AllocationRaw {
+  id: string;
+  name: string;
+  type: AllocationType; // PB field name
+  total_budget: number;
+  current_balance: number;
+  is_strict: boolean;
+  cycle_id: string;
+}
+
+// Enriched allocation for UI (with derived fields)
 export interface Allocation {
   id: string;
   name: string;
-  icon: string; // lucide icon name
-  category: AllocationCategory;
+  icon: string; // derived from type/name
+  category: AllocationCategory; // derived from type
   total_budget: number;
   current_balance: number;
-  is_strict: boolean; // true = survival money, false = flexible
-  color: string; // accent color
+  is_strict: boolean;
+  color: string; // derived from category
   cycle_id: string;
-  daily_limit?: number; // optional daily spending limit
+  daily_limit?: number; // calculated, not stored
 }
 
 export interface Transaction {
   id: string;
   amount: number;
   description: string;
-  timestamp: string; // ISO datetime
+  timestamp: string; // ISO datetime (maps to transaction_date in PB)
   allocation_id: string;
-  type: TransactionType;
+  type?: TransactionType; // optional since PB doesn't have this
 }
 
 // Computed/derived types
@@ -77,6 +92,157 @@ export interface CycleOverview {
   totalAllocated: number;
   totalSpent: number;
   unallocated: number;
+}
+
+// ============================================
+// Color Classes for UI
+// ============================================
+
+export const allocationColorClasses: Record<string, {
+  text: string;
+  bg: string;
+  border: string;
+  glow: string;
+}> = {
+  emerald: {
+    text: 'text-emerald-400',
+    bg: 'bg-emerald-500/20',
+    border: 'border-emerald-500/30',
+    glow: 'rgba(52, 211, 153, 0.5)',
+  },
+  violet: {
+    text: 'text-violet-400',
+    bg: 'bg-violet-500/20',
+    border: 'border-violet-500/30',
+    glow: 'rgba(139, 92, 246, 0.5)',
+  },
+  cyan: {
+    text: 'text-cyan-400',
+    bg: 'bg-cyan-500/20',
+    border: 'border-cyan-500/30',
+    glow: 'rgba(34, 211, 238, 0.5)',
+  },
+  amber: {
+    text: 'text-amber-400',
+    bg: 'bg-amber-500/20',
+    border: 'border-amber-500/30',
+    glow: 'rgba(251, 191, 36, 0.5)',
+  },
+  red: {
+    text: 'text-red-400',
+    bg: 'bg-red-500/20',
+    border: 'border-red-500/30',
+    glow: 'rgba(248, 113, 113, 0.5)',
+  },
+};
+
+// ============================================
+// Transform Functions (PocketBase → UI)
+// ============================================
+
+// Map PB allocation type to UI category
+function typeToCategory(type: AllocationType): AllocationCategory {
+  switch (type) {
+    case 'wallet': return 'living'; // Default wallet = living expenses
+    case 'bill': return 'bills';
+    case 'debt': return 'debt';
+    case 'savings': return 'savings';
+    default: return 'living';
+  }
+}
+
+// Map category to color
+function categoryToColor(category: AllocationCategory): string {
+  switch (category) {
+    case 'living': return 'emerald';
+    case 'play': return 'violet';
+    case 'bills': return 'amber';
+    case 'savings': return 'cyan';
+    case 'debt': return 'red';
+    default: return 'emerald';
+  }
+}
+
+// Map category to default icon
+function categoryToIcon(category: AllocationCategory, name: string): string {
+  // Check name for hints
+  const lowerName = name.toLowerCase();
+  if (lowerName.includes('play') || lowerName.includes('fun') || lowerName.includes('entertainment')) {
+    return 'Gamepad2';
+  }
+  if (lowerName.includes('food') || lowerName.includes('grocery')) {
+    return 'Utensils';
+  }
+  if (lowerName.includes('transport') || lowerName.includes('gas') || lowerName.includes('commute')) {
+    return 'Car';
+  }
+  
+  // Default by category
+  switch (category) {
+    case 'living': return 'ShoppingCart';
+    case 'play': return 'Gamepad2';
+    case 'bills': return 'Receipt';
+    case 'savings': return 'PiggyBank';
+    case 'debt': return 'CreditCard';
+    default: return 'Wallet';
+  }
+}
+
+// Transform raw PB allocation to enriched UI allocation
+export function transformAllocation(raw: AllocationRaw): Allocation {
+  // Detect if name suggests it's a "play" wallet
+  const lowerName = raw.name.toLowerCase();
+  const isPlay = lowerName.includes('play') || lowerName.includes('fun') || 
+                 lowerName.includes('entertainment') || lowerName.includes('leisure');
+  
+  const category: AllocationCategory = isPlay ? 'play' : typeToCategory(raw.type);
+  
+  return {
+    id: raw.id,
+    name: raw.name,
+    icon: categoryToIcon(category, raw.name),
+    category,
+    total_budget: raw.total_budget,
+    current_balance: raw.current_balance,
+    is_strict: raw.is_strict,
+    color: categoryToColor(category),
+    cycle_id: raw.cycle_id,
+  };
+}
+
+// Transform PB transaction (field name differences)
+export function transformTransaction(raw: Record<string, unknown>): Transaction {
+  return {
+    id: raw.id as string,
+    amount: raw.amount as number,
+    description: (raw.description as string) || '',
+    timestamp: (raw.transaction_date as string) || new Date().toISOString(),
+    allocation_id: raw.allocation_id as string,
+    type: 'expense',
+  };
+}
+
+// Transform PB cycle (dates may need parsing)
+export function transformCycle(raw: Record<string, unknown>): FinancialCycle {
+  return {
+    id: raw.id as string,
+    name: (raw.name as string) || 'Unnamed Cycle',
+    start_date: ((raw.start_date as string) || '').split('T')[0], // Strip time part
+    end_date: ((raw.end_date as string) || '').split('T')[0],
+    status: (raw.status as CycleStatus) || 'upcoming',
+  };
+}
+
+// Transform PB income
+export function transformIncome(raw: Record<string, unknown>): Income {
+  return {
+    id: raw.id as string,
+    amount: raw.amount as number,
+    source: (raw.source as string) || '',
+    date_received: ((raw.date_received as string) || '').split('T')[0],
+    cycle_id: raw.cycle_id as string,
+    is_confirmed: raw.is_confirmed as boolean ?? false,
+  };
 }
 
 // ============================================
@@ -458,45 +624,5 @@ export const categoryColors: Record<AllocationCategory, { accent: string; glow: 
     accent: 'rgb(34, 211, 238)',
     glow: 'rgba(34, 211, 238, 0.4)',
     bg: 'rgba(34, 211, 238, 0.1)'
-  },
-};
-
-// Tailwind color classes for allocations
-export const allocationColorClasses: Record<string, { text: string; bg: string; border: string; glow: string }> = {
-  emerald: {
-    text: 'text-emerald-400',
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/20',
-    glow: 'rgba(52, 211, 153, 0.5)',
-  },
-  violet: {
-    text: 'text-violet-400',
-    bg: 'bg-violet-500/10',
-    border: 'border-violet-500/20',
-    glow: 'rgba(167, 139, 250, 0.5)',
-  },
-  blue: {
-    text: 'text-blue-400',
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/20',
-    glow: 'rgba(96, 165, 250, 0.5)',
-  },
-  cyan: {
-    text: 'text-cyan-400',
-    bg: 'bg-cyan-500/10',
-    border: 'border-cyan-500/20',
-    glow: 'rgba(34, 211, 238, 0.5)',
-  },
-  amber: {
-    text: 'text-amber-400',
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500/20',
-    glow: 'rgba(251, 191, 36, 0.5)',
-  },
-  red: {
-    text: 'text-red-400',
-    bg: 'bg-red-500/10',
-    border: 'border-red-500/20',
-    glow: 'rgba(248, 113, 113, 0.5)',
   },
 };

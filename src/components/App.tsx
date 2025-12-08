@@ -18,8 +18,9 @@ import { ExpenseInputModal } from './ExpenseInputModal';
 import { CycleInputModal } from './CycleInputModal';
 import { BudgetTemplateInputModal } from './BudgetTemplateInputModal';
 import { AllocationInputModal } from './AllocationInputModal';
+import { IncomeInputModal } from './IncomeInputModal';
 import type { ExpenseData } from './ExpenseInputModal';
-import type { FinancialCycle, Allocation } from '../utils/financeTypes';
+import type { FinancialCycle, Allocation, Income } from '../utils/financeTypes';
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../utils/constants';
 import type { MicMode } from '../utils/constants';
 import { Navi } from './Navi';
@@ -37,6 +38,7 @@ export function App() {
   const [cycleModalOpen, setCycleModalOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [allocationModalOpen, setAllocationModalOpen] = useState(false);
+  const [incomeModalOpen, setIncomeModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
 
@@ -89,6 +91,7 @@ export function App() {
     createTransaction,
     createCycle,
     createAllocation,
+    createIncome,
   } = useFinanceData();
 
   // Handlers for new modals
@@ -149,6 +152,17 @@ export function App() {
       console.error('[Finance] Failed to log expense:', err);
     }
   }, [createTransaction]);
+
+  // Handle income submission
+  const handleIncomeSubmit = useCallback(async (data: Omit<Income, 'id'>) => {
+    try {
+      await createIncome(data);
+      console.log('[Finance] Income added:', data);
+      setIncomeModalOpen(false);
+    } catch (err) {
+      console.error('[Finance] Failed to add income:', err);
+    }
+  }, [createIncome]);
 
   // Mark initial data as loaded when summaries finish loading
   useEffect(() => {
@@ -464,6 +478,7 @@ export function App() {
                 onOpenCycleModal={() => setCycleModalOpen(true)}
                 onOpenTemplateModal={() => setTemplateModalOpen(true)}
                 onOpenAllocationModal={() => setAllocationModalOpen(true)}
+                onOpenIncomeModal={() => setIncomeModalOpen(true)}
               />
             </div>
           )}
@@ -494,6 +509,13 @@ export function App() {
         isOpen={allocationModalOpen}
         onClose={() => setAllocationModalOpen(false)}
         onSubmit={handleAllocationSubmit}
+        cycles={cycles}
+      />
+
+      <IncomeInputModal
+        isOpen={incomeModalOpen}
+        onClose={() => setIncomeModalOpen(false)}
+        onSubmit={handleIncomeSubmit}
         cycles={cycles}
       />
 

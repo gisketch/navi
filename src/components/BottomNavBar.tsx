@@ -1,16 +1,17 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, User, Bell, Wallet, PenLine, Calendar, FileJson, Layers } from 'lucide-react';
+import { Home, User, Bell, Wallet, PenLine, Calendar, FileJson, Layers, DollarSign } from 'lucide-react';
 import { calculateProximityGlow, createGlowGradient, cn, glass } from '../utils/glass';
 
 type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
 
-// Radial menu configuration
+// Radial menu configuration - arranged in a semi-circle above the button
 const RADIAL_BUTTONS = [
-  { id: 'log-expense', icon: PenLine, angle: 90, label: 'Log Expense' }, // Top
-  { id: 'new-cycle', icon: Calendar, angle: 45, label: 'Cycle' }, // Top-Right
-  { id: 'new-allocation', icon: Layers, angle: 135, label: 'Wallet' }, // Top-Left
-  { id: 'new-template', icon: FileJson, angle: 0, label: 'Template' }, // Right
+  { id: 'log-expense', icon: PenLine, angle: 90, label: 'Expense' }, // Top center
+  { id: 'add-income', icon: DollarSign, angle: 135, label: 'Income' }, // Top-left
+  { id: 'new-allocation', icon: Layers, angle: 45, label: 'Wallet' }, // Top-right
+  { id: 'new-cycle', icon: Calendar, angle: 160, label: 'Cycle' }, // Far left
+  { id: 'new-template', icon: FileJson, angle: 20, label: 'Template' }, // Far right
 ];
 
 const RADIAL_RADIUS = 90;
@@ -26,10 +27,11 @@ interface BottomNavBarProps {
   onMainButtonPointerDown?: (e: React.PointerEvent) => void;
   onMainButtonPointerUp?: () => void;
   naviPosition?: { x: number; y: number };
-  onOpenExpenseModal?: () => void; // New: callback to open expense modal
+  onOpenExpenseModal?: () => void;
   onOpenCycleModal?: () => void;
   onOpenTemplateModal?: () => void;
   onOpenAllocationModal?: () => void;
+  onOpenIncomeModal?: () => void;
 }
 
 const NAV_ITEMS: { id: NavTab; icon: typeof Home; label: string }[] = [
@@ -51,6 +53,7 @@ export function BottomNavBar({
   onOpenCycleModal,
   onOpenTemplateModal,
   onOpenAllocationModal,
+  onOpenIncomeModal,
 }: BottomNavBarProps) {
   const mainButtonRef = useRef<HTMLButtonElement>(null);
   const [glow, setGlow] = useState({ intensity: 0, position: { x: 50, y: 50 } });
@@ -126,6 +129,9 @@ export function BottomNavBar({
       case 'log-expense':
         onOpenExpenseModal?.();
         break;
+      case 'add-income':
+        onOpenIncomeModal?.();
+        break;
       case 'new-cycle':
         onOpenCycleModal?.();
         break;
@@ -138,7 +144,7 @@ export function BottomNavBar({
       default:
         break;
     }
-  }, [onOpenExpenseModal, onOpenCycleModal, onOpenTemplateModal, onOpenAllocationModal]);
+  }, [onOpenExpenseModal, onOpenIncomeModal, onOpenCycleModal, onOpenTemplateModal, onOpenAllocationModal]);
 
   // Handle pointer down
   const handlePointerDown = useCallback((clientX: number, clientY: number) => {
@@ -317,8 +323,23 @@ export function BottomNavBar({
                       }}
                       className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-50"
                     >
-                      {/* Radial button */}
-                      <div className="flex flex-col items-center gap-1">
+                      {/* Radial button with label ABOVE */}
+                      <div className="flex flex-col items-center gap-1.5">
+                        {/* Label - positioned above the icon */}
+                        <motion.span
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: isSelected ? 1 : 0.7, y: 0 }}
+                          className={cn(
+                            'text-[10px] font-semibold whitespace-nowrap uppercase tracking-wider',
+                            'px-2 py-0.5 rounded-full',
+                            isSelected 
+                              ? 'text-emerald-300 bg-emerald-500/20' 
+                              : 'text-white/60 bg-black/30'
+                          )}
+                        >
+                          {btn.label}
+                        </motion.span>
+                        {/* Icon button */}
                         <div
                           className={cn(
                             'relative w-14 h-14 rounded-full flex items-center justify-center',
@@ -335,17 +356,6 @@ export function BottomNavBar({
                             isSelected ? 'text-emerald-400' : 'text-white/70'
                           )} />
                         </div>
-                        {/* Label */}
-                        <motion.span
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: isSelected ? 1 : 0.5 }}
-                          className={cn(
-                            'text-xs font-medium whitespace-nowrap',
-                            isSelected ? 'text-emerald-400' : 'text-white/50'
-                          )}
-                        >
-                          {btn.label}
-                        </motion.span>
                       </div>
                     </motion.div>
                   );
