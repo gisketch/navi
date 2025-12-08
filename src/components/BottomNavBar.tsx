@@ -14,7 +14,7 @@ const RADIAL_BUTTONS = [
   { id: 'new-subscription', icon: Receipt, angle: 25, label: 'Bill' }, // Far top-right
 ];
 
-const RADIAL_RADIUS = 110;
+const RADIAL_RADIUS = 150;
 const HOLD_THRESHOLD = 200; // ms to trigger radial menu
 const SELECTION_RADIUS = 50;
 
@@ -337,8 +337,8 @@ export function BottomNavBar({
                           className={cn(
                             'text-[10px] font-semibold whitespace-nowrap uppercase tracking-wider',
                             'px-2 py-0.5 rounded-full',
-                            isSelected 
-                              ? 'text-emerald-300 bg-emerald-500/20' 
+                            isSelected
+                              ? 'text-emerald-300 bg-emerald-500/20'
                               : 'text-white/60 bg-black/30'
                           )}
                         >
