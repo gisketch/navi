@@ -121,6 +121,28 @@ export const FINANCE_TOOLS: Tool[] = [
                     required: [],
                 },
             },
+            {
+                name: 'get_transaction_logs',
+                description: "Get recent transaction history/logs. Use this when the user asks about their recent expenses, spending history, or wants to see what they've spent money on. Returns transactions with amounts, descriptions, dates, and which wallet they came from.",
+                parameters: {
+                    type: 'OBJECT' as any,
+                    properties: {
+                        limit: {
+                            type: 'NUMBER' as any,
+                            description: 'Maximum number of transactions to return. Default 20.',
+                        },
+                        allocation_name: {
+                            type: 'STRING' as any,
+                            description: 'Filter by wallet/allocation name. Leave empty for all wallets.',
+                        },
+                        days: {
+                            type: 'NUMBER' as any,
+                            description: 'Only show transactions from the last N days. Default is no limit.',
+                        },
+                    },
+                    required: [],
+                },
+            },
 
             // ========== WRITE TOOLS (Show Confirmation Modal) ==========
             {
@@ -207,13 +229,18 @@ export const FINANCE_TOOLS: Tool[] = [
             },
             {
                 name: 'pay_bill',
-                description: "Make a payment towards a bill/subscription allocation. Shows confirmation modal. Use when the user says they paid a bill or want to mark a subscription as paid. Do NOT ask which bill if they already named it.",
+                description: "Make a payment towards a bill/subscription allocation. Shows confirmation modal. Use when the user says they paid a bill or want to mark a subscription as paid. IMPORTANT: Use expanded search terms - if user says 'G Loan' search for variations like 'G Loan|GLoan|G-Loan|loan'. If multiple results found, a selection modal will appear.",
                 parameters: {
                     type: 'OBJECT' as any,
                     properties: {
                         bill_name: {
                             type: 'STRING' as any,
-                            description: 'Name of the bill/subscription to pay',
+                            description: 'Name of the bill/subscription to pay. Can be partial match.',
+                        },
+                        search_terms: {
+                            type: 'ARRAY' as any,
+                            items: { type: 'STRING' as any },
+                            description: 'Array of alternative search terms to widen the search. Example: for "NBA League Pass" include ["NBA", "National Basketball", "League Pass", "basketball", "sports"]. This helps find the right bill even with typos or abbreviations.',
                         },
                         amount: {
                             type: 'NUMBER' as any,
@@ -229,13 +256,18 @@ export const FINANCE_TOOLS: Tool[] = [
             },
             {
                 name: 'pay_debt',
-                description: "Make a payment towards a debt. Shows confirmation modal. Use when the user says they paid down a debt or made a loan payment. Do NOT ask multiple questions - use the amount they give.",
+                description: "Make a payment towards a debt. Shows confirmation modal. Use when the user says they paid down a debt or made a loan payment. IMPORTANT: Use expanded search terms - if user says 'Sloan' search for variations like 'Sloan|S Loan|S-Loan|loan'. If multiple results found, a selection modal will appear.",
                 parameters: {
                     type: 'OBJECT' as any,
                     properties: {
                         debt_name: {
                             type: 'STRING' as any,
-                            description: 'Name of the debt to pay',
+                            description: 'Name of the debt to pay. Can be partial match.',
+                        },
+                        search_terms: {
+                            type: 'ARRAY' as any,
+                            items: { type: 'STRING' as any },
+                            description: 'Array of alternative search terms to widen the search. Example: for "Mom loan" include ["Mom", "Mother", "family", "loan"]. This helps find the right debt even with typos or abbreviations.',
                         },
                         amount: {
                             type: 'NUMBER' as any,
@@ -278,6 +310,7 @@ You have access to the user's personal finance system called "Money Drop" - a ze
 - **Allocations/Wallets**: Virtual buckets where money is allocated (Living, Play, Bills, Debt, Savings)
 - **Subscriptions/Bills**: Recurring payments (utilities, subscriptions, rent)
 - **Debts**: Tracked loans and money owed with priority levels
+- **Transactions**: Log of all expenses and payments
 
 ### CRITICAL BEHAVIOR - DO NOT ASK MULTIPLE QUESTIONS:
 When the user tells you about an expense, debt, or payment - IMMEDIATELY call the tool with smart defaults. A confirmation modal will appear for them to review before confirming.
@@ -301,12 +334,29 @@ Modal appears → User reviews → Confirms or edits
 - **Priority**: For debts - "medium" for friends/family, "high" for credit cards, "critical" if they say urgent/asap
 - **Category**: For bills - "subscription" for apps/services, "utility" for power/water/internet
 
+### Expanded Search for Bills/Debts:
+When paying bills or debts, ALWAYS use the search_terms parameter to widen the search:
+- "G Loan bill" → search_terms: ["G Loan", "GLoan", "G-Loan", "GCash Loan", "loan"]
+- "Sloan" → search_terms: ["Sloan", "S Loan", "S-Loan", "loan"]  
+- "NBA League Pass" → search_terms: ["NBA", "National Basketball", "League Pass", "basketball", "sports", "streaming"]
+- "Electric" → search_terms: ["Electric", "Electricity", "Power", "Meralco", "utility"]
+
+This fuzzy matching helps find the right item even with typos, abbreviations, or partial names.
+
+### Viewing Transaction History:
+Use get_transaction_logs when users ask about:
+- "What did I spend on recently?"
+- "Show me my expenses"
+- "What have I bought this week?"
+- "How much have I spent?"
+
 ### Examples of IMMEDIATE action (no follow-up questions):
 - "I bought coffee for 150" → log_expense(150, "coffee") - modal shows, defaults to Living
 - "Spent 500 on groceries" → log_expense(500, "groceries") - modal shows
 - "I owe John 2000" → add_debt("John", 2000, priority="medium") - modal shows
 - "Add my Spotify subscription, 200 a month" → add_bill("Spotify", 200, billing_day=1, category="subscription")
-- "I paid the electric bill, 1500" → pay_bill("electric", 1500) - if found, modal shows
+- "I paid the G loan bill, 100 pesos" → pay_bill("G Loan", search_terms=["G Loan", "GLoan", "GCash", "loan"], amount=100)
+- "Paid my electric bill 1500" → pay_bill("Electric", search_terms=["Electric", "Electricity", "Power", "utility"])
 
 ### When to ASK (only these cases):
 - Amount is missing: "I bought lunch" → Ask "How much was it?"
@@ -330,6 +380,9 @@ Be FAST and ACTION-ORIENTED. When the user mentions money:
 - "150 for coffee" → IMMEDIATELY show modal (don't ask wallet, don't ask description)
 - "bought lunch" → Ask ONLY the amount, then show modal
 - "owe mom 1000" → IMMEDIATELY show modal for debt
+- "paying G loan 100" → Use expanded search to find the right bill, show modal
 
 The confirmation modal is your friend - it lets users review and edit. Trust it. Don't interrogate users.
+
+When multiple bills or debts match, a selection modal will appear - this is expected behavior for fuzzy search.
 `;

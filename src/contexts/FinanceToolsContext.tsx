@@ -17,6 +17,7 @@ export type FinanceToolName =
   | 'search_bills'
   | 'search_debts'
   | 'search_allocations'
+  | 'get_transaction_logs'
   | 'log_expense'
   | 'add_bill'
   | 'add_debt'
@@ -40,6 +41,11 @@ export interface FinanceToolArgs {
     query?: string;
     category?: string;
   };
+  get_transaction_logs: {
+    limit?: number;
+    allocation_name?: string;
+    days?: number;
+  };
   log_expense: {
     amount: number;
     description: string;
@@ -61,11 +67,13 @@ export interface FinanceToolArgs {
   };
   pay_bill: {
     bill_name: string;
+    search_terms?: string[];
     amount?: number;
     note?: string;
   };
   pay_debt: {
     debt_name: string;
+    search_terms?: string[];
     amount: number;
     note?: string;
   };
@@ -90,6 +98,11 @@ export interface PendingToolAction<T extends FinanceToolName = FinanceToolName> 
     subscription?: Subscription;
     debt?: Debt;
   };
+  // For multiple match selection
+  multipleMatches?: {
+    type: 'bill' | 'debt';
+    matches: Array<{ id: string; name: string; amount?: number; remaining?: number }>;
+  };
 }
 
 interface FinanceToolsContextType {
@@ -106,6 +119,7 @@ interface FinanceToolsContextType {
   confirmPendingAction: () => Promise<string>;
   cancelPendingAction: () => string;
   clearPendingAction: () => void;
+  selectMatch: (matchId: string) => void;
 }
 
 const FinanceToolsContext = createContext<FinanceToolsContextType | null>(null);
@@ -126,6 +140,7 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
     debts,
     subscriptions,
     allocations,
+    transactions,
     activeSalaryDrop,
     dropSummary,
     walletStats,
@@ -136,6 +151,7 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
     createDebt,
     createSubscription,
     updateDebt,
+    updateAllocationBalance,
   } = useFinanceData();
 
   // ============================================
@@ -313,9 +329,71 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
     });
   }, [allocations]);
 
+  const executeGetTransactionLogs = useCallback((args: FinanceToolArgs['get_transaction_logs']): string => {
+    let results = [...transactions].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    
+    // Filter by allocation name
+    if (args.allocation_name) {
+      const query = args.allocation_name.toLowerCase();
+      const matchingAllocations = allocations.filter(a => 
+        a.name.toLowerCase().includes(query)
+      );
+      const allocationIds = new Set(matchingAllocations.map(a => a.id));
+      results = results.filter(t => allocationIds.has(t.allocation_id));
+    }
+    
+    // Filter by days
+    if (args.days) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - args.days);
+      results = results.filter(t => new Date(t.timestamp) >= cutoff);
+    }
+    
+    // Apply limit
+    const limit = args.limit || 20;
+    results = results.slice(0, limit);
+
+    // Get allocation names for each transaction
+    const allocationMap = new Map(allocations.map(a => [a.id, a.name]));
+
+    return JSON.stringify({
+      count: results.length,
+      totalSpent: results.reduce((sum, t) => sum + t.amount, 0),
+      transactions: results.map(t => ({
+        amount: t.amount,
+        description: t.description,
+        date: t.timestamp,
+        wallet: allocationMap.get(t.allocation_id) || 'Unknown',
+        formattedDate: new Date(t.timestamp).toLocaleDateString('en-PH', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+        }),
+      })),
+    });
+  }, [transactions, allocations]);
+
   // ============================================
   // Confirmation-Required Tool Preparers
   // ============================================
+
+  // Helper function for fuzzy matching with multiple search terms
+  const fuzzyMatch = useCallback((name: string, searchTerms: string[]): boolean => {
+    const nameLower = name.toLowerCase();
+    return searchTerms.some(term => {
+      const termLower = term.toLowerCase();
+      // Direct substring match
+      if (nameLower.includes(termLower) || termLower.includes(nameLower)) {
+        return true;
+      }
+      // Word-level matching (for multi-word names)
+      const nameWords = nameLower.split(/[\s\-_]+/);
+      const termWords = termLower.split(/[\s\-_]+/);
+      return termWords.some(tw => nameWords.some(nw => nw.includes(tw) || tw.includes(nw)));
+    });
+  }, []);
 
   const prepareLogExpense = useCallback((args: FinanceToolArgs['log_expense'], toolCallId: string): PendingToolAction => {
     // Default to Living wallet if not specified
@@ -361,14 +439,41 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const preparePayBill = useCallback((args: FinanceToolArgs['pay_bill'], toolCallId: string): PendingToolAction => {
-    // Find the subscription
-    const query = args.bill_name.toLowerCase();
-    const subscription = subscriptions.find(s => s.name.toLowerCase().includes(query));
+    // Build search terms array
+    const searchTerms = [
+      args.bill_name,
+      ...(args.search_terms || []),
+    ];
+    
+    // Find matching subscriptions using fuzzy search
+    const matchingSubscriptions = subscriptions.filter(s => 
+      s.is_active && fuzzyMatch(s.name, searchTerms)
+    );
+
+    // If multiple matches, return with multipleMatches for modal selection
+    if (matchingSubscriptions.length > 1) {
+      return {
+        toolName: 'pay_bill',
+        args,
+        toolCallId,
+        description: `Multiple bills match "${args.bill_name}" - please select one`,
+        multipleMatches: {
+          type: 'bill',
+          matches: matchingSubscriptions.map(s => ({
+            id: s.id,
+            name: s.name,
+            amount: s.amount,
+          })),
+        },
+      };
+    }
+
+    const subscription = matchingSubscriptions[0];
     
     // Find the allocation linked to this subscription
     const allocation = subscription 
       ? allocations.find(a => a.linked_subscription_id === subscription.id)
-      : allocations.find(a => a.name.toLowerCase().includes(query));
+      : allocations.find(a => fuzzyMatch(a.name, searchTerms));
 
     const amount = args.amount || subscription?.amount || 0;
 
@@ -376,29 +481,60 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
       toolName: 'pay_bill',
       args: { ...args, amount },
       toolCallId,
-      description: `Pay bill "${subscription?.name || args.bill_name}" - ₱${amount.toLocaleString()}`,
+      description: subscription 
+        ? `Pay bill "${subscription.name}" - ₱${amount.toLocaleString()} (deducts from allocation)`
+        : `Pay bill "${args.bill_name}" - ₱${amount.toLocaleString()}`,
       resolvedData: { subscription, allocation },
     };
-  }, [subscriptions, allocations]);
+  }, [subscriptions, allocations, fuzzyMatch]);
 
   const preparePayDebt = useCallback((args: FinanceToolArgs['pay_debt'], toolCallId: string): PendingToolAction => {
-    // Find the debt
-    const query = args.debt_name.toLowerCase();
-    const debt = debts.find(d => d.name.toLowerCase().includes(query));
+    // Build search terms array
+    const searchTerms = [
+      args.debt_name,
+      ...(args.search_terms || []),
+    ];
+    
+    // Find matching debts using fuzzy search
+    const matchingDebts = debts.filter(d => 
+      d.remaining_amount > 0 && fuzzyMatch(d.name, searchTerms)
+    );
+
+    // If multiple matches, return with multipleMatches for modal selection
+    if (matchingDebts.length > 1) {
+      return {
+        toolName: 'pay_debt',
+        args,
+        toolCallId,
+        description: `Multiple debts match "${args.debt_name}" - please select one`,
+        multipleMatches: {
+          type: 'debt',
+          matches: matchingDebts.map(d => ({
+            id: d.id,
+            name: d.name,
+            remaining: d.remaining_amount,
+          })),
+        },
+      };
+    }
+
+    const debt = matchingDebts[0];
     
     // Find the allocation linked to this debt
     const allocation = debt
       ? allocations.find(a => a.linked_debt_id === debt.id)
-      : allocations.find(a => a.name.toLowerCase().includes(query));
+      : allocations.find(a => fuzzyMatch(a.name, searchTerms));
 
     return {
       toolName: 'pay_debt',
       args,
       toolCallId,
-      description: `Pay ₱${args.amount.toLocaleString()} towards debt "${debt?.name || args.debt_name}"`,
+      description: debt
+        ? `Pay ₱${args.amount.toLocaleString()} towards "${debt.name}" (updates allocation balance)`
+        : `Pay ₱${args.amount.toLocaleString()} towards debt "${args.debt_name}"`,
       resolvedData: { debt, allocation },
     };
-  }, [debts, allocations]);
+  }, [debts, allocations, fuzzyMatch]);
 
   // ============================================
   // Main Tool Executor
@@ -430,6 +566,11 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
         return { 
           needsConfirmation: false, 
           result: executeSearchAllocations(args as FinanceToolArgs['search_allocations']) 
+        };
+      case 'get_transaction_logs':
+        return { 
+          needsConfirmation: false, 
+          result: executeGetTransactionLogs(args as FinanceToolArgs['get_transaction_logs']) 
         };
     }
 
@@ -466,6 +607,7 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
     executeSearchBills,
     executeSearchDebts,
     executeSearchAllocations,
+    executeGetTransactionLogs,
     prepareLogExpense,
     prepareAddBill,
     prepareAddDebt,
@@ -560,6 +702,18 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
 
     const amount = args.amount || subscription?.amount || 0;
 
+    if (allocation.current_balance < amount) {
+      return JSON.stringify({ 
+        error: true, 
+        message: `Insufficient balance in ${allocation.name}. Available: ₱${allocation.current_balance.toLocaleString()}, Requested: ₱${amount.toLocaleString()}` 
+      });
+    }
+
+    // Update allocation balance to 0 (or deduct the payment amount)
+    // For bills, we typically set to 0 as the bill is "paid"
+    const newBalance = Math.max(0, allocation.current_balance - amount);
+    await updateAllocationBalance(allocation.id, newBalance);
+
     // Log the transaction
     await createTransaction({
       amount,
@@ -571,9 +725,10 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
     return JSON.stringify({
       success: true,
       message: `Paid ₱${amount.toLocaleString()} for ${subscription?.name || args.bill_name}`,
-      newBalance: allocation.current_balance - amount,
+      newBalance,
+      allocationUpdated: allocation.name,
     });
-  }, [createTransaction]);
+  }, [createTransaction, updateAllocationBalance]);
 
   const executePayDebt = useCallback(async (action: PendingToolAction): Promise<string> => {
     const args = action.args as FinanceToolArgs['pay_debt'];
@@ -587,12 +742,20 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
       });
     }
 
-    // Update debt remaining amount
-    const newRemaining = Math.max(0, debt.remaining_amount - args.amount);
-    await updateDebt(debt.id, { remaining_amount: newRemaining });
-
-    // If there's a linked allocation, log the transaction
+    // Update the allocation balance (this is where the actual money tracking happens)
     if (allocation) {
+      if (allocation.current_balance < args.amount) {
+        return JSON.stringify({ 
+          error: true, 
+          message: `Insufficient balance in ${allocation.name}. Available: ₱${allocation.current_balance.toLocaleString()}, Requested: ₱${args.amount.toLocaleString()}` 
+        });
+      }
+      
+      // Update allocation balance
+      const newAllocationBalance = Math.max(0, allocation.current_balance - args.amount);
+      await updateAllocationBalance(allocation.id, newAllocationBalance);
+
+      // Log the transaction on the allocation
       await createTransaction({
         amount: args.amount,
         description: args.note || `Debt payment for ${debt.name}`,
@@ -601,13 +764,18 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
       });
     }
 
+    // Update debt remaining amount (for tracking purposes)
+    const newRemaining = Math.max(0, debt.remaining_amount - args.amount);
+    await updateDebt(debt.id, { remaining_amount: newRemaining });
+
     return JSON.stringify({
       success: true,
       message: `Paid ₱${args.amount.toLocaleString()} towards ${debt.name}. Remaining: ₱${newRemaining.toLocaleString()}`,
       newRemaining,
       isPaidOff: newRemaining === 0,
+      allocationUpdated: allocation?.name,
     });
-  }, [updateDebt, createTransaction]);
+  }, [updateDebt, createTransaction, updateAllocationBalance]);
 
   const confirmPendingAction = useCallback(async (): Promise<string> => {
     if (!pendingAction) {
@@ -660,6 +828,48 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
     setPendingAction(null);
   }, []);
 
+  // Handle selection from multiple matches modal
+  const selectMatch = useCallback((matchId: string) => {
+    if (!pendingAction || !pendingAction.multipleMatches) return;
+
+    const match = pendingAction.multipleMatches.matches.find(m => m.id === matchId);
+    if (!match) return;
+
+    if (pendingAction.toolName === 'pay_bill') {
+      // Find the subscription and allocation for this match
+      const subscription = subscriptions.find(s => s.id === matchId);
+      const allocation = subscription 
+        ? allocations.find(a => a.linked_subscription_id === subscription.id)
+        : undefined;
+
+      const args = pendingAction.args as FinanceToolArgs['pay_bill'];
+      const amount = args.amount || subscription?.amount || 0;
+
+      setPendingAction({
+        ...pendingAction,
+        args: { ...args, amount },
+        description: `Pay bill "${match.name}" - ₱${amount.toLocaleString()} (deducts from allocation)`,
+        resolvedData: { subscription, allocation },
+        multipleMatches: undefined, // Clear the multiple matches
+      });
+    } else if (pendingAction.toolName === 'pay_debt') {
+      // Find the debt and allocation for this match
+      const debt = debts.find(d => d.id === matchId);
+      const allocation = debt 
+        ? allocations.find(a => a.linked_debt_id === debt.id)
+        : undefined;
+
+      const args = pendingAction.args as FinanceToolArgs['pay_debt'];
+
+      setPendingAction({
+        ...pendingAction,
+        description: `Pay ₱${args.amount.toLocaleString()} towards "${match.name}" (updates allocation balance)`,
+        resolvedData: { debt, allocation },
+        multipleMatches: undefined, // Clear the multiple matches
+      });
+    }
+  }, [pendingAction, subscriptions, debts, allocations]);
+
   return (
     <FinanceToolsContext.Provider value={{
       pendingAction,
@@ -667,6 +877,7 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
       confirmPendingAction,
       cancelPendingAction,
       clearPendingAction,
+      selectMatch,
     }}>
       {children}
     </FinanceToolsContext.Provider>

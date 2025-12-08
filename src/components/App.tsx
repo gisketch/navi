@@ -258,19 +258,28 @@ function AppContent() {
       return;
     }
 
+    console.log('[App] Opening finance voice overlay...');
     setError(null);
-    await financeVoiceSession.connect();
-    setIsFinanceVoiceActive(true);
+    try {
+      console.log('[App] Connecting to Gemini Live...');
+      await financeVoiceSession.connect();
+      console.log('[App] Connected! Setting finance voice active...');
+      setIsFinanceVoiceActive(true);
 
-    // Auto-start capturing when finance overlay opens
-    // Small delay to ensure connection is established
-    setTimeout(async () => {
-      if (financeVoiceSession.isConnected) {
-        await financeVoiceSession.startCapture();
-      }
-    }, 500);
+      // Wait a bit for the connection to stabilize
+      console.log('[App] Waiting 600ms before starting capture...');
+      await new Promise(resolve => setTimeout(resolve, 600));
+
+      console.log('[App] Starting capture now...');
+      console.log('[App] financeVoiceSession.isConnected:', financeVoiceSession.isConnected);
+      console.log('[App] financeVoiceSession.audioInitialized:', financeVoiceSession.audioInitialized);
+
+      await financeVoiceSession.startCapture();
+      console.log('[App] Capture started successfully!');
+    } catch (error) {
+      console.error('[App] Error in handleFinanceVoiceOpen:', error);
+    }
   }, [settings.hasApiKey, openModal, financeVoiceSession]);
-
   // Handle finance voice overlay close
   const handleFinanceVoiceClose = useCallback(() => {
     financeVoiceSession.stopCapture();

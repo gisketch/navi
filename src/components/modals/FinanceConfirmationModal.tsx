@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -8,6 +9,7 @@ import {
   Banknote,
   PiggyBank,
   Wallet,
+  ChevronRight,
 } from 'lucide-react';
 import { cn, glass, rounded } from '../../utils/glass';
 import type { PendingToolAction, FinanceToolArgs } from '../../contexts/FinanceToolsContext';
@@ -17,12 +19,14 @@ import type { PendingToolAction, FinanceToolArgs } from '../../contexts/FinanceT
 // ============================================
 // Shows a confirmation dialog for finance tool actions
 // Displays what will happen and allows confirm/cancel
+// Also handles multiple match selection
 
 interface FinanceConfirmationModalProps {
   isOpen: boolean;
   pendingAction: PendingToolAction | null;
   onConfirm: () => void;
   onCancel: () => void;
+  onSelectMatch?: (matchId: string) => void;
   isProcessing?: boolean;
 }
 
@@ -31,9 +35,21 @@ export function FinanceConfirmationModal({
   pendingAction,
   onConfirm,
   onCancel,
+  onSelectMatch,
   isProcessing = false,
 }: FinanceConfirmationModalProps) {
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+
   if (!pendingAction) return null;
+
+  // Check if this is a multiple match selection scenario
+  const hasMultipleMatches = pendingAction.multipleMatches && pendingAction.multipleMatches.matches.length > 1;
+
+  // Handle match selection
+  const handleSelectMatch = (matchId: string) => {
+    setSelectedMatchId(matchId);
+    onSelectMatch?.(matchId);
+  };
 
   // Get icon and color based on action type
   const getActionStyle = () => {
@@ -178,44 +194,89 @@ export function FinanceConfirmationModal({
 
             {/* Title */}
             <h2 className="text-lg font-semibold text-white text-center mb-2">
-              {title}
+              {hasMultipleMatches ? 'Select an Item' : title}
             </h2>
 
             {/* Description */}
             <p className="text-white/60 text-sm text-center mb-4">
-              {pendingAction.description}
+              {hasMultipleMatches 
+                ? `Multiple ${pendingAction.multipleMatches?.type === 'bill' ? 'bills' : 'debts'} found - please select one`
+                : pendingAction.description
+              }
             </p>
 
-            {/* Details */}
-            <div className={cn(
-              'mb-5 p-3 rounded-lg',
-              'bg-black/20 border border-white/5'
-            )}>
-              {details.map((detail, index) => (
-                <div
-                  key={index}
-                  className={cn(
-                    'flex justify-between items-center py-1.5',
-                    index !== details.length - 1 && 'border-b border-white/5'
-                  )}
-                >
-                  <span className="text-white/50 text-sm">{detail.label}</span>
-                  <span className="text-white font-medium text-sm">{detail.value}</span>
-                </div>
-              ))}
-            </div>
+            {/* Multiple Match Selection */}
+            {hasMultipleMatches ? (
+              <div className="mb-5 space-y-2 max-h-60 overflow-y-auto">
+                {pendingAction.multipleMatches?.matches.map((match, index) => (
+                  <motion.button
+                    key={match.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    onClick={() => handleSelectMatch(match.id)}
+                    className={cn(
+                      'w-full p-3 rounded-lg',
+                      'bg-white/5 hover:bg-white/10',
+                      'border',
+                      selectedMatchId === match.id 
+                        ? 'border-emerald-500/50 bg-emerald-500/10' 
+                        : 'border-white/10',
+                      'flex items-center justify-between',
+                      'transition-all duration-200'
+                    )}
+                  >
+                    <div className="text-left">
+                      <p className="text-white font-medium text-sm">{match.name}</p>
+                      <p className="text-white/50 text-xs">
+                        {match.amount !== undefined && `₱${match.amount.toLocaleString()}/month`}
+                        {match.remaining !== undefined && `₱${match.remaining.toLocaleString()} remaining`}
+                      </p>
+                    </div>
+                    <ChevronRight 
+                      size={16} 
+                      className={cn(
+                        'text-white/30',
+                        selectedMatchId === match.id && 'text-emerald-400'
+                      )} 
+                    />
+                  </motion.button>
+                ))}
+              </div>
+            ) : (
+              /* Standard Details */
+              <div className={cn(
+                'mb-5 p-3 rounded-lg',
+                'bg-black/20 border border-white/5'
+              )}>
+                {details.map((detail, index) => (
+                  <div
+                    key={index}
+                    className={cn(
+                      'flex justify-between items-center py-1.5',
+                      index !== details.length - 1 && 'border-b border-white/5'
+                    )}
+                  >
+                    <span className="text-white/50 text-sm">{detail.label}</span>
+                    <span className="text-white font-medium text-sm">{detail.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
-            {/* Warning for write operations */}
-            <div className={cn(
-              'mb-5 p-3 rounded-lg',
-              'bg-amber-500/10 border border-amber-500/20',
-              'flex items-start gap-2'
-            )}>
-              <AlertTriangle size={16} className="text-amber-400 mt-0.5 shrink-0" />
-              <p className="text-amber-200/80 text-xs">
-                This action will modify your financial data. Please confirm the details above are correct.
-              </p>
-            </div>
+            {/* Warning for write operations (only show if not selecting) */}
+            {!hasMultipleMatches && (
+              <div className={cn(
+                'mb-5 p-3 rounded-lg',
+                'bg-amber-500/10 border border-amber-500/20',
+                'flex items-start gap-2'
+              )}>
+                <AlertTriangle size={16} className="text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-amber-200/80 text-xs">
+                  This action will modify your financial data. Please confirm the details above are correct.
+                </p>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-3">
@@ -234,36 +295,39 @@ export function FinanceConfirmationModal({
               >
                 Cancel
               </button>
-              <button
-                onClick={onConfirm}
-                disabled={isProcessing}
-                className={cn(
-                  'flex-1 py-3 px-4 rounded-xl',
-                  'bg-emerald-500/20 hover:bg-emerald-500/30',
-                  'border border-emerald-500/30',
-                  'text-emerald-300',
-                  'font-medium text-sm',
-                  'transition-all',
-                  'disabled:opacity-50',
-                  'flex items-center justify-center gap-2'
-                )}
-              >
-                {isProcessing ? (
-                  <>
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      className="w-4 h-4 border-2 border-emerald-300/30 border-t-emerald-300 rounded-full"
-                    />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Check size={16} />
-                    Confirm
-                  </>
-                )}
-              </button>
+              {/* Only show confirm button when not in selection mode, or when an item is selected */}
+              {(!hasMultipleMatches || selectedMatchId) && (
+                <button
+                  onClick={onConfirm}
+                  disabled={isProcessing || (hasMultipleMatches && !selectedMatchId)}
+                  className={cn(
+                    'flex-1 py-3 px-4 rounded-xl',
+                    'bg-emerald-500/20 hover:bg-emerald-500/30',
+                    'border border-emerald-500/30',
+                    'text-emerald-300',
+                    'font-medium text-sm',
+                    'transition-all',
+                    'disabled:opacity-50',
+                    'flex items-center justify-center gap-2'
+                  )}
+                >
+                  {isProcessing ? (
+                    <>
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                        className="w-4 h-4 border-2 border-emerald-300/30 border-t-emerald-300 rounded-full"
+                      />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={16} />
+                      {hasMultipleMatches ? 'Select & Continue' : 'Confirm'}
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </motion.div>
         </>

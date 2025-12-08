@@ -14,6 +14,7 @@ export const FINANCE_TOOL_NAMES = [
   'search_bills',
   'search_debts',
   'search_allocations',
+  'get_transaction_logs',
   'log_expense',
   'add_bill',
   'add_debt',
