@@ -267,20 +267,20 @@ function SpeechBubble({
           <p className="text-base text-white/80 leading-relaxed min-h-[3em]">
             {showWords
               ? words.map((word, i) => (
-                  <motion.span
-                    key={i}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      delay: i * 0.03,
-                      duration: 0.3,
-                      ease: 'easeOut',
-                    }}
-                    className="inline-block mr-[0.25em]"
-                  >
-                    {word}
-                  </motion.span>
-                ))
+                <motion.span
+                  key={i}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    delay: i * 0.03,
+                    duration: 0.3,
+                    ease: 'easeOut',
+                  }}
+                  className="inline-block mr-[0.25em]"
+                >
+                  {word}
+                </motion.span>
+              ))
               : null}
           </p>
         </div>
@@ -496,7 +496,15 @@ export function Dashboard({
       </div>
 
       {/* Card Modal */}
-      <OvernightCardModal card={selectedCard} isOpen={!!selectedCard} onClose={() => setSelectedCard(null)} />
+      <AnimatePresence>
+        {selectedCard && (
+          <OvernightCardModal
+            card={selectedCard}
+            isOpen={true}
+            onClose={() => setSelectedCard(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

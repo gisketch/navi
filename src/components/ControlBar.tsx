@@ -335,12 +335,18 @@ export function ControlBar({
       data-control-bar>
 
       {/* Keyboard Input Modal - Page stays fixed, modal overlays */}
-      <KeyboardInputModal
-        isOpen={showKeyboard}
-        onClose={() => setShowKeyboard(false)}
-        onSend={handleSendText}
-        isConnected={isConnected}
-      />
+      {/* Keyboard Input Modal - Page stays fixed, modal overlays */}
+      <AnimatePresence>
+        {showKeyboard && (
+          <KeyboardInputModal
+            key="keyboard-input-modal"
+            isOpen={true}
+            onClose={() => setShowKeyboard(false)}
+            onSend={handleSendText}
+            isConnected={isConnected}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Control Buttons Container - Always visible */}
       <div className="flex items-center justify-center glass-button-vars">
@@ -387,11 +393,10 @@ export function ControlBar({
                     >
                       {/* Radial button - matches BottomNavBar main button style */}
                       <div
-                        className={`relative w-14 h-14 rounded-full flex items-center justify-center backdrop-blur-xl transition-all duration-150 ${
-                          isSelected && !isDisabled
+                        className={`relative w-14 h-14 rounded-full flex items-center justify-center backdrop-blur-xl transition-all duration-150 ${isSelected && !isDisabled
                             ? 'bg-white/[0.08] border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
                             : 'bg-white/[0.08] border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
-                        }`}
+                          }`}
                       >
                         {/* Inner highlight - same as BottomNavBar */}
                         <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
@@ -422,13 +427,12 @@ export function ControlBar({
             onTouchStart={handleMainButtonTouchStart}
             onClick={handleMainButtonClick}
             disabled={connectionStatus === 'connecting'}
-            className={`relative flex items-center justify-center w-[72px] h-[72px] rounded-full backdrop-blur-xl transition-all duration-300 hover:scale-105 active:scale-95 disabled:scale-100 disabled:opacity-70 ${
-              showRadialMenu
+            className={`relative flex items-center justify-center w-[72px] h-[72px] rounded-full backdrop-blur-xl transition-all duration-300 hover:scale-105 active:scale-95 disabled:scale-100 disabled:opacity-70 ${showRadialMenu
                 ? 'bg-white/[0.08] border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)] scale-95'
                 : iconState === 'listening' || iconState === 'speaking'
                   ? 'bg-white/[0.08] text-white border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
                   : 'bg-white/[0.08] text-white border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
-            }`}
+              }`}
           >
             {/* Inner highlight - same as BottomNavBar */}
             <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />

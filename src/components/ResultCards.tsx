@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useLayoutEffect, useCallback } from 'react';
-import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
+import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from 'framer-motion';
 import type { PanInfo } from 'framer-motion';
 import { FileText, Calendar, Box, X } from 'lucide-react';
 import type { CardData } from '../utils/constants';
@@ -135,12 +135,12 @@ export function ResultCards({ cards, className = '', onDismiss, naviPosition, na
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [selectedCard, setSelectedCard] = useState<CardData | null>(null);
   const [maxDrag, setMaxDrag] = useState(0);
-  
+
   // Raw drag position
   const rawX = useMotionValue(0);
   // Smoothed position with spring
   const x = useSpring(rawX, { damping: 30, stiffness: 300 });
-  
+
   // Dismiss progress (only when dragging right past 0)
   const dismissProgress = useTransform(rawX, [0, DISMISS_THRESHOLD], [0, 1]);
   const dismissOpacity = useTransform(dismissProgress, [0, 0.3, 1], [0, 0.5, 1]);
@@ -166,7 +166,7 @@ export function ResultCards({ cards, className = '', onDismiss, naviPosition, na
   const handleDrag = useCallback((_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const currentX = rawX.get();
     let newX = currentX + info.delta.x;
-    
+
     // Allow dragging right (positive) up to DISMISS_THRESHOLD + some elastic
     // Allow dragging left (negative) up to -maxDrag with elastic beyond
     if (newX > DISMISS_THRESHOLD + 30) {
@@ -177,14 +177,14 @@ export function ResultCards({ cards, className = '', onDismiss, naviPosition, na
       const overscroll = -maxDrag - newX;
       newX = -maxDrag - overscroll * 0.3;
     }
-    
+
     rawX.set(newX);
   }, [rawX, maxDrag]);
 
   // Handle drag end
   const handleDragEnd = useCallback((_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const currentX = rawX.get();
-    
+
     // Check for dismiss (dragged right past threshold)
     if (currentX >= DISMISS_THRESHOLD && onDismiss) {
       // Animate out to the RIGHT (continue the swipe direction) then dismiss
@@ -192,14 +192,14 @@ export function ResultCards({ cards, className = '', onDismiss, naviPosition, na
       setTimeout(() => onDismiss(), 200);
       return;
     }
-    
+
     // Apply momentum
     const velocity = info.velocity.x;
     let targetX = currentX + velocity * 0.2;
-    
+
     // Clamp to valid range
     targetX = Math.max(-maxDrag, Math.min(0, targetX));
-    
+
     rawX.set(targetX);
   }, [rawX, maxDrag, onDismiss]);
 
@@ -222,7 +222,7 @@ export function ResultCards({ cards, className = '', onDismiss, naviPosition, na
               'p-3 rounded-full',
               'bg-red-500/20 border border-red-500/40',
             )}
-            style={{ 
+            style={{
               scale: dismissScale,
             }}
           >
@@ -264,11 +264,16 @@ export function ResultCards({ cards, className = '', onDismiss, naviPosition, na
       </div>
 
       {/* Card Detail Modal */}
-      <ResultCardModal
-        card={selectedCard}
-        isOpen={!!selectedCard}
-        onClose={() => setSelectedCard(null)}
-      />
+      {/* Card Detail Modal - Wrapped in AnimatePresence for exit animations */}
+      <AnimatePresence>
+        {selectedCard && (
+          <ResultCardModal
+            card={selectedCard}
+            isOpen={true}
+            onClose={() => setSelectedCard(null)}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

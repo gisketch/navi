@@ -517,11 +517,21 @@ export function ChatUI({
       <AnimatePresence>
         {hasCards && (
           <motion.div
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 30 }}
+            layout
+            initial={{ opacity: 0, x: 30, height: 0, marginTop: -16 }}
+            animate={{ opacity: 1, x: 0, height: 'auto', marginTop: 0 }}
+            exit={{
+              opacity: 0,
+              x: 50, // Move out slightly further
+              height: 0,
+              marginTop: -16,
+              transition: {
+                height: { duration: 0.3, ease: "anticipate" }, // Special handling for height
+                default: { duration: 0.2 }
+              }
+            }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="flex-shrink-0 max-h-[120px]"
+            className="flex-shrink-0 origin-bottom overflow-hidden"
           >
             <ResultCards
               cards={activeCards!}
