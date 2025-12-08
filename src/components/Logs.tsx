@@ -550,7 +550,7 @@ export function Logs({
   const getAllocationById = (id: string) => allocations.find(a => a.id === id);
 
   return (
-    <div className="min-h-full pb-32">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Function Call Detail Modal */}
       <FunctionCallDetailModal
         isOpen={!!selectedFunctionLog}
@@ -558,90 +558,96 @@ export function Logs({
         onClose={() => setSelectedFunctionLog(null)}
       />
 
-      {/* Header */}
-      <div className="p-4 pt-6">
-        <h1 className="text-2xl font-bold text-white mb-1">Logs</h1>
-        <p className="text-white/40 text-sm">View and manage your finance data</p>
-      </div>
+      {/* ===== STATIC TOP SECTION ===== */}
+      <div className="flex-shrink-0 px-4">
+        {/* Header */}
+        <div className="pt-6 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top, 20px) + 36px)' }}>
+          <h1 className="text-2xl font-bold text-white mb-1">Logs</h1>
+          <p className="text-white/40 text-sm">View and manage your finance data</p>
+        </div>
 
-      {/* Dropdown Selector */}
-      <div className="px-4 mb-4">
-        <div className="relative">
-          <button
-            onClick={() => setShowDropdown(!showDropdown)}
-            className={cn(
-              'w-full p-4 flex items-center justify-between',
-              rounded.xl,
-              glass.card,
-              'hover:bg-white/[0.06] transition-colors'
-            )}
-          >
-            <div className="flex items-center gap-3">
-              <div className={cn(
-                'w-10 h-10 rounded-xl flex items-center justify-center',
-                'bg-cyan-500/20'
-              )}>
-                <Icon className="w-5 h-5 text-cyan-400" />
-              </div>
-              <span className="text-white font-medium">{selectedConfig.label}</span>
-            </div>
-            <motion.div
-              animate={{ rotate: showDropdown ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
+        {/* Dropdown Selector - STATIC */}
+        <div className="mb-4">
+          <div className="relative">
+            <button
+              onClick={() => setShowDropdown(!showDropdown)}
+              className={cn(
+                'w-full p-4 flex items-center justify-between',
+                rounded.xl,
+                glass.card,
+                'hover:bg-white/[0.06] transition-colors'
+              )}
             >
-              <ChevronDown className="w-5 h-5 text-white/50" />
-            </motion.div>
-          </button>
-          
-          <AnimatePresence>
-            {showDropdown && (
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  'w-10 h-10 rounded-xl flex items-center justify-center',
+                  'bg-cyan-500/20'
+                )}>
+                  <Icon className="w-5 h-5 text-cyan-400" />
+                </div>
+                <span className="text-white font-medium">{selectedConfig.label}</span>
+              </div>
               <motion.div
-                initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                className={cn(
-                  'absolute top-full left-0 right-0 mt-2 z-30',
-                  rounded.xl,
-                  glass.modal,
-                  'border border-white/[0.08]',
-                  'shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]',
-                  'overflow-hidden'
-                )}
+                animate={{ rotate: showDropdown ? 180 : 0 }}
+                transition={{ duration: 0.2 }}
               >
-                {LOG_TYPES.map((type) => {
-                  const TypeIcon = type.icon;
-                  const isSelected = selectedType === type.id;
-                  return (
-                    <button
-                      key={type.id}
-                      onClick={() => {
-                        setSelectedType(type.id);
-                        setShowDropdown(false);
-                      }}
-                      className={cn(
-                        'w-full p-3 flex items-center gap-3',
-                        'hover:bg-white/[0.06] transition-colors',
-                        isSelected && 'bg-cyan-500/10'
-                      )}
-                    >
-                      <TypeIcon className={cn(
-                        'w-5 h-5',
-                        isSelected ? 'text-cyan-400' : 'text-white/40'
-                      )} />
-                      <span className={cn(
-                        isSelected ? 'text-cyan-400' : 'text-white/70'
-                      )}>{type.label}</span>
-                    </button>
-                  );
-                })}
+                <ChevronDown className="w-5 h-5 text-white/50" />
               </motion.div>
-            )}
-          </AnimatePresence>
+            </button>
+            
+            <AnimatePresence>
+              {showDropdown && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  className={cn(
+                    'absolute top-full left-0 right-0 mt-2 z-30',
+                    rounded.xl,
+                    glass.modal,
+                    'border border-white/[0.08]',
+                    'shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]',
+                    'overflow-hidden'
+                  )}
+                >
+                  {LOG_TYPES.map((type) => {
+                    const TypeIcon = type.icon;
+                    const isSelected = selectedType === type.id;
+                    return (
+                      <button
+                        key={type.id}
+                        onClick={() => {
+                          setSelectedType(type.id);
+                          setShowDropdown(false);
+                        }}
+                        className={cn(
+                          'w-full p-3 flex items-center gap-3',
+                          'hover:bg-white/[0.06] transition-colors',
+                          isSelected && 'bg-cyan-500/10'
+                        )}
+                      >
+                        <TypeIcon className={cn(
+                          'w-5 h-5',
+                          isSelected ? 'text-cyan-400' : 'text-white/40'
+                        )} />
+                        <span className={cn(
+                          isSelected ? 'text-cyan-400' : 'text-white/70'
+                        )}>{type.label}</span>
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="px-4 space-y-3">
+      {/* ===== SCROLLABLE BOTTOM SECTION - Content ===== */}
+      <div 
+        data-scrollable
+        className="flex-1 min-h-0 overflow-y-auto px-4 pb-32 overscroll-contain touch-pan-y"
+      >
         {isLoading ? (
           <div className="text-center py-12">
             <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />

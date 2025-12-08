@@ -45,7 +45,13 @@ export function AnimatedBackground({ mode }: AnimatedBackgroundProps) {
                     {/* Orb 1: Top Left - Main accent */}
                     <motion.div
                         className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full blur-[100px] md:blur-[120px]"
-                        style={{ background: currentColors[0] }}
+                        style={{ 
+                            background: currentColors[0],
+                            willChange: 'transform',
+                            transform: 'translateZ(0)',
+                            WebkitBackfaceVisibility: 'hidden',
+                            WebkitFilter: 'blur(100px)',
+                        }}
                         animate={{
                             x: [0, 50, 0],
                             y: [0, 30, 0],
@@ -57,7 +63,13 @@ export function AnimatedBackground({ mode }: AnimatedBackgroundProps) {
                     {/* Orb 2: Bottom Right - Secondary accent */}
                     <motion.div
                         className="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] rounded-full blur-[100px] md:blur-[130px]"
-                        style={{ background: currentColors[1] }}
+                        style={{ 
+                            background: currentColors[1],
+                            willChange: 'transform',
+                            transform: 'translateZ(0)',
+                            WebkitBackfaceVisibility: 'hidden',
+                            WebkitFilter: 'blur(100px)',
+                        }}
                         animate={{
                             x: [0, -30, 0],
                             y: [0, -50, 0],
@@ -69,7 +81,13 @@ export function AnimatedBackground({ mode }: AnimatedBackgroundProps) {
                     {/* Orb 3: Center/Floating - Ambient fill */}
                     <motion.div
                         className="absolute top-[20%] left-[30%] w-[40vw] h-[40vw] rounded-full blur-[90px] md:blur-[110px]"
-                        style={{ background: currentColors[2] }}
+                        style={{ 
+                            background: currentColors[2],
+                            willChange: 'transform',
+                            transform: 'translateZ(0)',
+                            WebkitBackfaceVisibility: 'hidden',
+                            WebkitFilter: 'blur(90px)',
+                        }}
                         animate={{
                             x: [0, 40, -20, 0],
                             y: [0, -40, 20, 0],

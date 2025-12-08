@@ -467,7 +467,7 @@ function AppContent() {
   // Render
   // ============================================
   return (
-    <div className="flex h-screen text-white overflow-hidden relative bg-black">
+    <div className="flex flex-col h-[100dvh] text-white overflow-hidden relative bg-black overscroll-none">
       <AnimatedBackground mode={mode} />
 
       {/* Desktop Sidebar - only in dashboard mode */}
@@ -481,7 +481,7 @@ function AppContent() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden relative z-10">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative z-10">
         {/* Finance Voice Overlay - Moved here to be in same stacking context but lower z-index than Navi */}
         <FinanceVoiceOverlay
           isOpen={isFinanceVoiceActive}
@@ -530,7 +530,7 @@ function AppContent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.3 }}
-              className="flex-1 flex flex-col"
+              className="flex-1 min-h-0"
             >
               <Dashboard
                 cards={cards}
@@ -555,7 +555,7 @@ function AppContent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.3 }}
-              className="flex-1 flex flex-col"
+              className="flex-1 min-h-0"
             >
               <Finance 
                 naviPosition={naviPosition}
@@ -575,7 +575,7 @@ function AppContent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.3 }}
-              className="flex-1 flex flex-col overflow-y-auto"
+              className="flex-1 min-h-0"
             >
               <Logs
                 naviPosition={naviPosition}

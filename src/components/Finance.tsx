@@ -655,12 +655,12 @@ export function Finance({ naviPosition, onPayBill, onPayDebt }: FinanceProps) {
     .reduce((sum, a) => sum + a.total_budget, 0);
 
   return (
-    <div key={animationKey} className="flex-1 flex flex-col overflow-hidden px-5 lg:px-8">
-      <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-6 lg:py-8 overflow-hidden">
-
+    <div key={animationKey} className="flex flex-col h-full overflow-hidden">
+      {/* ===== STATIC TOP SECTION ===== */}
+      <div className="flex-shrink-0 px-5 lg:px-8">
         {/* Header */}
         <header
-          className="pb-4 shrink-0 lg:col-span-12 lg:pt-0 touch-none"
+          className="pb-4 touch-none"
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 20px) + 36px)' }}
         >
           <motion.div
@@ -685,145 +685,146 @@ export function Finance({ naviPosition, onPayBill, onPayDebt }: FinanceProps) {
           </motion.div>
         </header>
 
-        {/* Main Content - Scrollable */}
-        <div className="flex-1 min-h-0 overflow-y-auto pb-32 lg:pb-8 hide-scrollbar overscroll-contain lg:col-span-12">
-
-          {/* Top Row: Daily Budget + Drop Summary */}
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            {livingWallet && (
-              <DailyBudgetCard
-                livingWallet={livingWallet}
-                daysRemaining={daysRemaining}
-                naviPosition={naviPosition}
-                entranceDelay={topRowDelay}
-              />
-            )}
-
-            {dropSummary && activeSalaryDrop && (
-              <DropSummaryCard
-                cycleName={activeSalaryDrop.name}
-                startDate={activeSalaryDrop.period_start || activeSalaryDrop.date}
-                endDate={activeSalaryDrop.period_end || activeSalaryDrop.date}
-                totalIncome={activeSalaryDrop.amount}
-                totalAllocated={totalAllocated}
-                unassigned={unassignedCash}
-                naviPosition={naviPosition}
-                entranceDelay={topRowDelay + 0.1}
-              />
-            )}
-          </div>
-
-          {/* Pace Graph */}
-          {livingWalletPaceData.length > 0 && (
-            <div className="mb-4">
-              <PaceGraph
-                data={livingWalletPaceData}
-                naviPosition={naviPosition}
-                entranceDelay={paceDelay}
-              />
-            </div>
+        {/* Top Row: Daily Budget + Drop Summary - STATIC */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          {livingWallet && (
+            <DailyBudgetCard
+              livingWallet={livingWallet}
+              daysRemaining={daysRemaining}
+              naviPosition={naviPosition}
+              entranceDelay={topRowDelay}
+            />
           )}
 
-          {/* Missions Section */}
-          <div className="space-y-2">
-            {/* Unassigned Cash */}
-            {unassignedItems.length > 0 && (
-              <CollapsibleSection
-                title="Unassigned Cash"
-                icon={<AlertCircle size={12} className="text-amber-400" />}
-                defaultOpen={true}
-                entranceDelay={missionDelay}
-                badge={
-                  <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-amber-500/20 text-amber-400">
-                    ₱{unassignedCash.toLocaleString()}
-                  </span>
-                }
-              >
-                {unassignedItems.map((item, index) => (
-                  <MissionCard
-                    key={item.id}
-                    item={item}
-                    index={index}
-                    entranceDelay={missionDelay}
-                  />
-                ))}
-              </CollapsibleSection>
-            )}
+          {dropSummary && activeSalaryDrop && (
+            <DropSummaryCard
+              cycleName={activeSalaryDrop.name}
+              startDate={activeSalaryDrop.period_start || activeSalaryDrop.date}
+              endDate={activeSalaryDrop.period_end || activeSalaryDrop.date}
+              totalIncome={activeSalaryDrop.amount}
+              totalAllocated={totalAllocated}
+              unassigned={unassignedCash}
+              naviPosition={naviPosition}
+              entranceDelay={topRowDelay + 0.1}
+            />
+          )}
+        </div>
 
-            {/* Bills Due */}
-            {billItems.length > 0 && (
-              <CollapsibleSection
-                title="Bills Due"
-                icon={<Receipt size={12} className="text-purple-400" />}
-                defaultOpen={true}
-                entranceDelay={missionDelay + 0.1}
-                badge={
-                  <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-purple-500/20 text-purple-400">
-                    {billItems.length}
-                  </span>
-                }
-              >
-                {billItems.map((item, index) => (
-                  <MissionCard
-                    key={item.id}
-                    item={item}
-                    index={index}
-                    entranceDelay={missionDelay + 0.1}
-                    onClick={() => onPayBill?.(item.allocation)}
-                  />
-                ))}
-              </CollapsibleSection>
-            )}
-
-            {/* Debts */}
-            {debtItems.length > 0 && (
-              <CollapsibleSection
-                title="Debts"
-                icon={<CreditCard size={12} className="text-red-400" />}
-                defaultOpen={true}
-                entranceDelay={missionDelay + 0.2}
-                badge={
-                  <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-red-500/20 text-red-400">
-                    {debtItems.length}
-                  </span>
-                }
-              >
-                {debtItems.map((item, index) => (
-                  <MissionCard
-                    key={item.id}
-                    item={item}
-                    index={index}
-                    entranceDelay={missionDelay + 0.2}
-                    onClick={() => onPayDebt?.(item.allocation)}
-                  />
-                ))}
-              </CollapsibleSection>
-            )}
-
-            {/* Completed */}
-            {completedItems.length > 0 && (
-              <CollapsibleSection
-                title="Completed"
-                icon={<CheckCircle2 size={12} className="text-emerald-400" />}
-                defaultOpen={false}
-                entranceDelay={missionDelay + 0.3}
-                badge={
-                  <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-emerald-500/20 text-emerald-400">
-                    {completedItems.length}
-                  </span>
-                }
-              >
-                {completedItems.map((item, index) => (
-                  <MissionCard
-                    key={item.id}
-                    item={item}
-                    index={index}
-                    entranceDelay={missionDelay + 0.3}
-                  />
-                ))}
-              </CollapsibleSection>
-            )}
+        {/* Pace Graph - STATIC */}
+        {livingWalletPaceData.length > 0 && (
+          <div className="mb-4">
+            <PaceGraph
+              data={livingWalletPaceData}
+              naviPosition={naviPosition}
+              entranceDelay={paceDelay}
+            />
           </div>
+        )}
+      </div>
+
+      {/* ===== SCROLLABLE BOTTOM SECTION - Missions ===== */}
+      <div 
+        data-scrollable
+        className="flex-1 min-h-0 overflow-y-auto px-5 lg:px-8 pb-32 lg:pb-8 overscroll-contain touch-pan-y"
+      >
+        <div className="space-y-2">
+          {/* Unassigned Cash */}
+          {unassignedItems.length > 0 && (
+            <CollapsibleSection
+              title="Unassigned Cash"
+              icon={<AlertCircle size={12} className="text-amber-400" />}
+              defaultOpen={true}
+              entranceDelay={missionDelay}
+              badge={
+                <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-amber-500/20 text-amber-400">
+                  ₱{unassignedCash.toLocaleString()}
+                </span>
+              }
+            >
+              {unassignedItems.map((item, index) => (
+                <MissionCard
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  entranceDelay={missionDelay}
+                />
+              ))}
+            </CollapsibleSection>
+          )}
+
+          {/* Bills Due */}
+          {billItems.length > 0 && (
+            <CollapsibleSection
+              title="Bills Due"
+              icon={<Receipt size={12} className="text-purple-400" />}
+              defaultOpen={true}
+              entranceDelay={missionDelay + 0.1}
+              badge={
+                <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-purple-500/20 text-purple-400">
+                  {billItems.length}
+                </span>
+              }
+            >
+              {billItems.map((item, index) => (
+                <MissionCard
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  entranceDelay={missionDelay + 0.1}
+                  onClick={() => onPayBill?.(item.allocation)}
+                />
+              ))}
+            </CollapsibleSection>
+          )}
+
+          {/* Debts */}
+          {debtItems.length > 0 && (
+            <CollapsibleSection
+              title="Debts"
+              icon={<CreditCard size={12} className="text-red-400" />}
+              defaultOpen={true}
+              entranceDelay={missionDelay + 0.2}
+              badge={
+                <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-red-500/20 text-red-400">
+                  {debtItems.length}
+                </span>
+              }
+            >
+              {debtItems.map((item, index) => (
+                <MissionCard
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  entranceDelay={missionDelay + 0.2}
+                  onClick={() => onPayDebt?.(item.allocation)}
+                />
+              ))}
+            </CollapsibleSection>
+          )}
+
+          {/* Completed */}
+          {completedItems.length > 0 && (
+            <CollapsibleSection
+              title="Completed"
+              icon={<CheckCircle2 size={12} className="text-emerald-400" />}
+              defaultOpen={false}
+              entranceDelay={missionDelay + 0.3}
+              badge={
+                <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-emerald-500/20 text-emerald-400">
+                  {completedItems.length}
+                </span>
+              }
+            >
+              {completedItems.map((item, index) => (
+                <MissionCard
+                  key={item.id}
+                  item={item}
+                  index={index}
+                  entranceDelay={missionDelay + 0.3}
+                />
+              ))}
+            </CollapsibleSection>
+          )}
         </div>
       </div>
     </div>

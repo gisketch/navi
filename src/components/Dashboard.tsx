@@ -321,20 +321,17 @@ export function Dashboard({
   return (
     <div
       key={animationKey}
-      className="flex-1 flex flex-col overflow-hidden px-5 lg:px-8"
+      className="flex flex-col h-full overflow-hidden"
     >
-      {/* Desktop: Bento Grid Layout / Mobile: Stack Layout */}
-      <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:grid-rows-[auto_1fr] lg:gap-6 lg:py-8 overflow-hidden">
-
-        {/* ===== GREETING SECTION ===== */}
-        {/* Mobile: Top / Desktop: Top-left spanning 8 cols */}
+      {/* ===== STATIC TOP SECTION ===== */}
+      <div className="flex-shrink-0 px-5 lg:px-8">
+        {/* Header with greeting */}
         <header
-          className="pb-2 shrink-0 lg:col-span-8 lg:pt-0 lg:pb-0 lg:flex lg:flex-col lg:justify-center touch-none"
+          className="pb-2 touch-none"
           style={{
             paddingTop: 'calc(env(safe-area-inset-top, 20px) + 36px)',
           }}
         >
-          {/* Greeting with word animation */}
           <h1 className="text-3xl lg:text-5xl font-bold text-white tracking-tight">
             {greetingWords.map((word, i) => (
               <AnimatedWord key={`${animationKey}-greeting-${i}`} word={word} index={i} delay={greetingDelay} />
@@ -351,7 +348,7 @@ export function Dashboard({
             }}
             className="text-3xl lg:text-5xl font-bold text-cyan-400 tracking-tight"
           >
-            Glenn
+            Ghegi
           </motion.h1>
           {isMock && (
             <motion.span
@@ -370,11 +367,7 @@ export function Dashboard({
           )}
         </header>
 
-        {/* ===== NAVI AREA (Desktop only) ===== */}
-        {/* Desktop: Top-right area for Navi to float in */}
-        <div className="hidden lg:block lg:col-span-4 lg:row-span-1" />
-
-        {/* Error banner - spans full width on desktop */}
+        {/* Error banner */}
         <AnimatePresence>
           {error && (
             <motion.div
@@ -382,7 +375,7 @@ export function Dashboard({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               className={cn(
-                'mb-4 px-4 py-3 text-red-300 text-sm lg:col-span-12',
+                'mb-4 px-4 py-3 text-red-300 text-sm',
                 rounded.lg,
                 'bg-red-500/10 border border-red-500/20',
                 glass.blur.xl
@@ -393,106 +386,71 @@ export function Dashboard({
           )}
         </AnimatePresence>
 
-        {/* ===== MAIN CONTENT AREA ===== */}
-        {/* Desktop: Bento grid with speech bubble and cards side by side */}
-        <div className="flex-1 min-h-0 overflow-hidden flex flex-col lg:col-span-12 lg:grid lg:grid-cols-12 lg:gap-6 lg:overflow-visible">
+        {/* While you slept card - STATIC */}
+        {dailySummary && (
+          <SpeechBubble
+            summary={dailySummary.summary}
+            lastUpdated={lastUpdated}
+            naviPosition={naviPosition}
+            entranceDelay={speechBubbleDelay}
+          />
+        )}
 
-          {/* ===== SPEECH BUBBLE ===== */}
-          {/* Mobile: Full width / Desktop: Left side, takes 5 cols */}
-          <div className="shrink-0 lg:col-span-5 lg:flex lg:flex-col">
-            {dailySummary && (
-              <SpeechBubble
-                summary={dailySummary.summary}
-                lastUpdated={lastUpdated}
+        {/* Section header for cards */}
+        <motion.h2
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: cardsDelay - 0.2 }}
+          className="text-xs font-semibold text-white/30 uppercase tracking-wider px-1 mb-4"
+        >
+          Your Updates
+        </motion.h2>
+      </div>
+
+      {/* ===== SCROLLABLE BOTTOM SECTION - Overnight Cards ===== */}
+      <div
+        data-scrollable
+        className="flex-1 min-h-0 overflow-y-auto px-5 lg:px-8 pb-32 lg:pb-8 overscroll-contain touch-pan-y"
+      >
+        <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
+          <AnimatePresence mode="popLayout">
+            {cards.map((card, index) => (
+              <OvernightCardItem
+                key={card.id}
+                card={card}
+                index={index}
+                onClick={() => setSelectedCard(card)}
                 naviPosition={naviPosition}
-                entranceDelay={speechBubbleDelay}
+                entranceDelay={cardsDelay}
               />
-            )}
-
-            {/* Desktop: Quick Stats Card (placeholder for future) */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: speechBubbleDelay + 0.3 }}
-              className="hidden lg:block"
-            >
-              <GlassContainer className="p-5">
-                <h3 className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-4">
-                  Quick Stats
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-2xl font-bold text-white">{cards.length}</p>
-                    <p className="text-xs text-white/50">Updates</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-cyan-400">
-                      {cards.filter(c => c.urgency === 'urgent' || c.urgency === 'high').length}
-                    </p>
-                    <p className="text-xs text-white/50">Urgent</p>
-                  </div>
-                </div>
-              </GlassContainer>
-            </motion.div>
-          </div>
-
-          {/* ===== CARDS SECTION ===== */}
-          {/* Mobile: Scrollable stack / Desktop: Right side grid, takes 7 cols */}
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col lg:col-span-7">
-            <motion.h2
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: cardsDelay - 0.2 }}
-              className="text-xs font-semibold text-white/30 uppercase tracking-wider px-1 mb-4 shrink-0"
-            >
-              Your Updates
-            </motion.h2>
-
-            {/* Scrollable cards container */}
-            {/* Mobile: Vertical scroll / Desktop: 2-column grid with scroll */}
-            <div className="overflow-y-auto flex-1 pb-32 lg:pb-8 hide-scrollbar overscroll-contain">
-              <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4">
-                <AnimatePresence mode="popLayout">
-                  {cards.map((card, index) => (
-                    <OvernightCardItem
-                      key={card.id}
-                      card={card}
-                      index={index}
-                      onClick={() => setSelectedCard(card)}
-                      naviPosition={naviPosition}
-                      entranceDelay={cardsDelay}
-                    />
-                  ))}
-                </AnimatePresence>
-              </div>
-
-              {cards.length === 0 && !isLoading && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: cardsDelay }}
-                  className="text-center py-12 text-white/30 text-base lg:col-span-2"
-                >
-                  No updates yet. Check back later!
-                </motion.div>
-              )}
-
-              {isLoading && cards.length === 0 && (
-                <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4">
-                  {[1, 2, 3, 4].map((i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: cardsDelay + i * 0.1 }}
-                      className={cn('h-20', rounded.lg, glass.card, 'animate-pulse')}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+            ))}
+          </AnimatePresence>
         </div>
+
+        {cards.length === 0 && !isLoading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: cardsDelay }}
+            className="text-center py-12 text-white/30 text-base"
+          >
+            No updates yet. Check back later!
+          </motion.div>
+        )}
+
+        {isLoading && cards.length === 0 && (
+          <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
+            {[1, 2, 3, 4].map((i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: cardsDelay + i * 0.1 }}
+                className={cn('h-20', rounded.lg, glass.card, 'animate-pulse')}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Card Modal */}

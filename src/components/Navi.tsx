@@ -507,27 +507,45 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
     // Check if the event target is in a "safe" area (not header or control bar)
     const isInInteractiveArea = (target: EventTarget | null) => {
       if (!target || !(target instanceof Element)) return false;
-      // Check if target is inside header, control bar, button, input, modal, or draggable chat bubbles
-      // Note: [data-chat-bubble] is draggable for scrolling, [data-result-cards] is draggable for dismiss
-      const excluded = target.closest('header, [data-control-bar], button, input, textarea, [role="dialog"], a, [data-interactive], [data-chat-bubble], [data-result-cards]');
+      // Check if target is inside header, control bar, button, input, modal, draggable chat bubbles,
+      // or scrollable containers (overflow-y-auto, touch-pan-y)
+      const excluded = target.closest('header, [data-control-bar], button, input, textarea, [role="dialog"], a, [data-interactive], [data-chat-bubble], [data-result-cards], [data-scrollable], .overflow-y-auto, .touch-pan-y');
       return !excluded;
     };
 
+    // Check if touch started inside a scrollable container
+    const isInScrollableArea = (target: EventTarget | null) => {
+      if (!target || !(target instanceof Element)) return false;
+      return !!target.closest('[data-scrollable], .overflow-y-auto, .touch-pan-y');
+    };
+
+    // Track if the current touch started in a scrollable area
+    let touchStartedInScrollable = false;
+
     // Touch events - don't prevent default on start to allow button taps
     const onTouchStart = (e: TouchEvent) => {
-      // Only handle if not on interactive element
-      if (isInInteractiveArea(e.target)) {
+      // Check if touch started in scrollable area
+      touchStartedInScrollable = isInScrollableArea(e.target);
+      
+      // Only handle if not on interactive element and not in scrollable area
+      if (isInInteractiveArea(e.target) && !touchStartedInScrollable) {
         // Small delay to allow button tap to register first
         handleStart(e.touches[0].clientX, e.touches[0].clientY);
       }
     };
     const onTouchMove = (e: TouchEvent) => {
+      // Don't prevent default if touch started in scrollable area - allow native scrolling
+      if (touchStartedInScrollable) return;
+      
       if (isTouching) {
         e.preventDefault();
         handleMove(e.touches[0].clientX, e.touches[0].clientY);
       }
     };
-    const onTouchEnd = () => handleEnd();
+    const onTouchEnd = () => {
+      touchStartedInScrollable = false;
+      handleEnd();
+    };
 
     // Mouse events
     const onMouseDown = (e: MouseEvent) => {
