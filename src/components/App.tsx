@@ -10,6 +10,7 @@ import { ChatUI } from './ChatUI';
 import { ControlBar } from './ControlBar';
 import { SettingsModal } from './SettingsModal';
 import { Dashboard } from './Dashboard';
+import { Finance } from './Finance';
 import { BottomNavBar } from './BottomNavBar';
 import { Sidebar } from './Sidebar';
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../utils/constants';
@@ -19,7 +20,7 @@ import type { NaviState, RadialMenuState } from './Navi';
 import { Mic, Radio, Fingerprint, Sparkles } from 'lucide-react';
 
 type AppMode = 'dashboard' | 'chat';
-type NavTab = 'home' | 'search' | 'notifications' | 'profile';
+type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
 
 import { AnimatedBackground } from './AnimatedBackground';
 
@@ -286,11 +287,11 @@ export function App() {
           onPositionChange={mode === 'dashboard' ? handleNaviPositionChange : undefined}
         />
 
-        {/* Dashboard Mode */}
+        {/* Dashboard Mode - Home Tab */}
         <AnimatePresence>
-          {mode === 'dashboard' && (
+          {mode === 'dashboard' && activeTab === 'home' && (
             <motion.div
-              key="dashboard"
+              key="dashboard-home"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, y: 20 }}
@@ -307,6 +308,22 @@ export function App() {
                 onRefresh={refetchSummaries}
                 naviPosition={naviPosition}
               />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Dashboard Mode - Finance Tab */}
+        <AnimatePresence>
+          {mode === 'dashboard' && activeTab === 'finance' && (
+            <motion.div
+              key="dashboard-finance"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3 }}
+              className="flex-1 flex flex-col"
+            >
+              <Finance naviPosition={naviPosition} />
             </motion.div>
           )}
         </AnimatePresence>

@@ -1,9 +1,9 @@
 import { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Search, User, Bell } from 'lucide-react';
+import { Home, User, Bell, Wallet } from 'lucide-react';
 import { calculateProximityGlow, createGlowGradient, cn, glass } from '../utils/glass';
 
-type NavTab = 'home' | 'search' | 'notifications' | 'profile';
+type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
 
 interface BottomNavBarProps {
   activeTab: NavTab;
@@ -18,7 +18,7 @@ interface BottomNavBarProps {
 
 const NAV_ITEMS: { id: NavTab; icon: typeof Home; label: string }[] = [
   { id: 'home', icon: Home, label: 'Home' },
-  { id: 'search', icon: Search, label: 'Search' },
+  { id: 'finance', icon: Wallet, label: 'Finance' },
   // Main button goes in the middle
   { id: 'notifications', icon: Bell, label: 'Alerts' },
   { id: 'profile', icon: User, label: 'Profile' },
@@ -125,7 +125,7 @@ export function BottomNavBar({
             icon={item.icon}
             isActive={activeTab === item.id}
             onClick={() => onTabChange(item.id)}
-            disabled={item.id !== 'home'}
+            disabled={item.id !== 'home' && item.id !== 'finance'}
           />
         ))}
       </div>

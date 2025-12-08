@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
-import { Home, Search, Bell, User, MessageCircle, Settings } from 'lucide-react';
+import { Home, Bell, User, MessageCircle, Settings, Wallet } from 'lucide-react';
 import { cn } from '../utils/glass';
 
-type NavTab = 'home' | 'search' | 'notifications' | 'profile';
+type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -13,7 +13,7 @@ interface SidebarProps {
 
 const NAV_ITEMS: { id: NavTab; icon: typeof Home; label: string }[] = [
   { id: 'home', icon: Home, label: 'Home' },
-  { id: 'search', icon: Search, label: 'Search' },
+  { id: 'finance', icon: Wallet, label: 'Finance' },
   { id: 'notifications', icon: Bell, label: 'Alerts' },
   { id: 'profile', icon: User, label: 'Profile' },
 ];
@@ -53,7 +53,7 @@ export function Sidebar({
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
-          const isDisabled = item.id !== 'home'; // Only home is enabled for now
+          const isDisabled = item.id !== 'home' && item.id !== 'finance'; // Home and Finance are enabled
 
           return (
             <motion.button
