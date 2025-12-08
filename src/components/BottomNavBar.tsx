@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, User, Bell, Wallet, PenLine, Layers, Banknote, CreditCard, Receipt } from 'lucide-react';
+import { Home, User, Bell, Wallet, PenLine, Layers, Banknote, CreditCard, Receipt, Mic, MicOff, MessageSquare, X } from 'lucide-react';
 import { calculateProximityGlow, createGlowGradient, cn, glass } from '../utils/glass';
 
 type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
@@ -33,6 +33,12 @@ interface BottomNavBarProps {
   onOpenAllocationModal?: () => void;
   onOpenDebtModal?: () => void;
   onOpenSubscriptionModal?: () => void;
+  // Finance voice mode
+  financeVoiceMode?: boolean;
+  isCapturing?: boolean;
+  onToggleCapture?: () => void;
+  onMoveToChat?: () => void;
+  onCloseFinanceVoice?: () => void;
 }
 
 const NAV_ITEMS: { id: NavTab; icon: typeof Home; label: string }[] = [
@@ -56,6 +62,12 @@ export function BottomNavBar({
   onOpenAllocationModal,
   onOpenDebtModal,
   onOpenSubscriptionModal,
+  // Finance voice mode
+  financeVoiceMode = false,
+  isCapturing = false,
+  onToggleCapture,
+  onMoveToChat,
+  onCloseFinanceVoice,
 }: BottomNavBarProps) {
   const mainButtonRef = useRef<HTMLButtonElement>(null);
   const [glow, setGlow] = useState({ intensity: 0, position: { x: 50, y: 50 } });
@@ -274,6 +286,105 @@ export function BottomNavBar({
     }
     return mainButtonContent;
   };
+
+  // Finance voice mode - 3 button layout
+  if (financeVoiceMode) {
+    return (
+      <motion.nav
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 100, opacity: 0 }}
+        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+        className="fixed bottom-0 left-0 right-0 z-40 px-6"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 20px), 20px)' }}
+      >
+        <div className="mx-auto max-w-md flex items-center justify-center gap-6">
+          {/* Move to Chat button */}
+          <motion.button
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={onMoveToChat}
+            data-interactive
+            className={cn(
+              'relative p-4 rounded-full',
+              glass.blur.xl,
+              'bg-white/[0.08]',
+              'border border-white/[0.15]',
+              'shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]',
+              'transition-all duration-200',
+              'hover:bg-white/10 hover:border-cyan-400/30'
+            )}
+          >
+            <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+            <MessageSquare size={24} className="text-cyan-400" />
+          </motion.button>
+
+          {/* Center Mic button */}
+          <div className="relative">
+            {/* Base ambient glow */}
+            <div
+              className={cn(
+                'absolute inset-0 rounded-full blur-2xl transition-all duration-500',
+                isCapturing
+                  ? 'bg-amber-400/30 scale-150'
+                  : 'bg-emerald-400/20 scale-100'
+              )}
+            />
+
+            <motion.button
+              ref={mainButtonRef}
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={onToggleCapture}
+              data-interactive
+              className={cn(
+                'relative w-[72px] h-[72px] rounded-full flex items-center justify-center',
+                glass.blur.xl,
+                'bg-white/[0.08]',
+                'transition-all duration-300',
+                isCapturing
+                  ? 'border-2 border-amber-400/50 shadow-[0_0_30px_rgba(251,191,36,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+                  : 'border-2 border-emerald-400/50 shadow-[0_0_30px_rgba(52,211,153,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+              )}
+            >
+              <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+              {isCapturing ? (
+                <Mic className="w-7 h-7 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
+              ) : (
+                <MicOff className="w-7 h-7 text-emerald-400" />
+              )}
+            </motion.button>
+          </div>
+
+          {/* Close button */}
+          <motion.button
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={onCloseFinanceVoice}
+            data-interactive
+            className={cn(
+              'relative p-4 rounded-full',
+              glass.blur.xl,
+              'bg-white/[0.08]',
+              'border border-white/[0.15]',
+              'shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]',
+              'transition-all duration-200',
+              'hover:bg-white/10 hover:border-red-400/30'
+            )}
+          >
+            <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+            <X size={24} className="text-red-400" />
+          </motion.button>
+        </div>
+      </motion.nav>
+    );
+  }
 
   return (
     <motion.nav

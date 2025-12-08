@@ -1,12 +1,25 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, Modality, type Session, type LiveServerMessage } from '@google/genai';
 import { GEMINI_MODEL, AUDIO_CONFIG, type ChatMessage, type CardData } from '../utils/constants';
-import { TOOLS } from '../utils/tools';
+import { TOOLS, FINANCE_TOOLS } from '../utils/tools';
 import { pb } from '../utils/pocketbase';
 
 const INPUT_SAMPLE_RATE = AUDIO_CONFIG.INPUT_SAMPLE_RATE;
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+// Finance tool names that this hook should delegate
+export const FINANCE_TOOL_NAMES = [
+  'financial_forecast',
+  'search_bills',
+  'search_debts',
+  'search_allocations',
+  'log_expense',
+  'add_bill',
+  'add_debt',
+  'pay_bill',
+  'pay_debt',
+];
 
 interface ToolCall {
   functionCalls?: {
@@ -24,6 +37,15 @@ interface ToolResponse {
   }[];
 }
 
+// Callback for external tool handling (finance tools)
+export interface ExternalToolCallHandler {
+  (toolName: string, args: Record<string, any>, toolCallId: string): Promise<{
+    handled: boolean;
+    result?: string;
+    pending?: boolean; // If true, result will come later via sendToolResponse
+  }>;
+}
+
 interface UseGeminiLiveOptions {
   apiKey: string;
   systemInstruction?: string;
@@ -32,6 +54,20 @@ interface UseGeminiLiveOptions {
   naviBrainWebhook: string;
   voiceName: string;
   receiveNoteContent?: boolean;
+  onExternalToolCall?: ExternalToolCallHandler;
+  financeMode?: boolean; // If true, use finance-only tools
+}
+
+interface UseGeminiLiveOptions {
+  apiKey: string;
+  systemInstruction?: string;
+  onAudioResponse?: (audioData: string) => void;
+  onError?: (error: Error) => void;
+  naviBrainWebhook: string;
+  voiceName: string;
+  receiveNoteContent?: boolean;
+  onExternalToolCall?: ExternalToolCallHandler;
+  financeMode?: boolean; // If true, use finance-only tools
 }
 
 interface UseGeminiLiveReturn {
@@ -48,6 +84,7 @@ interface UseGeminiLiveReturn {
   clearMessages: () => void;
   clearCards: () => void;
   removeCard: (index: number) => void;
+  sendToolResponse: (toolCallId: string, toolName: string, result: string) => void;
 }
 
 export function useGeminiLive({
@@ -58,6 +95,8 @@ export function useGeminiLive({
   naviBrainWebhook,
   voiceName,
   receiveNoteContent = true,
+  onExternalToolCall,
+  financeMode = false,
 }: UseGeminiLiveOptions): UseGeminiLiveReturn {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -107,6 +146,69 @@ export function useGeminiLive({
     if (!functionCalls || functionCalls.length === 0) return;
 
     for (const call of functionCalls) {
+      const toolName = call.name || '';
+      const toolCallId = call.id || 'unknown';
+      const args = call.args || {};
+
+      // Check if this is a finance tool and we have an external handler
+      if (FINANCE_TOOL_NAMES.includes(toolName) && onExternalToolCall) {
+        console.log('[Navi] Delegating finance tool to external handler:', toolName, args);
+        
+        setLiveStatus(`Processing ${toolName.replace(/_/g, ' ')}...`);
+        setIsToolActive(true);
+
+        try {
+          const result = await onExternalToolCall(toolName, args, toolCallId);
+          
+          if (result.handled) {
+            if (result.pending) {
+              // Result will come later via sendToolResponse
+              // Keep status active until then
+              console.log('[Navi] Finance tool pending confirmation:', toolName);
+            } else {
+              // Immediate result
+              setLiveStatus(null);
+              setIsToolActive(false);
+              
+              sessionRef.current?.sendToolResponse({
+                functionResponses: [{
+                  id: toolCallId,
+                  name: toolName,
+                  response: { result: result.result || 'Action completed' }
+                }]
+              });
+            }
+          } else {
+            // Not handled, fall through to unknown tool handling
+            setLiveStatus(null);
+            setIsToolActive(false);
+            
+            sessionRef.current?.sendToolResponse({
+              functionResponses: [{
+                id: toolCallId,
+                name: toolName,
+                response: { error: `Tool ${toolName} not implemented` }
+              }]
+            });
+          }
+        } catch (err) {
+          console.error('[Navi] Finance tool error:', err);
+          setLiveStatus(null);
+          setIsToolActive(false);
+          
+          sessionRef.current?.sendToolResponse({
+            functionResponses: [{
+              id: toolCallId,
+              name: toolName,
+              response: { error: err instanceof Error ? err.message : 'Unknown error' }
+            }]
+          });
+        }
+        
+        continue; // Move to next function call
+      }
+
+      // Built-in tool handling (access_digital_brain, openObsidianNote)
       if (call.name === 'access_digital_brain') {
         const { instruction, processingText } = call.args as any;
         const taskId = crypto.randomUUID();
@@ -426,7 +528,7 @@ export function useGeminiLive({
         },
         inputAudioTranscription: {},
         outputAudioTranscription: {},
-        tools: TOOLS, // Add Tools
+        tools: financeMode ? FINANCE_TOOLS : TOOLS, // Use finance-only or all tools
       };
 
       if (systemInstruction) {
@@ -463,7 +565,7 @@ export function useGeminiLive({
       setStatus('error');
       onError?.(error instanceof Error ? error : new Error('Failed to connect'));
     }
-  }, [apiKey, systemInstruction, onError, processResponseQueue, voiceName]);
+  }, [apiKey, systemInstruction, onError, processResponseQueue, voiceName, financeMode]);
 
   const disconnect = useCallback(() => {
     if (sessionRef.current) {
@@ -531,6 +633,28 @@ export function useGeminiLive({
     }
   }, [addMessage, onError]);
 
+  // Send tool response (for external tool handlers like finance tools)
+  const sendToolResponse = useCallback((toolCallId: string, toolName: string, result: string) => {
+    if (!sessionRef.current) {
+      console.warn('[Navi] Cannot send tool response: no session');
+      return;
+    }
+
+    console.log('[Navi] Sending tool response for:', toolName, toolCallId);
+    
+    // Clear status since tool completed
+    setLiveStatus(null);
+    setIsToolActive(false);
+
+    sessionRef.current.sendToolResponse({
+      functionResponses: [{
+        id: toolCallId,
+        name: toolName,
+        response: { result }
+      }]
+    });
+  }, []);
+
   const clearMessages = useCallback(() => {
     setMessages([]);
     setCurrentTurn(null);
@@ -557,5 +681,6 @@ export function useGeminiLive({
     clearMessages,
     clearCards: () => setActiveCards([]),
     removeCard: (index: number) => setActiveCards(prev => prev.filter((_, i) => i !== index)),
+    sendToolResponse,
   };
 }

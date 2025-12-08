@@ -17,16 +17,17 @@ interface UseNaviStateOptions {
   isPlaying: boolean;
   isCapturing: boolean;
   connectionStatus: ConnectionStatus;
+  isFinanceVoiceActive?: boolean; // Finance overlay active (uses voice in dashboard mode)
 }
 
 /**
  * Computes Navi's visual state based on the current app state.
  * 
- * In dashboard mode:
+ * In dashboard mode (without finance voice):
  * - Returns 'offline' until initial data loads
  * - Returns 'idle' once data has loaded (not connected to Gemini)
  * 
- * In chat mode:
+ * In chat mode OR finance voice mode:
  * - 'thinking' when AI tool is active
  * - 'speaking' when audio is playing
  * - 'listening' when capturing user audio
@@ -41,9 +42,19 @@ export function useNaviState(options: UseNaviStateOptions): NaviState {
     isPlaying,
     isCapturing,
     connectionStatus,
+    isFinanceVoiceActive = false,
   } = options;
 
   return useMemo<NaviState>(() => {
+    // Finance voice mode in dashboard - treat like chat mode for Navi state
+    if (isFinanceVoiceActive) {
+      if (isToolActive) return 'thinking';
+      if (isPlaying) return 'speaking';
+      if (isCapturing) return 'listening';
+      if (connectionStatus === 'connected' || connectionStatus === 'connecting') return 'idle';
+      return 'offline';
+    }
+    
     if (mode === 'dashboard') {
       // Dashboard mode: Navi is "idle" once data loads (not connected to Gemini)
       return hasInitialDataLoaded ? 'idle' : 'offline';
@@ -56,5 +67,5 @@ export function useNaviState(options: UseNaviStateOptions): NaviState {
     if (connectionStatus === 'connected' || connectionStatus === 'connecting') return 'idle';
     
     return 'offline';
-  }, [mode, hasInitialDataLoaded, isToolActive, isPlaying, isCapturing, connectionStatus]);
+  }, [mode, hasInitialDataLoaded, isToolActive, isPlaying, isCapturing, connectionStatus, isFinanceVoiceActive]);
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useGeminiLive, type ConnectionStatus } from './useGeminiLive';
+import { useGeminiLive, type ConnectionStatus, type ExternalToolCallHandler } from './useGeminiLive';
 import { useAudioCapture } from './useAudioCapture';
 import { useAudioPlayback } from './useAudioPlayback';
 import type { ChatMessage, CardData } from '../utils/constants';
@@ -20,6 +20,8 @@ interface UseVoiceSessionOptions {
   voiceName: string;
   receiveNoteContent: boolean;
   onError?: (error: string) => void;
+  onExternalToolCall?: ExternalToolCallHandler;
+  financeMode?: boolean;
 }
 
 interface UseVoiceSessionReturn {
@@ -53,6 +55,9 @@ interface UseVoiceSessionReturn {
   // Chat actions
   sendText: (text: string) => void;
   clearCards: () => void;
+  
+  // Tool response (for confirming pending finance actions)
+  sendToolResponse: (toolCallId: string, toolName: string, result: string) => void;
 }
 
 export function useVoiceSession({
@@ -62,6 +67,8 @@ export function useVoiceSession({
   voiceName,
   receiveNoteContent,
   onError,
+  onExternalToolCall,
+  financeMode = false,
 }: UseVoiceSessionOptions): UseVoiceSessionReturn {
   const [error, setError] = useState<string | null>(null);
 
@@ -81,6 +88,7 @@ export function useVoiceSession({
     isToolActive,
     activeCards,
     clearCards,
+    sendToolResponse,
   } = useGeminiLive({
     apiKey,
     systemInstruction,
@@ -92,6 +100,8 @@ export function useVoiceSession({
     naviBrainWebhook,
     voiceName,
     receiveNoteContent,
+    onExternalToolCall,
+    financeMode,
   });
 
   // Audio capture hook
@@ -173,5 +183,8 @@ export function useVoiceSession({
     // Chat actions
     sendText,
     clearCards,
+    
+    // Tool response
+    sendToolResponse,
   };
 }

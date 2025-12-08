@@ -18,3 +18,5 @@ export type { SubscriptionData } from './SubscriptionInputModal';
 export { PaymentModal } from './PaymentModal';
 
 export { SettingsModal } from './SettingsModal';
+
+export { FinanceConfirmationModal } from './FinanceConfirmationModal';
