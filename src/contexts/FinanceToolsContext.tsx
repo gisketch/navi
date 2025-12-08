@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { useFinanceData } from './FinanceContext';
+import { useFunctionCallLogs } from './FunctionCallLogContext';
 import type { 
   Subscription, 
   Debt, 
@@ -134,6 +135,8 @@ export function useFinanceTools(): FinanceToolsContextType {
 
 export function FinanceToolsProvider({ children }: { children: ReactNode }) {
   const [pendingAction, setPendingAction] = useState<PendingToolAction | null>(null);
+  
+  const { addLog } = useFunctionCallLogs();
   
   const {
     // Data
@@ -396,20 +399,48 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const prepareLogExpense = useCallback((args: FinanceToolArgs['log_expense'], toolCallId: string): PendingToolAction => {
-    // Default to Living wallet if not specified
+    // Check if using default "Living" wallet (either not specified or explicitly "Living")
+    const isUsingDefaultLiving = !args.allocation_name || 
+      args.allocation_name.toLowerCase() === 'living';
+    
     const allocationName = args.allocation_name || 'Living';
     const query = allocationName.toLowerCase();
     
-    // Find the allocation by name (fuzzy match)
-    let allocation = allocations.find(a => 
-      a.name.toLowerCase().includes(query) || 
-      a.category.toLowerCase().includes(query)
-    );
+    console.log('[FinanceTools] prepareLogExpense:', {
+      args,
+      allocationName,
+      query,
+      isUsingDefaultLiving,
+      livingWallet: livingWallet?.name,
+      allocationsCount: allocations.length,
+      allocationNames: allocations.map(a => `${a.name} (${a.category})`),
+    });
+    
+    let allocation: Allocation | undefined;
 
-    // If still not found and using default, try to get the primary living wallet
-    if (!allocation && !args.allocation_name && livingWallet) {
+    // If using default "Living", prioritize the actual livingWallet from active salary drop
+    if (isUsingDefaultLiving && livingWallet) {
+      console.log('[FinanceTools] Using livingWallet directly:', livingWallet.name);
       allocation = livingWallet;
     }
+    
+    // If not found yet, try fuzzy match by name or category
+    if (!allocation) {
+      allocation = allocations.find(a => 
+        a.name.toLowerCase().includes(query) || 
+        a.category.toLowerCase().includes(query)
+      );
+    }
+
+    // Last resort: find any allocation with "living" category
+    if (!allocation && isUsingDefaultLiving) {
+      allocation = allocations.find(a => a.category === 'living');
+      if (allocation) {
+        console.log('[FinanceTools] Found living category allocation:', allocation.name);
+      }
+    }
+
+    console.log('[FinanceTools] Final allocation:', allocation?.name || 'NOT FOUND');
 
     return {
       toolName: 'log_expense',
@@ -545,33 +576,65 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
     args: FinanceToolArgs[T],
     toolCallId: string
   ): Promise<{ needsConfirmation: boolean; result?: string }> => {
+    const startTime = Date.now();
+    
     // Execute read-only tools immediately
     switch (toolName) {
-      case 'financial_forecast':
-        return { 
-          needsConfirmation: false, 
-          result: executeFinancialForecast(args as FinanceToolArgs['financial_forecast']) 
-        };
-      case 'search_bills':
-        return { 
-          needsConfirmation: false, 
-          result: executeSearchBills(args as FinanceToolArgs['search_bills']) 
-        };
-      case 'search_debts':
-        return { 
-          needsConfirmation: false, 
-          result: executeSearchDebts(args as FinanceToolArgs['search_debts']) 
-        };
-      case 'search_allocations':
-        return { 
-          needsConfirmation: false, 
-          result: executeSearchAllocations(args as FinanceToolArgs['search_allocations']) 
-        };
-      case 'get_transaction_logs':
-        return { 
-          needsConfirmation: false, 
-          result: executeGetTransactionLogs(args as FinanceToolArgs['get_transaction_logs']) 
-        };
+      case 'financial_forecast': {
+        const result = executeFinancialForecast(args as FinanceToolArgs['financial_forecast']);
+        addLog({
+          functionName: toolName,
+          input: args,
+          output: JSON.parse(result),
+          success: !JSON.parse(result).error,
+          durationMs: Date.now() - startTime,
+        });
+        return { needsConfirmation: false, result };
+      }
+      case 'search_bills': {
+        const result = executeSearchBills(args as FinanceToolArgs['search_bills']);
+        addLog({
+          functionName: toolName,
+          input: args,
+          output: JSON.parse(result),
+          success: !JSON.parse(result).error,
+          durationMs: Date.now() - startTime,
+        });
+        return { needsConfirmation: false, result };
+      }
+      case 'search_debts': {
+        const result = executeSearchDebts(args as FinanceToolArgs['search_debts']);
+        addLog({
+          functionName: toolName,
+          input: args,
+          output: JSON.parse(result),
+          success: !JSON.parse(result).error,
+          durationMs: Date.now() - startTime,
+        });
+        return { needsConfirmation: false, result };
+      }
+      case 'search_allocations': {
+        const result = executeSearchAllocations(args as FinanceToolArgs['search_allocations']);
+        addLog({
+          functionName: toolName,
+          input: args,
+          output: JSON.parse(result),
+          success: !JSON.parse(result).error,
+          durationMs: Date.now() - startTime,
+        });
+        return { needsConfirmation: false, result };
+      }
+      case 'get_transaction_logs': {
+        const result = executeGetTransactionLogs(args as FinanceToolArgs['get_transaction_logs']);
+        addLog({
+          functionName: toolName,
+          input: args,
+          output: JSON.parse(result),
+          success: !JSON.parse(result).error,
+          durationMs: Date.now() - startTime,
+        });
+        return { needsConfirmation: false, result };
+      }
     }
 
     // Prepare write tools for confirmation (shows modal)
@@ -613,6 +676,7 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
     prepareAddDebt,
     preparePayBill,
     preparePayDebt,
+    addLog,
   ]);
 
   // ============================================
@@ -783,6 +847,7 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
     }
 
     let result: string;
+    const startTime = Date.now();
 
     try {
       switch (pendingAction.toolName) {
@@ -804,16 +869,36 @@ export function FinanceToolsProvider({ children }: { children: ReactNode }) {
         default:
           result = JSON.stringify({ error: true, message: 'Unknown action type' });
       }
+      
+      // Log the successful execution
+      const parsedResult = JSON.parse(result);
+      addLog({
+        functionName: pendingAction.toolName,
+        input: pendingAction.args,
+        output: parsedResult,
+        success: !parsedResult.error,
+        durationMs: Date.now() - startTime,
+      });
     } catch (err) {
       result = JSON.stringify({ 
         error: true, 
         message: err instanceof Error ? err.message : 'Failed to execute action' 
       });
+      
+      // Log the failed execution
+      addLog({
+        functionName: pendingAction.toolName,
+        input: pendingAction.args,
+        output: { error: true, message: err instanceof Error ? err.message : 'Failed to execute action' },
+        success: false,
+        errorMessage: err instanceof Error ? err.message : 'Failed to execute action',
+        durationMs: Date.now() - startTime,
+      });
     }
 
     setPendingAction(null);
     return result;
-  }, [pendingAction, executeLogExpense, executeAddBill, executeAddDebt, executePayBill, executePayDebt]);
+  }, [pendingAction, executeLogExpense, executeAddBill, executeAddDebt, executePayBill, executePayDebt, addLog]);
 
   const cancelPendingAction = useCallback((): string => {
     const action = pendingAction;

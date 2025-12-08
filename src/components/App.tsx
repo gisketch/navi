@@ -6,6 +6,7 @@ import { useSettings, SettingsProvider } from '../contexts/SettingsContext';
 import { useModalContext, ModalProvider } from '../contexts/ModalContext';
 import { FinanceProvider } from '../contexts/FinanceContext';
 import { FinanceToolsProvider, useFinanceTools, type FinanceToolName, type FinanceToolArgs } from '../contexts/FinanceToolsContext';
+import { FunctionCallLogProvider } from '../contexts/FunctionCallLogContext';
 
 // Hooks
 import { useOvernightSummaries } from '../hooks/useOvernightSummaries';
@@ -45,13 +46,15 @@ export function App() {
   return (
     <ToastProvider>
       <SettingsProvider>
-        <FinanceProvider>
-          <FinanceToolsProvider>
-            <ModalProvider>
-              <AppContent />
-            </ModalProvider>
-          </FinanceToolsProvider>
-        </FinanceProvider>
+        <FunctionCallLogProvider>
+          <FinanceProvider>
+            <FinanceToolsProvider>
+              <ModalProvider>
+                <AppContent />
+              </ModalProvider>
+            </FinanceToolsProvider>
+          </FinanceProvider>
+        </FunctionCallLogProvider>
       </SettingsProvider>
     </ToastProvider>
   );
@@ -67,21 +70,22 @@ function AppContent() {
   // ============================================
   const settings = useSettings();
   const { showToast } = useToast();
-  const {
-    openModal,
-    openEditDebt,
-    openEditSubscription,
-    openEditAllocation,
-    openEditMoneyDrop,
+  const { 
+    openModal, 
+    openEditDebt, 
+    openEditSubscription, 
+    openEditAllocation, 
+    openEditMoneyDrop, 
     openEditTransaction,
     openPayment,
   } = useModalContext();
-  const {
-    pendingAction,
-    executeFinanceTool,
-    confirmPendingAction,
+  const { 
+    pendingAction, 
+    executeFinanceTool, 
+    confirmPendingAction, 
     cancelPendingAction,
     clearPendingAction,
+    selectMatch,
   } = useFinanceTools();
 
   // ============================================
@@ -91,17 +95,17 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [error, setError] = useState<string | null>(null);
   const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
-
+  
   // Track Navi's position for glow effects
   const [naviPosition, setNaviPosition] = useState<{ x: number; y: number } | undefined>();
-
+  
   // Track if initial data has loaded (for Navi state)
   const [hasInitialDataLoaded, setHasInitialDataLoaded] = useState(false);
 
   // Finance voice overlay state
   const [isFinanceVoiceActive, setIsFinanceVoiceActive] = useState(false);
   const [isConfirmationProcessing, setIsConfirmationProcessing] = useState(false);
-
+  
   // Pending tool info for sending response after confirmation
   const [pendingToolInfo, setPendingToolInfo] = useState<{
     toolCallId: string;
@@ -130,7 +134,7 @@ function AppContent() {
     toolCallId: string
   ): Promise<{ handled: boolean; result?: string; pending?: boolean }> => {
     console.log('[App] Finance tool call:', toolName, args);
-
+    
     const result = await executeFinanceTool(
       toolName as FinanceToolName,
       args as FinanceToolArgs[FinanceToolName],
@@ -193,7 +197,7 @@ function AppContent() {
   // ============================================
   // Effects
   // ============================================
-
+  
   // Show settings on first load if no API key
   useEffect(() => {
     if (!settings.hasApiKey) {
@@ -227,7 +231,7 @@ function AppContent() {
   // ============================================
   // Handlers
   // ============================================
-
+  
   // Handle Navi position changes for card glow effects
   const handleNaviPositionChange = useCallback((pos: { x: number; y: number }) => {
     setNaviPosition(pos);
@@ -260,26 +264,50 @@ function AppContent() {
 
     console.log('[App] Opening finance voice overlay...');
     setError(null);
+    
     try {
       console.log('[App] Connecting to Gemini Live...');
       await financeVoiceSession.connect();
       console.log('[App] Connected! Setting finance voice active...');
       setIsFinanceVoiceActive(true);
-
+      
       // Wait a bit for the connection to stabilize
       console.log('[App] Waiting 600ms before starting capture...');
       await new Promise(resolve => setTimeout(resolve, 600));
-
+      
       console.log('[App] Starting capture now...');
       console.log('[App] financeVoiceSession.isConnected:', financeVoiceSession.isConnected);
       console.log('[App] financeVoiceSession.audioInitialized:', financeVoiceSession.audioInitialized);
-
+      
       await financeVoiceSession.startCapture();
       console.log('[App] Capture started successfully!');
     } catch (error) {
       console.error('[App] Error in handleFinanceVoiceOpen:', error);
     }
   }, [settings.hasApiKey, openModal, financeVoiceSession]);
+
+  // Backup: Also try to auto-start if somehow the first attempt didn't work
+  useEffect(() => {
+    if (
+      isFinanceVoiceActive && 
+      financeVoiceSession.isConnected && 
+      financeVoiceSession.audioInitialized &&
+      !financeVoiceSession.isCapturing
+    ) {
+      // Additional fallback attempt
+      const timer = setTimeout(() => {
+        console.log('[App] Fallback: Auto-starting finance voice capture');
+        financeVoiceSession.startCapture();
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    isFinanceVoiceActive, 
+    financeVoiceSession.isConnected, 
+    financeVoiceSession.audioInitialized,
+    financeVoiceSession.isCapturing,
+  ]);
+
   // Handle finance voice overlay close
   const handleFinanceVoiceClose = useCallback(() => {
     financeVoiceSession.stopCapture();
@@ -295,32 +323,32 @@ function AppContent() {
     const transcript = financeVoiceSession.messages
       .map(m => `${m.role === 'user' ? 'User' : 'Navi'}: ${m.text}`)
       .join('\n');
-
+    
     // Close finance session
     financeVoiceSession.disconnect();
     setIsFinanceVoiceActive(false);
-
+    
     // Connect to main chat if not already
     if (!voiceSession.isConnected) {
       await voiceSession.connect();
     }
-
+    
     // Send transcript context as system message (via text)
     if (transcript) {
       voiceSession.sendText(`[Continuing from Finance Assistant]\n\n${transcript}\n\n[End of previous context]`);
     }
-
+    
     setMode('chat');
   }, [financeVoiceSession, voiceSession]);
 
   // Handle finance confirmation
   const handleFinanceConfirm = useCallback(async () => {
     if (!pendingToolInfo) return;
-
+    
     setIsConfirmationProcessing(true);
     try {
       const result = await confirmPendingAction();
-
+      
       // Send tool response back to Gemini
       if (isFinanceVoiceActive) {
         financeVoiceSession.sendToolResponse(
@@ -335,7 +363,7 @@ function AppContent() {
           result
         );
       }
-
+      
       // Parse result for toast
       try {
         const parsed = JSON.parse(result);
@@ -356,9 +384,9 @@ function AppContent() {
   // Handle finance cancel
   const handleFinanceCancel = useCallback(() => {
     if (!pendingToolInfo) return;
-
+    
     const result = cancelPendingAction();
-
+    
     // Send cancellation response back to Gemini
     if (isFinanceVoiceActive) {
       financeVoiceSession.sendToolResponse(
@@ -373,7 +401,7 @@ function AppContent() {
         result
       );
     }
-
+    
     setPendingToolInfo(null);
     showToast('Action cancelled', 'info');
   }, [pendingToolInfo, cancelPendingAction, isFinanceVoiceActive, financeVoiceSession, voiceSession, showToast]);
@@ -404,7 +432,7 @@ function AppContent() {
         }
         return;
       }
-
+      
       if (settings.micMode === 'auto') {
         if (voiceSession.isPlaying && !voiceSession.isCapturing) {
           voiceSession.stopPlayback();
@@ -484,10 +512,10 @@ function AppContent() {
           scale={isFinanceVoiceActive ? 1.5 : 1}
           radialMenuState={mode === 'chat' ? radialMenuState : undefined}
           position={
-            isFinanceVoiceActive
-              ? 'center'
-              : mode === 'dashboard'
-                ? 'top-right'
+            isFinanceVoiceActive 
+              ? 'center' 
+              : mode === 'dashboard' 
+                ? 'top-right' 
                 : 'center'
           }
           onPositionChange={mode === 'dashboard' ? handleNaviPositionChange : undefined}
@@ -529,7 +557,7 @@ function AppContent() {
               transition={{ duration: 0.3 }}
               className="flex-1 flex flex-col"
             >
-              <Finance
+              <Finance 
                 naviPosition={naviPosition}
                 onPayBill={(allocation: Allocation) => openPayment(allocation, 'bill')}
                 onPayDebt={(allocation: Allocation) => openPayment(allocation, 'debt')}
@@ -636,6 +664,7 @@ function AppContent() {
         pendingAction={pendingAction}
         onConfirm={handleFinanceConfirm}
         onCancel={handleFinanceCancel}
+        onSelectMatch={selectMatch}
         isProcessing={isConfirmationProcessing}
       />
 

@@ -147,7 +147,7 @@ export const FINANCE_TOOLS: Tool[] = [
             // ========== WRITE TOOLS (Show Confirmation Modal) ==========
             {
                 name: 'log_expense',
-                description: "Log an expense/transaction. Shows confirmation modal. Use when the user says they spent money, bought something, or paid for something. IMPORTANT: Do NOT ask multiple questions. Use smart defaults: if no wallet specified, use 'Living'. If the user says 'I bought lunch for 150', immediately call log_expense(150, 'lunch', 'Living') - the modal will let them review before confirming.",
+                description: "Log an expense/transaction. Shows confirmation modal. Use when the user says they spent money, bought something, or paid for something. IMPORTANT: Do NOT ask multiple questions. Use smart defaults: if no wallet specified, defaults to the 'Living' wallet from the active salary drop. If the user says 'I bought lunch for 150', immediately call log_expense(150, 'lunch') - the modal will let them review before confirming.",
                 parameters: {
                     type: 'OBJECT' as any,
                     properties: {
@@ -161,7 +161,7 @@ export const FINANCE_TOOLS: Tool[] = [
                         },
                         allocation_name: {
                             type: 'STRING' as any,
-                            description: 'Name of the wallet/allocation to deduct from. DEFAULTS TO "Living" if not specified. Only ask if user explicitly mentions a different wallet.',
+                            description: 'Name of the wallet/allocation to deduct from. DEFAULTS TO the Living wallet from active salary drop if not specified. Only specify if user explicitly mentions a different wallet like "Play" or a specific allocation name.',
                         },
                     },
                     required: ['amount', 'description'],
@@ -324,12 +324,12 @@ Navi: "What should I label it as?"
 
 **CORRECT approach (efficient):**
 User: "I spent 200 on lunch"
-Navi: *immediately calls log_expense(200, "lunch", "Living")*
+Navi: *immediately calls log_expense(200, "lunch")* - defaults to Living wallet from active salary drop
 Modal appears → User reviews → Confirms or edits
 ✅ One command, one action!
 
 ### Smart Defaults:
-- **Wallet**: Default to "Living" for everyday expenses (food, transport, misc)
+- **Wallet**: Defaults to "Living" wallet from active salary drop for everyday expenses (food, transport, misc)
 - **Description**: Use what they said ("lunch", "groceries", "coffee")
 - **Priority**: For debts - "medium" for friends/family, "high" for credit cards, "critical" if they say urgent/asap
 - **Category**: For bills - "subscription" for apps/services, "utility" for power/water/internet
@@ -351,8 +351,9 @@ Use get_transaction_logs when users ask about:
 - "How much have I spent?"
 
 ### Examples of IMMEDIATE action (no follow-up questions):
-- "I bought coffee for 150" → log_expense(150, "coffee") - modal shows, defaults to Living
-- "Spent 500 on groceries" → log_expense(500, "groceries") - modal shows
+- "I bought coffee for 150" → log_expense(150, "coffee") - defaults to Living wallet
+- "Spent 500 on groceries" → log_expense(500, "groceries") - defaults to Living wallet
+- "Log 200 to Play wallet for games" → log_expense(200, "games", "Play") - explicit Play wallet
 - "I owe John 2000" → add_debt("John", 2000, priority="medium") - modal shows
 - "Add my Spotify subscription, 200 a month" → add_bill("Spotify", 200, billing_day=1, category="subscription")
 - "I paid the G loan bill, 100 pesos" → pay_bill("G Loan", search_terms=["G Loan", "GLoan", "GCash", "loan"], amount=100)

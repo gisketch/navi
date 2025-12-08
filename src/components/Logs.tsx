@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFinanceData } from '../contexts/FinanceContext';
+import { useFunctionCallLogs, type FunctionCallLog } from '../contexts/FunctionCallLogContext';
 import { cn, rounded, glass } from '../utils/glass';
 import {
   ChevronDown,
@@ -21,7 +22,10 @@ import {
   Home,
   CheckCircle2,
   XCircle,
+  Code,
+  Clock,
 } from 'lucide-react';
+import { FunctionCallDetailModal } from './modals/FunctionCallDetailModal';
 import type { 
   Transaction, 
   Debt, 
@@ -31,7 +35,7 @@ import type {
   BudgetTemplate 
 } from '../utils/financeTypes';
 
-type LogType = 'transactions' | 'debts' | 'subscriptions' | 'allocations' | 'money_drops' | 'budget_templates';
+type LogType = 'transactions' | 'debts' | 'subscriptions' | 'allocations' | 'money_drops' | 'budget_templates' | 'function_calls';
 
 interface LogsProps {
   naviPosition?: { x: number; y: number };
@@ -49,6 +53,7 @@ const LOG_TYPES: { id: LogType; label: string; icon: typeof Receipt }[] = [
   { id: 'allocations', label: 'Allocations', icon: Wallet },
   { id: 'money_drops', label: 'Money Drops', icon: Droplets },
   { id: 'budget_templates', label: 'Templates', icon: FileText },
+  { id: 'function_calls', label: 'Function Calls', icon: Code },
 ];
 
 const PRIORITY_CONFIG = {
@@ -428,6 +433,67 @@ function BudgetTemplateCard({
 }
 
 // ============================================
+// Function Call Card
+// ============================================
+function FunctionCallCard({ 
+  log,
+  onClick 
+}: { 
+  log: FunctionCallLog; 
+  onClick?: () => void;
+}) {
+  const date = new Date(log.timestamp);
+  const formattedTime = date.toLocaleTimeString('en-PH', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  
+  return (
+    <motion.button
+      whileTap={{ scale: 0.98 }}
+      onClick={onClick}
+      className={cn(
+        'w-full p-4 text-left',
+        rounded.lg,
+        glass.card,
+        'hover:bg-white/[0.06] transition-colors'
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            'w-10 h-10 rounded-xl flex items-center justify-center',
+            log.success ? 'bg-emerald-500/20' : 'bg-red-500/20'
+          )}>
+            {log.success ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            ) : (
+              <XCircle className="w-5 h-5 text-red-400" />
+            )}
+          </div>
+          <div>
+            <p className="text-white font-medium">{log.functionName}</p>
+            <p className="text-white/40 text-sm flex items-center gap-1">
+              <Clock size={12} />
+              {date.toLocaleDateString()} at {formattedTime}
+              {log.durationMs !== undefined && (
+                <span className="text-white/30 ml-2">• {log.durationMs}ms</span>
+              )}
+            </p>
+          </div>
+        </div>
+        <div className={cn(
+          'px-2 py-1 rounded-md text-xs font-medium',
+          log.success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
+        )}>
+          {log.success ? 'Success' : 'Failed'}
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
+// ============================================
 // Logs Page Component
 // ============================================
 export function Logs({
@@ -439,6 +505,7 @@ export function Logs({
 }: LogsProps) {
   const [selectedType, setSelectedType] = useState<LogType>('transactions');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedFunctionLog, setSelectedFunctionLog] = useState<FunctionCallLog | null>(null);
   
   const {
     transactions,
@@ -449,6 +516,8 @@ export function Logs({
     budgetTemplates,
     isLoading,
   } = useFinanceData();
+
+  const { logs: functionCallLogs } = useFunctionCallLogs();
 
   const selectedConfig = LOG_TYPES.find(t => t.id === selectedType)!;
   const Icon = selectedConfig.icon;
@@ -469,11 +538,26 @@ export function Logs({
     [moneyDrops]
   );
 
+  // Sort function call logs by date (newest first)
+  const sortedFunctionCallLogs = useMemo(() => 
+    [...functionCallLogs].sort((a, b) => 
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    ),
+    [functionCallLogs]
+  );
+
   // Get allocation by ID helper
   const getAllocationById = (id: string) => allocations.find(a => a.id === id);
 
   return (
     <div className="min-h-full pb-32">
+      {/* Function Call Detail Modal */}
+      <FunctionCallDetailModal
+        isOpen={!!selectedFunctionLog}
+        log={selectedFunctionLog}
+        onClose={() => setSelectedFunctionLog(null)}
+      />
+
       {/* Header */}
       <div className="p-4 pt-6">
         <h1 className="text-2xl font-bold text-white mb-1">Logs</h1>
@@ -656,6 +740,21 @@ export function Logs({
                 ) : (
                   budgetTemplates.map(template => (
                     <BudgetTemplateCard key={template.id} template={template} />
+                  ))
+                )
+              )}
+
+              {/* Function Calls */}
+              {selectedType === 'function_calls' && (
+                sortedFunctionCallLogs.length === 0 ? (
+                  <EmptyState message="No function calls logged" />
+                ) : (
+                  sortedFunctionCallLogs.map(log => (
+                    <FunctionCallCard 
+                      key={log.id} 
+                      log={log} 
+                      onClick={() => setSelectedFunctionLog(log)}
+                    />
                   ))
                 )
               )}
