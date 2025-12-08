@@ -21,6 +21,8 @@ import { Mic, Radio, Fingerprint, Sparkles } from 'lucide-react';
 type AppMode = 'dashboard' | 'chat';
 type NavTab = 'home' | 'search' | 'notifications' | 'profile';
 
+import { AnimatedBackground } from './AnimatedBackground';
+
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -245,7 +247,9 @@ export function App() {
   const isConnected = connectionStatus === 'connected';
 
   return (
-    <div className="flex h-screen text-white overflow-hidden relative bg-[#050910]">
+    <div className="flex h-screen text-white overflow-hidden relative bg-black">
+      <AnimatedBackground mode={mode} />
+
       {/* Desktop Sidebar - only in dashboard mode */}
       {mode === 'dashboard' && (
         <Sidebar
@@ -257,7 +261,7 @@ export function App() {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden relative z-10">
         {/* Error banner */}
         <AnimatePresence>
           {error && (
@@ -295,59 +299,59 @@ export function App() {
             >
               <Dashboard
                 cards={cards}
-              dailySummary={dailySummary}
-              isLoading={summariesLoading}
-              error={summariesError}
-              lastUpdated={lastUpdated}
-              isMock={isMock}
-              onRefresh={refetchSummaries}
-              naviPosition={naviPosition}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+                dailySummary={dailySummary}
+                isLoading={summariesLoading}
+                error={summariesError}
+                lastUpdated={lastUpdated}
+                isMock={isMock}
+                onRefresh={refetchSummaries}
+                naviPosition={naviPosition}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Chat Mode */}
-      <AnimatePresence>
-        {mode === 'chat' && (
-          <motion.div
-            key="chat"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="flex-1 flex flex-col h-dvh"
-          >
-            {/* Chat area with integrated live status */}
-            <ChatUI
-              messages={messages}
-              currentTurn={currentTurn}
-              isCapturing={isCapturing}
-              activeCards={activeCards}
-              onDismissCards={clearCards}
-              naviState={naviState}
-              liveStatus={liveStatus}
-            />
+        {/* Chat Mode */}
+        <AnimatePresence>
+          {mode === 'chat' && (
+            <motion.div
+              key="chat"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="flex-1 flex flex-col h-dvh"
+            >
+              {/* Chat area with integrated live status */}
+              <ChatUI
+                messages={messages}
+                currentTurn={currentTurn}
+                isCapturing={isCapturing}
+                activeCards={activeCards}
+                onDismissCards={clearCards}
+                naviState={naviState}
+                liveStatus={liveStatus}
+              />
 
-            {/* Control bar - only in chat mode */}
-            <ControlBar
-              state={naviState}
-              micMode={micMode}
-              connectionStatus={connectionStatus}
-              isCapturing={isCapturing}
-              isPlaying={isPlaying}
-              onStartCapture={startCapture}
-              onStopCapture={stopCapture}
-              onSendText={sendText}
-              onStopPlayback={stopPlayback}
-              onOpenSettings={() => setSettingsOpen(true)}
-              onConnect={handleConnect}
-              onDisconnect={handleDisconnect}
-              onRadialMenuChange={setRadialMenuState}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+              {/* Control bar - only in chat mode */}
+              <ControlBar
+                state={naviState}
+                micMode={micMode}
+                connectionStatus={connectionStatus}
+                isCapturing={isCapturing}
+                isPlaying={isPlaying}
+                onStartCapture={startCapture}
+                onStopCapture={stopCapture}
+                onSendText={sendText}
+                onStopPlayback={stopPlayback}
+                onOpenSettings={() => setSettingsOpen(true)}
+                onConnect={handleConnect}
+                onDisconnect={handleDisconnect}
+                onRadialMenuChange={setRadialMenuState}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Bottom Nav Bar - only in dashboard mode, hidden on desktop */}
         <AnimatePresence>

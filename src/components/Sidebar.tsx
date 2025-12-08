@@ -30,7 +30,7 @@ export function Sidebar({
       animate={{ x: 0, opacity: 1 }}
       transition={{ type: 'spring', damping: 30, stiffness: 300 }}
       className={cn(
-        'hidden lg:flex flex-col w-20 h-full',
+        'hidden lg:flex flex-col w-20 h-full relative z-10',
         'backdrop-blur-xl bg-white/[0.02]',
         'border-r border-white/[0.06]',
         'py-6 px-3'
