@@ -330,7 +330,11 @@ export function ControlBar({
   };
 
   return (
-    <div className="relative w-full flex flex-col items-center justify-end pb-16 pt-4 px-6 z-50" data-control-bar>
+    <div
+      /* className="relative w-full flex flex-col items-center justify-end pb-16 pt-4 px-6 z-50" */
+      className="z-40 px-6 pt-8"
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 20px), 20px)' }}
+      data-control-bar>
 
       {/* Keyboard Mode - Fixed overlay at bottom, doesn't affect layout */}
       <AnimatePresence>

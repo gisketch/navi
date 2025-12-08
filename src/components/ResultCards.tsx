@@ -30,13 +30,13 @@ interface ResultCardsProps {
 }
 
 // Individual card with glassmorphism and proximity glow
-function ResultCard({ 
-  card, 
+function ResultCard({
+  card,
   index,
   naviPosition,
   naviState = 'idle',
-}: { 
-  card: CardData; 
+}: {
+  card: CardData;
   index: number;
   naviPosition?: { x: number; y: number };
   naviState?: NaviState;
@@ -80,7 +80,7 @@ function ResultCard({
       initial={{ opacity: 0, x: 20, scale: 0.95 }}
       animate={{ opacity: 1, x: 0, scale: 1 }}
       exit={{ opacity: 0, x: -20, scale: 0.95 }}
-      transition={{ 
+      transition={{
         delay: index * 0.08,
         type: 'spring',
         damping: 25,
@@ -116,7 +116,7 @@ function ResultCard({
 
       <div className="flex items-start gap-3 relative z-10">
         {/* Icon with type-based glow */}
-        <div 
+        <div
           className={cn(
             'p-2 rounded-lg',
             'bg-white/[0.06] border border-white/[0.08]'
@@ -190,7 +190,7 @@ export function ResultCards({ cards, className = '', onClose, naviPosition, navi
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
-                className="w-full overflow-hidden py-2"
+                className="w-full overflow-hidden py-2 px-2"
                 ref={containerRef}
             >
                 {/* Draggable Slider */}

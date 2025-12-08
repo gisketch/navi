@@ -316,7 +316,7 @@ export function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="flex-1 flex flex-col"
+            className="flex-1 flex flex-col h-svh"
           >
             {/* Chat area with integrated live status */}
             <ChatUI

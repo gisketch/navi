@@ -58,6 +58,29 @@ interface ChatBubbleProps {
   index: number;
 }
 
+// const mockCardData: CardData[] = [
+//   {
+//     card_type: 'notes',
+//     card_title: 'Project Meeting Notes',
+//     card_description: 'Discussion points from the Q4 planning session including budget allocation and timeline updates.'
+//   },
+//   {
+//     card_type: 'calendar',
+//     card_title: 'Team Sprint Review',
+//     card_description: 'Weekly sprint review scheduled for Friday at 2:00 PM with the development team.'
+//   },
+//   {
+//     card_type: 'notes',
+//     card_title: 'Feature Requirements',
+//     card_description: 'Detailed specifications for the new user authentication system and security protocols.'
+//   },
+//   {
+//     card_type: 'other',
+//     card_title: 'Resource Links',
+//     card_description: 'Collection of helpful documentation, tutorials, and third-party tools for the project.'
+//   }
+// ];
+
 const ChatBubble = memo(function ChatBubble({
   role,
   text,
@@ -82,6 +105,7 @@ const ChatBubble = memo(function ChatBubble({
   }, [naviPosition.x, naviPosition.y]);
 
   const isUser = role === 'user';
+
 
   // Dynamic glow color based on Navi state
   const glowColor = stateColor.glow;
@@ -156,7 +180,7 @@ const ChatBubble = memo(function ChatBubble({
         'text-[10px] font-medium uppercase tracking-wider mb-1',
         isUser ? 'text-white/30' : 'text-cyan-400/50'
       )}
-      style={!isUser ? { color: `${primaryColor}80` } : undefined}
+        style={!isUser ? { color: `${primaryColor}80` } : undefined}
       >
         {isUser ? 'You' : 'Navi'}
       </div>
@@ -397,84 +421,83 @@ export function ChatUI({
   }, [conversationItems.length, currentTurn?.text, liveStatus]);
 
   return (
-  <>
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="shrink-0 px-4 pt-4 pb-2"
-      >
-        <h1 className="text-xl font-semibold text-white/80 text-center">
-          Talking to Navi
-        </h1>
-      </motion.div>
-    <div className="flex flex-col h-full overflow-hidden relative justify-end gap-4">
-      {/* Header */}
+      <div className="flex flex-col overflow-hidden flex-1 min-h-0 relative justify-end gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="px-4 pt-8 pb-4"
+        >
+          <h1 className="text-2xl font-semibold text-white/80 text-center flex-none">
+            Navi
+          </h1>
+        </motion.div>
+        {/* Chat messages container - flexible height */}
+        <div className='flex-1 min-h-0 flex flex-col'>
+          <div
+            ref={scrollRef}
+            className={cn(
+              'flex-1 w-full',
+              'flex flex-col gap-3 px-4 py-4 overflow-y-auto',
+              'hide-scrollbar overscroll-contain touch-pan-y',
+              'justify-end',
+            )}
+            style={{
+              // Fade edges instead of hard cut
+              maskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 92%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 92%, transparent 100%)',
+              minHeight: '200px',
+              maxHeight: '100%',
+            }}
+          >
+            <AnimatePresence mode="popLayout">
+              {conversationItems.map((item, index) => (
+                <ChatBubble
+                  key={item.id}
+                  role={item.role}
+                  text={item.text}
+                  naviPosition={naviPosition}
+                  naviState={naviState}
+                  index={index}
+                />
+              ))}
 
-      {/* Chat messages container - flexible height */}
-      <div
-        ref={scrollRef}
-        className={cn(
-          'flex flex-col gap-3 px-4 py-4 overflow-y-auto',
-          'hide-scrollbar overscroll-contain touch-pan-y',
-          'flex-1'
-        )}
-        style={{
-          // Fade edges instead of hard cut
-          maskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)',
-          minHeight: '200px',
-          maxHeight: '100%',
-        }}
-      >
-        <AnimatePresence mode="popLayout">
-          {conversationItems.map((item, index) => (
-            <ChatBubble
-              key={item.id}
-              role={item.role}
-              text={item.text}
-              naviPosition={naviPosition}
-              naviState={naviState}
-              index={index}
-            />
-          ))}
+              {/* Show listening indicator when capturing */}
+              {isCapturing && (!currentTurn || !currentTurn.text.trim()) && (
+                <ListeningIndicator key="listening" naviState={naviState} />
+              )}
 
-          {/* Show listening indicator when capturing */}
-          {isCapturing && (!currentTurn || !currentTurn.text.trim()) && (
-            <ListeningIndicator key="listening" naviState={naviState} />
-          )}
+              {/* Live status bubble (Navi's thinking status) */}
+              {liveStatus && (
+                <StatusBubble
+                  key="live-status"
+                  status={liveStatus}
+                  naviPosition={naviPosition}
+                  naviState={naviState}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
 
-          {/* Live status bubble (Navi's thinking status) */}
-          {liveStatus && (
-            <StatusBubble
-              key="live-status"
-              status={liveStatus}
-              naviPosition={naviPosition}
-              naviState={naviState}
-            />
+        {/* Result Cards section - only shown when cards exist */}
+        <AnimatePresence>
+          {hasCards && (
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 30 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="flex-1 max-h-[120px]"
+            >
+              <ResultCards
+                cards={activeCards!}
+                onClose={onCloseCards}
+                naviPosition={naviPosition}
+                naviState={naviState}
+              />
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
-
-      {/* Result Cards section - only shown when cards exist */}
-      <AnimatePresence>
-        {hasCards && (
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 30 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="shrink-0 min-h-[120px] px-2"
-          >
-            <ResultCards
-              cards={activeCards!}
-              onClose={onCloseCards}
-              naviPosition={naviPosition}
-              naviState={naviState}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-</>
   );
 }
