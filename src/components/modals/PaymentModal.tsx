@@ -8,8 +8,8 @@ import {
   AlertCircle,
   Banknote,
 } from 'lucide-react';
-import { cn, rounded, glass } from '../utils/glass';
-import type { Allocation } from '../utils/financeTypes';
+import { cn, rounded, glass } from '../../utils/glass';
+import type { Allocation } from '../../utils/financeTypes';
 
 interface PaymentModalProps {
   isOpen: boolean;

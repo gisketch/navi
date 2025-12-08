@@ -12,8 +12,8 @@ import {
     Banknote,
     Trash2,
 } from 'lucide-react';
-import { cn, rounded, glass } from '../utils/glass';
-import type { Allocation, MoneyDrop, AllocationCategory } from '../utils/financeTypes';
+import { cn, rounded, glass } from '../../utils/glass';
+import type { Allocation, MoneyDrop, AllocationCategory } from '../../utils/financeTypes';
 
 interface AllocationInputModalProps {
     isOpen: boolean;

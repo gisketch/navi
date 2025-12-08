@@ -8,7 +8,7 @@ import {
     AlertCircle,
     Type,
 } from 'lucide-react';
-import { cn, rounded, glass } from '../utils/glass';
+import { cn, rounded, glass } from '../../utils/glass';
 
 // Simple interface since we're just handling generic JSON for now
 interface BudgetTemplateInputModalProps {

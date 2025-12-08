@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Mic, Key, Save, Webhook, Info, Volume2, Cpu } from 'lucide-react';
-import { VOICE_OPTIONS, GEMINI_MODEL } from '../utils/constants';
+import { VOICE_OPTIONS, GEMINI_MODEL } from '../../utils/constants';
 
 interface SettingsModalProps {
   isOpen: boolean;

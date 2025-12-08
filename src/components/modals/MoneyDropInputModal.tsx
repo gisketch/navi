@@ -10,8 +10,8 @@ import {
   ChevronRight,
   Briefcase,
 } from 'lucide-react';
-import { cn, rounded, glass } from '../utils/glass';
-import type { MoneyDropType, BudgetTemplate } from '../utils/financeTypes';
+import { cn, rounded, glass } from '../../utils/glass';
+import type { MoneyDropType, BudgetTemplate } from '../../utils/financeTypes';
 
 interface MoneyDropInputModalProps {
   isOpen: boolean;

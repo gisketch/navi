@@ -2,64 +2,65 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
-  CreditCard,
-  Zap,
-  Home,
+  AlertTriangle,
+  ArrowUp,
+  Minus,
+  ArrowDown,
   Calendar,
+  FileText,
   Sparkles,
   Check,
   AlertCircle,
   Droplets,
   ChevronDown,
   Trash2,
-  AlertTriangle,
 } from 'lucide-react';
-import { cn, rounded, glass } from '../utils/glass';
-import type { MoneyDrop, Subscription } from '../utils/financeTypes';
+import { cn, rounded, glass } from '../../utils/glass';
+import type { MoneyDrop, Debt } from '../../utils/financeTypes';
 
-interface SubscriptionInputModalProps {
+interface DebtInputModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: SubscriptionData) => Promise<void>;
+  onSubmit: (data: DebtData) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
   activeDrops?: MoneyDrop[];
-  editData?: Subscription | null;
+  editData?: Debt | null;
 }
 
-export interface SubscriptionData {
+export interface DebtData {
   id?: string;
   name: string;
-  amount: number;
-  billing_day: number;
-  category: 'subscription' | 'utility' | 'rent';
-  is_active: boolean;
-  end_on_date?: string | null; // null means recurring indefinitely
+  total_amount: number;
+  remaining_amount: number;
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  due_date?: string;
+  notes?: string;
   // Optional: link to money drop (creates allocation)
   money_drop_id?: string;
   create_allocation?: boolean;
 }
 
-const CATEGORY_OPTIONS = [
-  { id: 'subscription', label: 'Subscription', icon: CreditCard, color: 'text-purple-400', bg: 'bg-purple-500/20', border: 'border-purple-500/30' },
-  { id: 'utility', label: 'Utility', icon: Zap, color: 'text-yellow-400', bg: 'bg-yellow-500/20', border: 'border-yellow-500/30' },
-  { id: 'rent', label: 'Rent', icon: Home, color: 'text-blue-400', bg: 'bg-blue-500/20', border: 'border-blue-500/30' },
+const PRIORITY_OPTIONS = [
+  { id: 'critical', label: 'Critical', icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/20', border: 'border-red-500/30' },
+  { id: 'high', label: 'High', icon: ArrowUp, color: 'text-orange-400', bg: 'bg-orange-500/20', border: 'border-orange-500/30' },
+  { id: 'medium', label: 'Medium', icon: Minus, color: 'text-yellow-400', bg: 'bg-yellow-500/20', border: 'border-yellow-500/30' },
+  { id: 'low', label: 'Low', icon: ArrowDown, color: 'text-emerald-400', bg: 'bg-emerald-500/20', border: 'border-emerald-500/30' },
 ] as const;
 
-export function SubscriptionInputModal({
+export function DebtInputModal({
   isOpen,
   onClose,
   onSubmit,
   onDelete,
   activeDrops = [],
   editData,
-}: SubscriptionInputModalProps) {
+}: DebtInputModalProps) {
   const [name, setName] = useState('');
-  const [amount, setAmount] = useState('');
-  const [billingDay, setBillingDay] = useState('1');
-  const [category, setCategory] = useState<'subscription' | 'utility' | 'rent'>('subscription');
-  const [isActive, setIsActive] = useState(true);
-  const [hasEndDate, setHasEndDate] = useState(false);
-  const [endOnDate, setEndOnDate] = useState('');
+  const [totalAmount, setTotalAmount] = useState('');
+  const [remainingAmount, setRemainingAmount] = useState('');
+  const [priority, setPriority] = useState<'critical' | 'high' | 'medium' | 'low'>('medium');
+  const [dueDate, setDueDate] = useState('');
+  const [notes, setNotes] = useState('');
   const [selectedDropId, setSelectedDropId] = useState<string>('');
   const [createAllocation, setCreateAllocation] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -84,23 +85,21 @@ export function SubscriptionInputModal({
       if (editData) {
         // Edit mode - prefill data
         setName(editData.name);
-        setAmount(String(editData.amount));
-        setBillingDay(String(editData.billing_day));
-        setCategory(editData.category);
-        setIsActive(editData.is_active);
-        setHasEndDate(!!editData.end_on_date);
-        setEndOnDate(editData.end_on_date || '');
+        setTotalAmount(String(editData.total_amount));
+        setRemainingAmount(String(editData.remaining_amount));
+        setPriority(editData.priority);
+        setDueDate(editData.due_date || '');
+        setNotes(editData.notes || '');
         setSelectedDropId('');
         setCreateAllocation(false);
       } else {
         // Create mode - reset
         setName('');
-        setAmount('');
-        setBillingDay('1');
-        setCategory('subscription');
-        setIsActive(true);
-        setHasEndDate(false);
-        setEndOnDate('');
+        setTotalAmount('');
+        setRemainingAmount('');
+        setPriority('medium');
+        setDueDate('');
+        setNotes('');
         setSelectedDropId('');
         setCreateAllocation(false);
       }
@@ -111,6 +110,13 @@ export function SubscriptionInputModal({
     }
   }, [isOpen, editData]);
 
+  // Sync remaining with total if remaining is empty (only in create mode)
+  useEffect(() => {
+    if (totalAmount && !remainingAmount && !isEditMode) {
+      setRemainingAmount(totalAmount);
+    }
+  }, [totalAmount, remainingAmount, isEditMode]);
+
   const selectedDrop = activeDrops.find(d => d.id === selectedDropId);
 
   const handleSubmit = useCallback(async () => {
@@ -119,15 +125,15 @@ export function SubscriptionInputModal({
       return;
     }
     
-    const amountNum = parseFloat(amount);
-    if (!amountNum || amountNum <= 0) {
-      setError('Please enter a valid amount');
+    const total = parseFloat(totalAmount);
+    if (!total || total <= 0) {
+      setError('Please enter a valid total amount');
       return;
     }
 
-    const day = parseInt(billingDay);
-    if (!day || day < 1 || day > 31) {
-      setError('Billing day must be between 1 and 31');
+    const remaining = parseFloat(remainingAmount) || total;
+    if (remaining < 0 || remaining > total) {
+      setError('Remaining amount must be between 0 and total');
       return;
     }
 
@@ -138,11 +144,11 @@ export function SubscriptionInputModal({
       await onSubmit({
         id: editData?.id,
         name: name.trim(),
-        amount: amountNum,
-        billing_day: day,
-        category,
-        is_active: isActive,
-        end_on_date: hasEndDate && endOnDate ? endOnDate : undefined,
+        total_amount: total,
+        remaining_amount: remaining,
+        priority,
+        due_date: dueDate || undefined,
+        notes: notes.trim() || undefined,
         money_drop_id: selectedDropId || undefined,
         create_allocation: createAllocation && !!selectedDropId,
       });
@@ -152,11 +158,11 @@ export function SubscriptionInputModal({
         onClose();
       }, 800);
     } catch (err) {
-      setError(isEditMode ? 'Failed to update subscription' : 'Failed to create subscription');
+      setError(isEditMode ? 'Failed to update debt' : 'Failed to create debt');
     } finally {
       setIsSubmitting(false);
     }
-  }, [name, amount, billingDay, category, isActive, hasEndDate, endOnDate, selectedDropId, createAllocation, onSubmit, onClose, editData, isEditMode]);
+  }, [name, totalAmount, remainingAmount, priority, dueDate, notes, selectedDropId, createAllocation, onSubmit, onClose, editData, isEditMode]);
 
   const handleDelete = useCallback(async () => {
     if (!editData?.id || !onDelete) return;
@@ -169,13 +175,13 @@ export function SubscriptionInputModal({
         onClose();
       }, 800);
     } catch (err) {
-      setError('Failed to delete subscription');
+      setError('Failed to delete debt');
     } finally {
       setIsSubmitting(false);
     }
   }, [editData, onDelete, onClose]);
 
-  const selectedCategoryConfig = CATEGORY_OPTIONS.find(c => c.id === category)!;
+  const selectedPriorityConfig = PRIORITY_OPTIONS.find(p => p.id === priority)!;
 
   return (
     <AnimatePresence>
@@ -210,7 +216,7 @@ export function SubscriptionInputModal({
               <div 
                 className="absolute top-0 left-0 right-0 h-1"
                 style={{
-                  background: 'linear-gradient(90deg, transparent, rgba(168, 85, 247, 0.5), transparent)',
+                  background: 'linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.5), transparent)',
                 }}
               />
 
@@ -275,8 +281,8 @@ export function SubscriptionInputModal({
               <div className="p-5">
                 {/* Header */}
                 <div className="mb-5">
-                  <h2 className="text-lg font-semibold text-white">{isEditMode ? 'Edit Bill' : 'Add Bill'}</h2>
-                  <p className="text-sm text-white/40">Track recurring payments</p>
+                  <h2 className="text-lg font-semibold text-white">{isEditMode ? 'Edit Debt' : 'Add Debt'}</h2>
+                  <p className="text-sm text-white/40">Track money you owe</p>
                 </div>
 
                 {/* Name Input */}
@@ -287,7 +293,7 @@ export function SubscriptionInputModal({
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g., Netflix, Electric bill, Rent"
+                    placeholder="e.g., Mom loan, Credit card"
                     className={cn(
                       'w-full p-3',
                       rounded.lg,
@@ -298,10 +304,10 @@ export function SubscriptionInputModal({
                   />
                 </div>
 
-                {/* Amount and Billing Day */}
+                {/* Amount Inputs */}
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div>
-                    <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">Amount</label>
+                    <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">Total Amount</label>
                     <div className={cn(
                       'flex items-center gap-2 p-3',
                       rounded.lg,
@@ -311,54 +317,52 @@ export function SubscriptionInputModal({
                       <span className="text-white/30">₱</span>
                       <input
                         type="number"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
+                        value={totalAmount}
+                        onChange={(e) => setTotalAmount(e.target.value)}
                         placeholder="0"
                         className="flex-1 bg-transparent text-white placeholder-white/20 outline-none"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">Billing Day</label>
+                    <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">Remaining</label>
                     <div className={cn(
                       'flex items-center gap-2 p-3',
                       rounded.lg,
                       'bg-white/[0.05] border border-white/[0.08]',
                       'focus-within:border-cyan-400/50 transition-colors'
                     )}>
-                      <Calendar size={16} className="text-white/30" />
+                      <span className="text-white/30">₱</span>
                       <input
                         type="number"
-                        min="1"
-                        max="31"
-                        value={billingDay}
-                        onChange={(e) => setBillingDay(e.target.value)}
-                        placeholder="1"
+                        value={remainingAmount}
+                        onChange={(e) => setRemainingAmount(e.target.value)}
+                        placeholder={totalAmount || '0'}
                         className="flex-1 bg-transparent text-white placeholder-white/20 outline-none"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Category */}
+                {/* Priority */}
                 <div className="mb-4">
-                  <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">Category</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {CATEGORY_OPTIONS.map((opt) => {
+                  <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">Priority</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {PRIORITY_OPTIONS.map((opt) => {
                       const Icon = opt.icon;
-                      const isSelected = category === opt.id;
+                      const isSelected = priority === opt.id;
                       return (
                         <button
                           key={opt.id}
-                          onClick={() => setCategory(opt.id)}
+                          onClick={() => setPriority(opt.id)}
                           className={cn(
-                            'flex flex-col items-center gap-1 p-3 rounded-xl transition-all',
+                            'flex flex-col items-center gap-1 p-2 rounded-xl transition-all',
                             isSelected
                               ? `${opt.bg} ${opt.border} border`
                               : 'bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05]'
                           )}
                         >
-                          <Icon size={18} className={isSelected ? opt.color : 'text-white/40'} />
+                          <Icon size={16} className={isSelected ? opt.color : 'text-white/40'} />
                           <span className={cn(
                             'text-xs',
                             isSelected ? opt.color : 'text-white/40'
@@ -366,6 +370,27 @@ export function SubscriptionInputModal({
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+
+                {/* Due Date (Optional) */}
+                <div className="mb-4">
+                  <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">
+                    Due Date <span className="text-white/20">(optional)</span>
+                  </label>
+                  <div className={cn(
+                    'flex items-center gap-2 p-3',
+                    rounded.lg,
+                    'bg-white/[0.05] border border-white/[0.08]',
+                    'focus-within:border-cyan-400/50 transition-colors'
+                  )}>
+                    <Calendar size={16} className="text-white/30" />
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="flex-1 bg-transparent text-white outline-none [color-scheme:dark]"
+                    />
                   </div>
                 </div>
 
@@ -390,7 +415,7 @@ export function SubscriptionInputModal({
                         <div className="flex items-center gap-2">
                           <Droplets size={16} className={selectedDrop ? 'text-cyan-400' : 'text-white/30'} />
                           <span className={selectedDrop ? 'text-white' : 'text-white/40'}>
-                            {selectedDrop ? selectedDrop.name : 'None (standalone bill)'}
+                            {selectedDrop ? selectedDrop.name : 'None (standalone debt)'}
                           </span>
                         </div>
                         <ChevronDown size={16} className="text-white/30" />
@@ -488,95 +513,26 @@ export function SubscriptionInputModal({
                   </div>
                 )}
 
-                {/* Active Toggle */}
-                <div className="mb-4">
-                  <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">Status</label>
-                  <button
-                    onClick={() => setIsActive(!isActive)}
-                    className={cn(
-                      'w-full p-3 rounded-xl transition-all flex items-center justify-between',
-                      isActive
-                        ? 'bg-emerald-500/20 border border-emerald-500/30'
-                        : 'bg-white/[0.03] border border-white/[0.06]'
-                    )}
-                  >
-                    <span className={isActive ? 'text-emerald-400' : 'text-white/40'}>
-                      {isActive ? 'Active' : 'Paused'}
-                    </span>
-                    <div className={cn(
-                      'w-10 h-6 rounded-full transition-colors relative',
-                      isActive ? 'bg-emerald-500/30' : 'bg-white/10'
-                    )}>
-                      <motion.div
-                        animate={{ x: isActive ? 18 : 2 }}
-                        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                        className={cn(
-                          'absolute top-1 w-4 h-4 rounded-full',
-                          isActive ? 'bg-emerald-400' : 'bg-white/40'
-                        )}
-                      />
-                    </div>
-                  </button>
-                </div>
-
-                {/* End Date Toggle */}
+                {/* Notes (Optional) */}
                 <div className="mb-5">
                   <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">
-                    End Date <span className="text-white/20">(optional)</span>
+                    Notes <span className="text-white/20">(optional)</span>
                   </label>
-                  <button
-                    onClick={() => setHasEndDate(!hasEndDate)}
-                    className={cn(
-                      'w-full p-3 rounded-xl transition-all flex items-center justify-between',
-                      hasEndDate
-                        ? 'bg-amber-500/20 border border-amber-500/30'
-                        : 'bg-white/[0.03] border border-white/[0.06]'
-                    )}
-                  >
-                    <span className={hasEndDate ? 'text-amber-400' : 'text-white/40'}>
-                      {hasEndDate ? 'Has End Date' : 'Recurring Indefinitely'}
-                    </span>
-                    <div className={cn(
-                      'w-10 h-6 rounded-full transition-colors relative',
-                      hasEndDate ? 'bg-amber-500/30' : 'bg-white/10'
-                    )}>
-                      <motion.div
-                        animate={{ x: hasEndDate ? 18 : 2 }}
-                        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                        className={cn(
-                          'absolute top-1 w-4 h-4 rounded-full',
-                          hasEndDate ? 'bg-amber-400' : 'bg-white/40'
-                        )}
-                      />
-                    </div>
-                  </button>
-                  
-                  {/* Date Input when enabled */}
-                  <AnimatePresence>
-                    {hasEndDate && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="mt-3 overflow-hidden"
-                      >
-                        <input
-                          type="date"
-                          value={endOnDate}
-                          onChange={(e) => setEndOnDate(e.target.value)}
-                          min={new Date().toISOString().split('T')[0]}
-                          className={cn(
-                            'w-full p-3',
-                            rounded.lg,
-                            'bg-white/[0.05] border border-white/[0.08]',
-                            'text-white outline-none',
-                            'focus:border-amber-400/50 transition-colors',
-                            '[color-scheme:dark]'
-                          )}
-                        />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  <div className={cn(
+                    'flex items-start gap-2 p-3',
+                    rounded.lg,
+                    'bg-white/[0.05] border border-white/[0.08]',
+                    'focus-within:border-cyan-400/50 transition-colors'
+                  )}>
+                    <FileText size={16} className="text-white/30 mt-0.5" />
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Any additional details..."
+                      rows={2}
+                      className="flex-1 bg-transparent text-white placeholder-white/20 outline-none resize-none"
+                    />
+                  </div>
                 </div>
 
                 {/* Error message */}
@@ -599,12 +555,12 @@ export function SubscriptionInputModal({
                   <motion.button
                     whileTap={{ scale: 0.98 }}
                     onClick={handleSubmit}
-                    disabled={!name || !amount || isSubmitting}
+                    disabled={!name || !totalAmount || isSubmitting}
                     className={cn(
                       'w-full py-4 rounded-xl font-medium transition-all',
                       'flex items-center justify-center gap-2',
-                      name && amount && !isSubmitting
-                        ? `${selectedCategoryConfig.bg} ${selectedCategoryConfig.color} border ${selectedCategoryConfig.border} hover:brightness-110`
+                      name && totalAmount && !isSubmitting
+                        ? `${selectedPriorityConfig.bg} ${selectedPriorityConfig.color} border ${selectedPriorityConfig.border} hover:brightness-110`
                         : 'bg-white/[0.05] text-white/30 border border-white/[0.08] cursor-not-allowed'
                     )}
                   >
@@ -613,7 +569,7 @@ export function SubscriptionInputModal({
                     ) : (
                       <>
                         <Sparkles size={18} />
-                        {isEditMode ? 'Update' : 'Add'} {selectedCategoryConfig.label}
+                        {isEditMode ? 'Update Debt' : 'Add Debt'}
                       </>
                     )}
                   </motion.button>
@@ -630,7 +586,7 @@ export function SubscriptionInputModal({
                       )}
                     >
                       <Trash2 size={18} />
-                      Delete Bill
+                      Delete Debt
                     </button>
                   )}
                 </div>

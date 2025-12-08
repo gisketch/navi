@@ -6,9 +6,9 @@ import {
   Check,
   AlertCircle,
 } from 'lucide-react';
-import { cn, rounded, glass } from '../utils/glass';
-import type { Allocation } from '../utils/financeTypes';
-import { allocationColorClasses } from '../utils/financeTypes';
+import { cn, rounded, glass } from '../../utils/glass';
+import type { Allocation } from '../../utils/financeTypes';
+import { allocationColorClasses } from '../../utils/financeTypes';
 
 interface ExpenseInputModalProps {
   isOpen: boolean;
