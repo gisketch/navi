@@ -40,7 +40,7 @@ const NAV_ITEMS: { id: NavTab; icon: typeof Home; label: string }[] = [
   { id: 'finance', icon: Wallet, label: 'Finance' },
   // Main button goes in the middle
   { id: 'notifications', icon: Bell, label: 'Alerts' },
-  { id: 'profile', icon: User, label: 'Profile' },
+  { id: 'profile', icon: User, label: 'Logs' },
 ];
 
 export function BottomNavBar({
@@ -462,7 +462,7 @@ export function BottomNavBar({
             icon={item.icon}
             isActive={activeTab === item.id}
             onClick={() => onTabChange(item.id)}
-            disabled={item.id !== 'home' && item.id !== 'finance'}
+            disabled={item.id === 'notifications'} // Only notifications is disabled
           />
         ))}
       </div>

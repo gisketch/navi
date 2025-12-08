@@ -12,6 +12,7 @@ import { ControlBar } from './ControlBar';
 import { SettingsModal } from './SettingsModal';
 import { Dashboard } from './Dashboard';
 import { Finance } from './Finance';
+import { Logs } from './Logs';
 import { BottomNavBar } from './BottomNavBar';
 import { Sidebar } from './Sidebar';
 import { ExpenseInputModal } from './ExpenseInputModal';
@@ -25,7 +26,7 @@ import type { ExpenseData } from './ExpenseInputModal';
 import type { MoneyDropData } from './MoneyDropInputModal';
 import type { DebtData } from './DebtInputModal';
 import type { SubscriptionData } from './SubscriptionInputModal';
-import type { Allocation } from '../utils/financeTypes';
+import type { Allocation, Debt, Subscription, MoneyDrop, Transaction } from '../utils/financeTypes';
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../utils/constants';
 import type { MicMode } from '../utils/constants';
 import { Navi } from './Navi';
@@ -55,6 +56,13 @@ function AppContent() {
   const [debtModalOpen, setDebtModalOpen] = useState(false);
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Edit mode state for modals
+  const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
+  const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
+  const [editingAllocation, setEditingAllocation] = useState<Allocation | null>(null);
+  const [editingMoneyDrop, setEditingMoneyDrop] = useState<MoneyDrop | null>(null);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
 
   // Toast notifications
@@ -107,12 +115,22 @@ function AppContent() {
     livingWallet,
     playWallet,
     moneyDrops,
+    activeDrops,
     budgetTemplates,
     createTransaction,
     createMoneyDrop,
     createAllocation,
     createDebt,
     createSubscription,
+    updateDebt,
+    updateSubscription,
+    updateAllocation,
+    updateMoneyDrop,
+    deleteDebt,
+    deleteSubscription,
+    deleteAllocation,
+    deleteMoneyDrop,
+    deleteTransaction,
   } = useFinanceData();
 
   // Get active wallets for expense modal (memoized to prevent re-renders)
@@ -186,42 +204,154 @@ function AppContent() {
     }
   }, [createTransaction, showToast]);
 
-  // Handle debt submission
+  // Handle debt submission (create or update)
   const handleDebtSubmit = useCallback(async (data: DebtData) => {
     try {
-      await createDebt({
-        name: data.name,
-        total_amount: data.total_amount,
-        remaining_amount: data.remaining_amount,
-        priority: data.priority,
-        due_date: data.due_date,
-        notes: data.notes,
-      });
-      showToast(`Debt "${data.name}" added`, 'success');
+      if (data.id) {
+        // Update existing debt
+        await updateDebt(data.id, {
+          name: data.name,
+          total_amount: data.total_amount,
+          remaining_amount: data.remaining_amount,
+          priority: data.priority,
+          due_date: data.due_date,
+          notes: data.notes,
+        });
+        showToast(`Debt "${data.name}" updated`, 'success');
+      } else {
+        // Create new debt
+        const debt = await createDebt({
+          name: data.name,
+          total_amount: data.total_amount,
+          remaining_amount: data.remaining_amount,
+          priority: data.priority,
+          due_date: data.due_date,
+          notes: data.notes,
+        });
+        
+        // If linked to money drop and create_allocation is true, create the allocation
+        if (data.money_drop_id && data.create_allocation) {
+          await createAllocation({
+            name: `${data.name} Payment`,
+            icon: 'credit-card',
+            category: 'debt',
+            total_budget: data.remaining_amount,
+            current_balance: data.remaining_amount,
+            is_strict: false,
+            color: 'red',
+            money_drop_id: data.money_drop_id,
+            linked_debt_id: debt.id,
+          });
+        }
+        showToast(`Debt "${data.name}" added`, 'success');
+      }
       setDebtModalOpen(false);
+      setEditingDebt(null);
     } catch (err) {
-      console.error('[Finance] Failed to create debt:', err);
-      showToast('Failed to add debt', 'error');
+      console.error('[Finance] Failed to save debt:', err);
+      showToast('Failed to save debt', 'error');
     }
-  }, [createDebt, showToast]);
+  }, [createDebt, updateDebt, createAllocation, showToast]);
 
-  // Handle subscription submission
+  // Handle debt delete
+  const handleDebtDelete = useCallback(async (id: string) => {
+    try {
+      await deleteDebt(id);
+      showToast('Debt deleted', 'success');
+      setDebtModalOpen(false);
+      setEditingDebt(null);
+    } catch (err) {
+      console.error('[Finance] Failed to delete debt:', err);
+      showToast('Failed to delete debt', 'error');
+    }
+  }, [deleteDebt, showToast]);
+
+  // Handle subscription submission (create or update)
   const handleSubscriptionSubmit = useCallback(async (data: SubscriptionData) => {
     try {
-      await createSubscription({
-        name: data.name,
-        amount: data.amount,
-        billing_day: data.billing_day,
-        category: data.category,
-        is_active: data.is_active,
-      });
-      showToast(`"${data.name}" subscription added`, 'success');
+      if (data.id) {
+        // Update existing subscription
+        await updateSubscription(data.id, {
+          name: data.name,
+          amount: data.amount,
+          billing_day: data.billing_day,
+          category: data.category,
+          is_active: data.is_active,
+        });
+        showToast(`"${data.name}" updated`, 'success');
+      } else {
+        // Create new subscription
+        const subscription = await createSubscription({
+          name: data.name,
+          amount: data.amount,
+          billing_day: data.billing_day,
+          category: data.category,
+          is_active: data.is_active,
+        });
+        
+        // If linked to money drop and create_allocation is true, create the allocation
+        if (data.money_drop_id && data.create_allocation) {
+          await createAllocation({
+            name: `${data.name} Bill`,
+            icon: 'receipt',
+            category: 'bills',
+            total_budget: data.amount,
+            current_balance: data.amount,
+            is_strict: true,
+            color: 'purple',
+            money_drop_id: data.money_drop_id,
+            linked_subscription_id: subscription.id,
+          });
+        }
+        showToast(`"${data.name}" subscription added`, 'success');
+      }
       setSubscriptionModalOpen(false);
+      setEditingSubscription(null);
     } catch (err) {
-      console.error('[Finance] Failed to create subscription:', err);
-      showToast('Failed to add subscription', 'error');
+      console.error('[Finance] Failed to save subscription:', err);
+      showToast('Failed to save subscription', 'error');
     }
-  }, [createSubscription, showToast]);
+  }, [createSubscription, updateSubscription, createAllocation, showToast]);
+
+  // Handle subscription delete
+  const handleSubscriptionDelete = useCallback(async (id: string) => {
+    try {
+      await deleteSubscription(id);
+      showToast('Subscription deleted', 'success');
+      setSubscriptionModalOpen(false);
+      setEditingSubscription(null);
+    } catch (err) {
+      console.error('[Finance] Failed to delete subscription:', err);
+      showToast('Failed to delete subscription', 'error');
+    }
+  }, [deleteSubscription, showToast]);
+
+  // Open edit modals from Logs page
+  const handleEditDebt = useCallback((debt: Debt) => {
+    setEditingDebt(debt);
+    setDebtModalOpen(true);
+  }, []);
+
+  const handleEditSubscription = useCallback((subscription: Subscription) => {
+    setEditingSubscription(subscription);
+    setSubscriptionModalOpen(true);
+  }, []);
+
+  const handleEditAllocation = useCallback((allocation: Allocation) => {
+    setEditingAllocation(allocation);
+    setAllocationModalOpen(true);
+  }, []);
+
+  const handleEditMoneyDrop = useCallback((drop: MoneyDrop) => {
+    setEditingMoneyDrop(drop);
+    setMoneyDropModalOpen(true);
+  }, []);
+
+  const handleEditTransaction = useCallback((transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    // TODO: Add transaction edit modal
+    console.log('Edit transaction:', transaction);
+  }, []);
 
   // Mark initial data as loaded when summaries finish loading
   useEffect(() => {
@@ -480,6 +610,29 @@ function AppContent() {
           )}
         </AnimatePresence>
 
+        {/* Dashboard Mode - Logs Tab (Profile) */}
+        <AnimatePresence>
+          {mode === 'dashboard' && activeTab === 'profile' && (
+            <motion.div
+              key="dashboard-logs"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3 }}
+              className="flex-1 flex flex-col overflow-y-auto"
+            >
+              <Logs
+                naviPosition={naviPosition}
+                onEditDebt={handleEditDebt}
+                onEditSubscription={handleEditSubscription}
+                onEditAllocation={handleEditAllocation}
+                onEditMoneyDrop={handleEditMoneyDrop}
+                onEditTransaction={handleEditTransaction}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Chat Mode */}
         <AnimatePresence>
           {mode === 'chat' && (
@@ -577,15 +730,27 @@ function AppContent() {
       {/* Debt input modal */}
       <DebtInputModal
         isOpen={debtModalOpen}
-        onClose={() => setDebtModalOpen(false)}
+        onClose={() => {
+          setDebtModalOpen(false);
+          setEditingDebt(null);
+        }}
         onSubmit={handleDebtSubmit}
+        onDelete={handleDebtDelete}
+        activeDrops={activeDrops}
+        editData={editingDebt}
       />
 
       {/* Subscription input modal */}
       <SubscriptionInputModal
         isOpen={subscriptionModalOpen}
-        onClose={() => setSubscriptionModalOpen(false)}
+        onClose={() => {
+          setSubscriptionModalOpen(false);
+          setEditingSubscription(null);
+        }}
         onSubmit={handleSubscriptionSubmit}
+        onDelete={handleSubscriptionDelete}
+        activeDrops={activeDrops}
+        editData={editingSubscription}
       />
 
       {/* Settings modal */}

@@ -11,22 +11,33 @@ import {
   Sparkles,
   Check,
   AlertCircle,
+  Droplets,
+  ChevronDown,
+  Trash2,
 } from 'lucide-react';
 import { cn, rounded, glass } from '../utils/glass';
+import type { MoneyDrop, Debt } from '../utils/financeTypes';
 
 interface DebtInputModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: DebtData) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
+  activeDrops?: MoneyDrop[];
+  editData?: Debt | null;
 }
 
 export interface DebtData {
+  id?: string;
   name: string;
   total_amount: number;
   remaining_amount: number;
   priority: 'critical' | 'high' | 'medium' | 'low';
   due_date?: string;
   notes?: string;
+  // Optional: link to money drop (creates allocation)
+  money_drop_id?: string;
+  create_allocation?: boolean;
 }
 
 const PRIORITY_OPTIONS = [
@@ -40,6 +51,9 @@ export function DebtInputModal({
   isOpen,
   onClose,
   onSubmit,
+  onDelete,
+  activeDrops = [],
+  editData,
 }: DebtInputModalProps) {
   const [name, setName] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
@@ -47,38 +61,63 @@ export function DebtInputModal({
   const [priority, setPriority] = useState<'critical' | 'high' | 'medium' | 'low'>('medium');
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [selectedDropId, setSelectedDropId] = useState<string>('');
+  const [createAllocation, setCreateAllocation] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
+
+  const isEditMode = !!editData;
 
   // Auto-focus name input when modal opens
   useEffect(() => {
-    if (isOpen && nameRef.current) {
+    if (isOpen && nameRef.current && !isEditMode) {
       setTimeout(() => nameRef.current?.focus(), 100);
     }
-  }, [isOpen]);
+  }, [isOpen, isEditMode]);
 
-  // Reset state when modal opens
+  // Reset or prefill state when modal opens
   useEffect(() => {
     if (isOpen) {
-      setName('');
-      setTotalAmount('');
-      setRemainingAmount('');
-      setPriority('medium');
-      setDueDate('');
-      setNotes('');
+      if (editData) {
+        // Edit mode - prefill data
+        setName(editData.name);
+        setTotalAmount(String(editData.total_amount));
+        setRemainingAmount(String(editData.remaining_amount));
+        setPriority(editData.priority);
+        setDueDate(editData.due_date || '');
+        setNotes(editData.notes || '');
+        setSelectedDropId('');
+        setCreateAllocation(false);
+      } else {
+        // Create mode - reset
+        setName('');
+        setTotalAmount('');
+        setRemainingAmount('');
+        setPriority('medium');
+        setDueDate('');
+        setNotes('');
+        setSelectedDropId('');
+        setCreateAllocation(false);
+      }
       setError(null);
       setShowSuccess(false);
+      setShowDropdown(false);
+      setShowDeleteConfirm(false);
     }
-  }, [isOpen]);
+  }, [isOpen, editData]);
 
-  // Sync remaining with total if remaining is empty
+  // Sync remaining with total if remaining is empty (only in create mode)
   useEffect(() => {
-    if (totalAmount && !remainingAmount) {
+    if (totalAmount && !remainingAmount && !isEditMode) {
       setRemainingAmount(totalAmount);
     }
-  }, [totalAmount, remainingAmount]);
+  }, [totalAmount, remainingAmount, isEditMode]);
+
+  const selectedDrop = activeDrops.find(d => d.id === selectedDropId);
 
   const handleSubmit = useCallback(async () => {
     if (!name.trim()) {
@@ -103,12 +142,15 @@ export function DebtInputModal({
 
     try {
       await onSubmit({
+        id: editData?.id,
         name: name.trim(),
         total_amount: total,
         remaining_amount: remaining,
         priority,
         due_date: dueDate || undefined,
         notes: notes.trim() || undefined,
+        money_drop_id: selectedDropId || undefined,
+        create_allocation: createAllocation && !!selectedDropId,
       });
 
       setShowSuccess(true);
@@ -116,11 +158,28 @@ export function DebtInputModal({
         onClose();
       }, 800);
     } catch (err) {
-      setError('Failed to create debt');
+      setError(isEditMode ? 'Failed to update debt' : 'Failed to create debt');
     } finally {
       setIsSubmitting(false);
     }
-  }, [name, totalAmount, remainingAmount, priority, dueDate, notes, onSubmit, onClose]);
+  }, [name, totalAmount, remainingAmount, priority, dueDate, notes, selectedDropId, createAllocation, onSubmit, onClose, editData, isEditMode]);
+
+  const handleDelete = useCallback(async () => {
+    if (!editData?.id || !onDelete) return;
+    
+    setIsSubmitting(true);
+    try {
+      await onDelete(editData.id);
+      setShowSuccess(true);
+      setTimeout(() => {
+        onClose();
+      }, 800);
+    } catch (err) {
+      setError('Failed to delete debt');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [editData, onDelete, onClose]);
 
   const selectedPriorityConfig = PRIORITY_OPTIONS.find(p => p.id === priority)!;
 
@@ -182,6 +241,35 @@ export function DebtInputModal({
                 )}
               </AnimatePresence>
 
+              {/* Delete Confirm overlay */}
+              <AnimatePresence>
+                {showDeleteConfirm && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="absolute inset-0 bg-black/80 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-6"
+                  >
+                    <AlertTriangle className="w-12 h-12 text-red-400 mb-4" />
+                    <p className="text-white text-center mb-6">Delete "{name}"?</p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="px-4 py-2 rounded-lg bg-white/10 text-white/70 hover:bg-white/20 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleDelete}
+                        className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Close button */}
               <button
                 onClick={onClose}
@@ -192,9 +280,19 @@ export function DebtInputModal({
 
               <div className="p-5">
                 {/* Header */}
-                <div className="mb-5">
-                  <h2 className="text-lg font-semibold text-white">Add Debt</h2>
-                  <p className="text-sm text-white/40">Track money you owe</p>
+                <div className="mb-5 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-white">{isEditMode ? 'Edit Debt' : 'Add Debt'}</h2>
+                    <p className="text-sm text-white/40">Track money you owe</p>
+                  </div>
+                  {isEditMode && onDelete && (
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
                 </div>
 
                 {/* Name Input */}
@@ -306,6 +404,125 @@ export function DebtInputModal({
                   </div>
                 </div>
 
+                {/* Money Drop Link (Optional) - Only show in create mode */}
+                {!isEditMode && activeDrops.length > 0 && (
+                  <div className="mb-4">
+                    <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">
+                      Link to Money Drop <span className="text-white/20">(optional)</span>
+                    </label>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowDropdown(!showDropdown)}
+                        className={cn(
+                          'w-full p-3 flex items-center justify-between',
+                          rounded.lg,
+                          'bg-white/[0.05] border border-white/[0.08]',
+                          'hover:border-cyan-400/30 transition-colors',
+                          selectedDropId && 'border-cyan-400/30'
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Droplets size={16} className={selectedDrop ? 'text-cyan-400' : 'text-white/30'} />
+                          <span className={selectedDrop ? 'text-white' : 'text-white/40'}>
+                            {selectedDrop ? selectedDrop.name : 'None (standalone debt)'}
+                          </span>
+                        </div>
+                        <ChevronDown size={16} className="text-white/30" />
+                      </button>
+                      
+                      <AnimatePresence>
+                        {showDropdown && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            className={cn(
+                              'absolute top-full left-0 right-0 mt-2 z-30',
+                              rounded.lg,
+                              'bg-slate-900/95 border border-white/10',
+                              'shadow-xl backdrop-blur-xl',
+                              'max-h-48 overflow-y-auto'
+                            )}
+                          >
+                            <button
+                              onClick={() => {
+                                setSelectedDropId('');
+                                setCreateAllocation(false);
+                                setShowDropdown(false);
+                              }}
+                              className={cn(
+                                'w-full p-3 text-left flex items-center gap-2',
+                                'hover:bg-white/5 transition-colors',
+                                !selectedDropId && 'bg-white/5'
+                              )}
+                            >
+                              <span className="text-white/50">None (standalone)</span>
+                            </button>
+                            {activeDrops.map((drop) => (
+                              <button
+                                key={drop.id}
+                                onClick={() => {
+                                  setSelectedDropId(drop.id);
+                                  setShowDropdown(false);
+                                }}
+                                className={cn(
+                                  'w-full p-3 text-left flex items-center gap-2',
+                                  'hover:bg-white/5 transition-colors',
+                                  selectedDropId === drop.id && 'bg-cyan-400/10'
+                                )}
+                              >
+                                <Droplets size={14} className="text-cyan-400" />
+                                <span className="text-white">{drop.name}</span>
+                                <span className="text-white/30 text-sm ml-auto">
+                                  ₱{drop.amount.toLocaleString()}
+                                </span>
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Create Allocation Toggle */}
+                    {selectedDropId && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-3"
+                      >
+                        <button
+                          onClick={() => setCreateAllocation(!createAllocation)}
+                          className={cn(
+                            'w-full p-3 rounded-xl transition-all flex items-center justify-between',
+                            createAllocation
+                              ? 'bg-cyan-500/20 border border-cyan-500/30'
+                              : 'bg-white/[0.03] border border-white/[0.06]'
+                          )}
+                        >
+                          <span className={createAllocation ? 'text-cyan-400' : 'text-white/40'}>
+                            Create allocation from this money drop
+                          </span>
+                          <div className={cn(
+                            'w-10 h-6 rounded-full transition-colors relative',
+                            createAllocation ? 'bg-cyan-500/30' : 'bg-white/10'
+                          )}>
+                            <motion.div
+                              animate={{ x: createAllocation ? 18 : 2 }}
+                              transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                              className={cn(
+                                'absolute top-1 w-4 h-4 rounded-full',
+                                createAllocation ? 'bg-cyan-400' : 'bg-white/40'
+                              )}
+                            />
+                          </div>
+                        </button>
+                      </motion.div>
+                    )}
+                  </div>
+                )}
+
                 {/* Notes (Optional) */}
                 <div className="mb-5">
                   <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">
@@ -361,7 +578,7 @@ export function DebtInputModal({
                   ) : (
                     <>
                       <Sparkles size={18} />
-                      Add Debt
+                      {isEditMode ? 'Update Debt' : 'Add Debt'}
                     </>
                   )}
                 </motion.button>

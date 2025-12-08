@@ -15,7 +15,7 @@ const NAV_ITEMS: { id: NavTab; icon: typeof Home; label: string }[] = [
   { id: 'home', icon: Home, label: 'Home' },
   { id: 'finance', icon: Wallet, label: 'Finance' },
   { id: 'notifications', icon: Bell, label: 'Alerts' },
-  { id: 'profile', icon: User, label: 'Profile' },
+  { id: 'profile', icon: User, label: 'Logs' },
 ];
 
 export function Sidebar({
@@ -53,7 +53,7 @@ export function Sidebar({
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
-          const isDisabled = item.id !== 'home' && item.id !== 'finance'; // Home and Finance are enabled
+          const isDisabled = item.id === 'notifications'; // Only notifications is disabled for now
 
           return (
             <motion.button
