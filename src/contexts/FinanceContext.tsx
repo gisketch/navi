@@ -252,7 +252,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const categoryToType = (cat: string): string => {
       switch (cat) {
         case 'living': case 'play': return 'wallet';
-        case 'bill': return 'bill';
+        case 'bills': return 'bill';
         case 'debt': return 'debt';
         case 'savings': return 'savings';
         default: return 'wallet';
@@ -349,7 +349,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       setAllocations(prev => prev.map(a => a.id === id ? { ...a, ...data } : a));
       return;
     }
-    await pb.collection('allocations').update(id, data, { requestKey: null });
+    
+    // Transform category to type for PocketBase
+    const categoryToType = (cat: string): string => {
+      switch (cat) {
+        case 'living': case 'play': return 'wallet';
+        case 'bills': return 'bill';
+        case 'debt': return 'debt';
+        case 'savings': return 'savings';
+        default: return 'wallet';
+      }
+    };
+    
+    const pbData: Record<string, unknown> = { ...data };
+    if (data.category) {
+      pbData.type = categoryToType(data.category);
+      delete pbData.category;
+    }
+    // Remove non-PB fields
+    delete pbData.icon;
+    delete pbData.color;
+    delete pbData.daily_limit;
+    
+    await pb.collection('allocations').update(id, pbData, { requestKey: null });
     await fetchData();
   }, [fetchData]);
 

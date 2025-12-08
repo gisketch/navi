@@ -33,6 +33,7 @@ export interface SubscriptionData {
   billing_day: number;
   category: 'subscription' | 'utility' | 'rent';
   is_active: boolean;
+  end_on_date?: string | null; // null means recurring indefinitely
   // Optional: link to money drop (creates allocation)
   money_drop_id?: string;
   create_allocation?: boolean;
@@ -57,6 +58,8 @@ export function SubscriptionInputModal({
   const [billingDay, setBillingDay] = useState('1');
   const [category, setCategory] = useState<'subscription' | 'utility' | 'rent'>('subscription');
   const [isActive, setIsActive] = useState(true);
+  const [hasEndDate, setHasEndDate] = useState(false);
+  const [endOnDate, setEndOnDate] = useState('');
   const [selectedDropId, setSelectedDropId] = useState<string>('');
   const [createAllocation, setCreateAllocation] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -85,6 +88,8 @@ export function SubscriptionInputModal({
         setBillingDay(String(editData.billing_day));
         setCategory(editData.category);
         setIsActive(editData.is_active);
+        setHasEndDate(!!editData.end_on_date);
+        setEndOnDate(editData.end_on_date || '');
         setSelectedDropId('');
         setCreateAllocation(false);
       } else {
@@ -94,6 +99,8 @@ export function SubscriptionInputModal({
         setBillingDay('1');
         setCategory('subscription');
         setIsActive(true);
+        setHasEndDate(false);
+        setEndOnDate('');
         setSelectedDropId('');
         setCreateAllocation(false);
       }
@@ -135,6 +142,7 @@ export function SubscriptionInputModal({
         billing_day: day,
         category,
         is_active: isActive,
+        end_on_date: hasEndDate && endOnDate ? endOnDate : undefined,
         money_drop_id: selectedDropId || undefined,
         create_allocation: createAllocation && !!selectedDropId,
       });
@@ -148,7 +156,7 @@ export function SubscriptionInputModal({
     } finally {
       setIsSubmitting(false);
     }
-  }, [name, amount, billingDay, category, isActive, selectedDropId, createAllocation, onSubmit, onClose, editData, isEditMode]);
+  }, [name, amount, billingDay, category, isActive, hasEndDate, endOnDate, selectedDropId, createAllocation, onSubmit, onClose, editData, isEditMode]);
 
   const handleDelete = useCallback(async () => {
     if (!editData?.id || !onDelete) return;
@@ -266,19 +274,9 @@ export function SubscriptionInputModal({
 
               <div className="p-5">
                 {/* Header */}
-                <div className="mb-5 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-white">{isEditMode ? 'Edit Subscription/Bill' : 'Add Subscription/Bill'}</h2>
-                    <p className="text-sm text-white/40">Track recurring payments</p>
-                  </div>
-                  {isEditMode && onDelete && (
-                    <button
-                      onClick={() => setShowDeleteConfirm(true)}
-                      className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  )}
+                <div className="mb-5">
+                  <h2 className="text-lg font-semibold text-white">{isEditMode ? 'Edit Bill' : 'Add Bill'}</h2>
+                  <p className="text-sm text-white/40">Track recurring payments</p>
                 </div>
 
                 {/* Name Input */}
@@ -491,7 +489,7 @@ export function SubscriptionInputModal({
                 )}
 
                 {/* Active Toggle */}
-                <div className="mb-5">
+                <div className="mb-4">
                   <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">Status</label>
                   <button
                     onClick={() => setIsActive(!isActive)}
@@ -521,6 +519,66 @@ export function SubscriptionInputModal({
                   </button>
                 </div>
 
+                {/* End Date Toggle */}
+                <div className="mb-5">
+                  <label className="text-xs text-white/30 uppercase tracking-wider mb-2 block">
+                    End Date <span className="text-white/20">(optional)</span>
+                  </label>
+                  <button
+                    onClick={() => setHasEndDate(!hasEndDate)}
+                    className={cn(
+                      'w-full p-3 rounded-xl transition-all flex items-center justify-between',
+                      hasEndDate
+                        ? 'bg-amber-500/20 border border-amber-500/30'
+                        : 'bg-white/[0.03] border border-white/[0.06]'
+                    )}
+                  >
+                    <span className={hasEndDate ? 'text-amber-400' : 'text-white/40'}>
+                      {hasEndDate ? 'Has End Date' : 'Recurring Indefinitely'}
+                    </span>
+                    <div className={cn(
+                      'w-10 h-6 rounded-full transition-colors relative',
+                      hasEndDate ? 'bg-amber-500/30' : 'bg-white/10'
+                    )}>
+                      <motion.div
+                        animate={{ x: hasEndDate ? 18 : 2 }}
+                        transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                        className={cn(
+                          'absolute top-1 w-4 h-4 rounded-full',
+                          hasEndDate ? 'bg-amber-400' : 'bg-white/40'
+                        )}
+                      />
+                    </div>
+                  </button>
+                  
+                  {/* Date Input when enabled */}
+                  <AnimatePresence>
+                    {hasEndDate && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-3 overflow-hidden"
+                      >
+                        <input
+                          type="date"
+                          value={endOnDate}
+                          onChange={(e) => setEndOnDate(e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
+                          className={cn(
+                            'w-full p-3',
+                            rounded.lg,
+                            'bg-white/[0.05] border border-white/[0.08]',
+                            'text-white outline-none',
+                            'focus:border-amber-400/50 transition-colors',
+                            '[color-scheme:dark]'
+                          )}
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
                 {/* Error message */}
                 <AnimatePresence>
                   {error && (
@@ -536,28 +594,46 @@ export function SubscriptionInputModal({
                   )}
                 </AnimatePresence>
 
-                {/* Submit Button */}
-                <motion.button
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleSubmit}
-                  disabled={!name || !amount || isSubmitting}
-                  className={cn(
-                    'w-full py-4 rounded-xl font-medium transition-all',
-                    'flex items-center justify-center gap-2',
-                    name && amount && !isSubmitting
-                      ? `${selectedCategoryConfig.bg} ${selectedCategoryConfig.color} border ${selectedCategoryConfig.border} hover:brightness-110`
-                      : 'bg-white/[0.05] text-white/30 border border-white/[0.08] cursor-not-allowed'
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleSubmit}
+                    disabled={!name || !amount || isSubmitting}
+                    className={cn(
+                      'w-full py-4 rounded-xl font-medium transition-all',
+                      'flex items-center justify-center gap-2',
+                      name && amount && !isSubmitting
+                        ? `${selectedCategoryConfig.bg} ${selectedCategoryConfig.color} border ${selectedCategoryConfig.border} hover:brightness-110`
+                        : 'bg-white/[0.05] text-white/30 border border-white/[0.08] cursor-not-allowed'
+                    )}
+                  >
+                    {isSubmitting ? (
+                      <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Sparkles size={18} />
+                        {isEditMode ? 'Update' : 'Add'} {selectedCategoryConfig.label}
+                      </>
+                    )}
+                  </motion.button>
+
+                  {/* Delete Button (Edit mode only) */}
+                  {isEditMode && onDelete && (
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className={cn(
+                        'w-full py-3 rounded-xl font-medium transition-all',
+                        'flex items-center justify-center gap-2',
+                        'bg-red-500/10 text-red-400 border border-red-500/20',
+                        'hover:bg-red-500/20 hover:border-red-500/30'
+                      )}
+                    >
+                      <Trash2 size={18} />
+                      Delete Bill
+                    </button>
                   )}
-                >
-                  {isSubmitting ? (
-                    <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Sparkles size={18} />
-                      {isEditMode ? 'Update' : 'Add'} {selectedCategoryConfig.label}
-                    </>
-                  )}
-                </motion.button>
+                </div>
               </div>
             </div>
           </motion.div>

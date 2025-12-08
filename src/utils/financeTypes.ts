@@ -66,6 +66,7 @@ export interface Subscription {
   billing_day: number; // 1-31
   category: SubscriptionCategory;
   is_active: boolean;
+  end_on_date?: string | null; // ISO date string, null means recurring indefinitely
 }
 
 /**

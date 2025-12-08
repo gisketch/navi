@@ -384,7 +384,7 @@ function BudgetTemplateCard({
 }: { 
   template: BudgetTemplate;
 }) {
-  const totalPercent = Object.values(template.allocation_rules).reduce((sum, val) => sum + val, 0);
+  const totalPercent = template.allocation_rules.reduce((sum, rule) => sum + (rule.percentage || 0), 0);
   
   return (
     <motion.div
@@ -401,7 +401,7 @@ function BudgetTemplateCard({
           </div>
           <div>
             <p className="text-white font-medium">{template.name}</p>
-            <p className="text-white/40 text-sm">{Object.keys(template.allocation_rules).length} allocations</p>
+            <p className="text-white/40 text-sm">{template.allocation_rules.length} allocations</p>
           </div>
         </div>
         <p className={cn(
@@ -414,10 +414,12 @@ function BudgetTemplateCard({
       
       {/* Allocation breakdown */}
       <div className="space-y-1">
-        {Object.entries(template.allocation_rules).map(([name, percent]) => (
-          <div key={name} className="flex items-center justify-between text-sm">
-            <span className="text-white/50">{name}</span>
-            <span className="text-white/70">{percent}%</span>
+        {template.allocation_rules.map((rule, index) => (
+          <div key={index} className="flex items-center justify-between text-sm">
+            <span className="text-white/50">{rule.name}</span>
+            <span className="text-white/70">
+              {rule.percentage ? `${rule.percentage}%` : rule.fixed_amount ? `₱${rule.fixed_amount.toLocaleString()}` : '-'}
+            </span>
           </div>
         ))}
       </div>
@@ -516,8 +518,10 @@ export function Logs({
                 className={cn(
                   'absolute top-full left-0 right-0 mt-2 z-30',
                   rounded.xl,
-                  'bg-slate-900/95 border border-white/10',
-                  'shadow-xl backdrop-blur-xl overflow-hidden'
+                  glass.modal,
+                  'border border-white/[0.08]',
+                  'shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]',
+                  'overflow-hidden'
                 )}
               >
                 {LOG_TYPES.map((type) => {
@@ -532,7 +536,7 @@ export function Logs({
                       }}
                       className={cn(
                         'w-full p-3 flex items-center gap-3',
-                        'hover:bg-white/5 transition-colors',
+                        'hover:bg-white/[0.06] transition-colors',
                         isSelected && 'bg-cyan-500/10'
                       )}
                     >

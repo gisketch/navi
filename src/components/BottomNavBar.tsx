@@ -14,7 +14,7 @@ const RADIAL_BUTTONS = [
   { id: 'new-subscription', icon: Receipt, angle: 25, label: 'Bill' }, // Far top-right
 ];
 
-const RADIAL_RADIUS = 90;
+const RADIAL_RADIUS = 110;
 const HOLD_THRESHOLD = 200; // ms to trigger radial menu
 const SELECTION_RADIUS = 50;
 
@@ -269,7 +269,7 @@ export function BottomNavBar({
   const getButtonContent = () => {
     if (isFinanceTab) {
       return (
-        <span className="text-2xl font-bold text-white/80">₱</span>
+        <Banknote className="w-7 h-7 text-emerald-400" />
       );
     }
     return mainButtonContent;

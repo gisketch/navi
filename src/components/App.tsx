@@ -21,6 +21,7 @@ import { BudgetTemplateInputModal } from './BudgetTemplateInputModal';
 import { AllocationInputModal } from './AllocationInputModal';
 import { DebtInputModal } from './DebtInputModal';
 import { SubscriptionInputModal } from './SubscriptionInputModal';
+import { PaymentModal } from './PaymentModal';
 import { ToastProvider, useToast } from './Toast';
 import type { ExpenseData } from './ExpenseInputModal';
 import type { MoneyDropData } from './MoneyDropInputModal';
@@ -55,14 +56,17 @@ function AppContent() {
   const [allocationModalOpen, setAllocationModalOpen] = useState(false);
   const [debtModalOpen, setDebtModalOpen] = useState(false);
   const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentAllocation, setPaymentAllocation] = useState<Allocation | null>(null);
+  const [paymentType, setPaymentType] = useState<'bill' | 'debt'>('bill');
   const [error, setError] = useState<string | null>(null);
 
   // Edit mode state for modals
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
   const [editingAllocation, setEditingAllocation] = useState<Allocation | null>(null);
-  const [editingMoneyDrop, setEditingMoneyDrop] = useState<MoneyDrop | null>(null);
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [_editingMoneyDrop, setEditingMoneyDrop] = useState<MoneyDrop | null>(null);
+  const [_editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
 
   // Toast notifications
@@ -125,12 +129,12 @@ function AppContent() {
     updateDebt,
     updateSubscription,
     updateAllocation,
-    updateMoneyDrop,
+    updateMoneyDrop: _updateMoneyDrop,
     deleteDebt,
     deleteSubscription,
     deleteAllocation,
-    deleteMoneyDrop,
-    deleteTransaction,
+    deleteMoneyDrop: _deleteMoneyDrop,
+    deleteTransaction: _deleteTransaction,
   } = useFinanceData();
 
   // Get active wallets for expense modal (memoized to prevent re-renders)
@@ -159,7 +163,7 @@ function AppContent() {
     }
   }, [createMoneyDrop, showToast]);
 
-  const handleTemplateSubmit = useCallback(async (data: { name: string; allocation_rules: Record<string, number> }) => {
+  const handleTemplateSubmit = useCallback(async (_data: { name: string; allocation_rules: Record<string, number> }) => {
     // Templates are local-only for now (could store in localStorage or PocketBase later)
     showToast('Template saved!', 'success');
     setTemplateModalOpen(false);
@@ -167,24 +171,55 @@ function AppContent() {
 
   const handleAllocationSubmit = useCallback(async (data: Partial<Allocation>) => {
     try {
-      await createAllocation({
-        name: data.name || 'New Allocation',
-        icon: data.icon || 'wallet',
-        category: data.category || 'living',
-        total_budget: data.total_budget || 0,
-        current_balance: data.total_budget || 0, // Start with full budget
-        is_strict: data.is_strict || false,
-        color: data.color || 'emerald',
-        money_drop_id: data.money_drop_id || '',
-        daily_limit: data.daily_limit,
-      });
-      showToast('Allocation created!', 'success');
+      if (data.id) {
+        // Update existing allocation
+        await updateAllocation(data.id, {
+          name: data.name || 'Allocation',
+          icon: data.icon || 'wallet',
+          category: data.category || 'living',
+          total_budget: data.total_budget || 0,
+          current_balance: data.current_balance ?? data.total_budget ?? 0,
+          is_strict: data.is_strict || false,
+          color: data.color || 'emerald',
+          money_drop_id: data.money_drop_id || '',
+          daily_limit: data.daily_limit,
+        });
+        showToast(`Allocation "${data.name}" updated`, 'success');
+      } else {
+        // Create new allocation
+        await createAllocation({
+          name: data.name || 'New Allocation',
+          icon: data.icon || 'wallet',
+          category: data.category || 'living',
+          total_budget: data.total_budget || 0,
+          current_balance: data.total_budget || 0, // Start with full budget
+          is_strict: data.is_strict || false,
+          color: data.color || 'emerald',
+          money_drop_id: data.money_drop_id || '',
+          daily_limit: data.daily_limit,
+        });
+        showToast('Allocation created!', 'success');
+      }
       setAllocationModalOpen(false);
+      setEditingAllocation(null);
     } catch (err) {
-      console.error('[Finance] Failed to create allocation:', err);
-      showToast('Failed to create allocation', 'error');
+      console.error('[Finance] Failed to save allocation:', err);
+      showToast(data.id ? 'Failed to update allocation' : 'Failed to create allocation', 'error');
     }
-  }, [createAllocation, showToast]);
+  }, [createAllocation, updateAllocation, showToast]);
+
+  // Handle allocation deletion
+  const handleAllocationDelete = useCallback(async (id: string) => {
+    try {
+      await deleteAllocation(id);
+      showToast('Allocation deleted', 'success');
+      setAllocationModalOpen(false);
+      setEditingAllocation(null);
+    } catch (err) {
+      console.error('[Finance] Failed to delete allocation:', err);
+      showToast('Failed to delete allocation', 'error');
+    }
+  }, [deleteAllocation, showToast]);
 
   // Handle expense submission
   const handleExpenseSubmit = useCallback(async (data: ExpenseData) => {
@@ -277,6 +312,7 @@ function AppContent() {
           billing_day: data.billing_day,
           category: data.category,
           is_active: data.is_active,
+          end_on_date: data.end_on_date || null,
         });
         showToast(`"${data.name}" updated`, 'success');
       } else {
@@ -287,6 +323,7 @@ function AppContent() {
           billing_day: data.billing_day,
           category: data.category,
           is_active: data.is_active,
+          end_on_date: data.end_on_date || null,
         });
         
         // If linked to money drop and create_allocation is true, create the allocation
@@ -352,6 +389,47 @@ function AppContent() {
     // TODO: Add transaction edit modal
     console.log('Edit transaction:', transaction);
   }, []);
+
+  // Payment handlers for bills/debts
+  const handlePayBill = useCallback((allocation: Allocation) => {
+    setPaymentAllocation(allocation);
+    setPaymentType('bill');
+    setPaymentModalOpen(true);
+  }, []);
+
+  const handlePayDebt = useCallback((allocation: Allocation) => {
+    setPaymentAllocation(allocation);
+    setPaymentType('debt');
+    setPaymentModalOpen(true);
+  }, []);
+
+  const handlePaymentSubmit = useCallback(async (amount: number, note?: string) => {
+    if (!paymentAllocation) return;
+    
+    try {
+      // Create transaction for the payment
+      await createTransaction({
+        amount,
+        description: note || `Payment for ${paymentAllocation.name}`,
+        timestamp: new Date().toISOString(),
+        allocation_id: paymentAllocation.id,
+        type: 'payment',
+      });
+      
+      // Update allocation balance
+      const newBalance = paymentAllocation.current_balance - amount;
+      await updateAllocation(paymentAllocation.id, {
+        current_balance: Math.max(0, newBalance),
+      });
+      
+      showToast(`Payment of ₱${amount.toLocaleString()} recorded`, 'success');
+      setPaymentModalOpen(false);
+      setPaymentAllocation(null);
+    } catch (err) {
+      console.error('[Finance] Failed to record payment:', err);
+      showToast('Failed to record payment', 'error');
+    }
+  }, [paymentAllocation, paymentType, createTransaction, updateAllocation, showToast]);
 
   // Mark initial data as loaded when summaries finish loading
   useEffect(() => {
@@ -605,7 +683,11 @@ function AppContent() {
               transition={{ duration: 0.3 }}
               className="flex-1 flex flex-col"
             >
-              <Finance naviPosition={naviPosition} />
+              <Finance 
+                naviPosition={naviPosition}
+                onPayBill={handlePayBill}
+                onPayDebt={handlePayDebt}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -722,9 +804,14 @@ function AppContent() {
 
       <AllocationInputModal
         isOpen={allocationModalOpen}
-        onClose={() => setAllocationModalOpen(false)}
+        onClose={() => {
+          setAllocationModalOpen(false);
+          setEditingAllocation(null);
+        }}
         onSubmit={handleAllocationSubmit}
+        onDelete={handleAllocationDelete}
         moneyDrops={moneyDrops}
+        initialData={editingAllocation}
       />
 
       {/* Debt input modal */}
@@ -751,6 +838,17 @@ function AppContent() {
         onDelete={handleSubscriptionDelete}
         activeDrops={activeDrops}
         editData={editingSubscription}
+      />
+
+      <PaymentModal
+        isOpen={paymentModalOpen}
+        onClose={() => {
+          setPaymentModalOpen(false);
+          setPaymentAllocation(null);
+        }}
+        allocation={paymentAllocation}
+        allocationType={paymentType}
+        onSubmit={handlePaymentSubmit}
       />
 
       {/* Settings modal */}

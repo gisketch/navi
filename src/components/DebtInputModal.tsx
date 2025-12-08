@@ -280,19 +280,9 @@ export function DebtInputModal({
 
               <div className="p-5">
                 {/* Header */}
-                <div className="mb-5 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-white">{isEditMode ? 'Edit Debt' : 'Add Debt'}</h2>
-                    <p className="text-sm text-white/40">Track money you owe</p>
-                  </div>
-                  {isEditMode && onDelete && (
-                    <button
-                      onClick={() => setShowDeleteConfirm(true)}
-                      className="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  )}
+                <div className="mb-5">
+                  <h2 className="text-lg font-semibold text-white">{isEditMode ? 'Edit Debt' : 'Add Debt'}</h2>
+                  <p className="text-sm text-white/40">Track money you owe</p>
                 </div>
 
                 {/* Name Input */}
@@ -560,28 +550,46 @@ export function DebtInputModal({
                   )}
                 </AnimatePresence>
 
-                {/* Submit Button */}
-                <motion.button
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleSubmit}
-                  disabled={!name || !totalAmount || isSubmitting}
-                  className={cn(
-                    'w-full py-4 rounded-xl font-medium transition-all',
-                    'flex items-center justify-center gap-2',
-                    name && totalAmount && !isSubmitting
-                      ? `${selectedPriorityConfig.bg} ${selectedPriorityConfig.color} border ${selectedPriorityConfig.border} hover:brightness-110`
-                      : 'bg-white/[0.05] text-white/30 border border-white/[0.08] cursor-not-allowed'
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  <motion.button
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleSubmit}
+                    disabled={!name || !totalAmount || isSubmitting}
+                    className={cn(
+                      'w-full py-4 rounded-xl font-medium transition-all',
+                      'flex items-center justify-center gap-2',
+                      name && totalAmount && !isSubmitting
+                        ? `${selectedPriorityConfig.bg} ${selectedPriorityConfig.color} border ${selectedPriorityConfig.border} hover:brightness-110`
+                        : 'bg-white/[0.05] text-white/30 border border-white/[0.08] cursor-not-allowed'
+                    )}
+                  >
+                    {isSubmitting ? (
+                      <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Sparkles size={18} />
+                        {isEditMode ? 'Update Debt' : 'Add Debt'}
+                      </>
+                    )}
+                  </motion.button>
+
+                  {/* Delete Button (Edit mode only) */}
+                  {isEditMode && onDelete && (
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className={cn(
+                        'w-full py-3 rounded-xl font-medium transition-all',
+                        'flex items-center justify-center gap-2',
+                        'bg-red-500/10 text-red-400 border border-red-500/20',
+                        'hover:bg-red-500/20 hover:border-red-500/30'
+                      )}
+                    >
+                      <Trash2 size={18} />
+                      Delete Debt
+                    </button>
                   )}
-                >
-                  {isSubmitting ? (
-                    <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Sparkles size={18} />
-                      {isEditMode ? 'Update Debt' : 'Add Debt'}
-                    </>
-                  )}
-                </motion.button>
+                </div>
               </div>
             </div>
           </motion.div>
