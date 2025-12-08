@@ -1,5 +1,6 @@
-import { useMemo, memo, useRef, useLayoutEffect, useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useMemo, memo, useRef, useLayoutEffect, useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
+import type { PanInfo } from 'framer-motion';
 import type { ChatMessage, CardData } from '../utils/constants';
 import { ResultCards } from './ResultCards';
 import { cn, rounded, calculateProximityGlow, createGlowGradient } from '../utils/glass';
@@ -19,16 +20,14 @@ const naviStateColors = {
 // ============================================
 // Configurable constants
 // ============================================
-// GLOW_MAX_DISTANCE: Max distance for glow effect in chat mode (2x normal)
-// Change this value to adjust when glow stops rendering
-const GLOW_MAX_DISTANCE_CHAT = 700; // Double the normal 350px
+const GLOW_MAX_DISTANCE_CHAT = 700;
 
 interface ChatUIProps {
   messages: ChatMessage[];
   currentTurn: { role: 'user' | 'assistant'; text: string; id: string } | null;
   isCapturing: boolean;
   activeCards?: CardData[];
-  onCloseCards?: () => void;
+  onDismissCards?: () => void;
   naviPosition?: { x: number; y: number };
   naviState?: NaviState;
   liveStatus?: string | null;
@@ -58,29 +57,6 @@ interface ChatBubbleProps {
   index: number;
 }
 
-// const mockCardData: CardData[] = [
-//   {
-//     card_type: 'notes',
-//     card_title: 'Project Meeting Notes',
-//     card_description: 'Discussion points from the Q4 planning session including budget allocation and timeline updates.'
-//   },
-//   {
-//     card_type: 'calendar',
-//     card_title: 'Team Sprint Review',
-//     card_description: 'Weekly sprint review scheduled for Friday at 2:00 PM with the development team.'
-//   },
-//   {
-//     card_type: 'notes',
-//     card_title: 'Feature Requirements',
-//     card_description: 'Detailed specifications for the new user authentication system and security protocols.'
-//   },
-//   {
-//     card_type: 'other',
-//     card_title: 'Resource Links',
-//     card_description: 'Collection of helpful documentation, tutorials, and third-party tools for the project.'
-//   }
-// ];
-
 const ChatBubble = memo(function ChatBubble({
   role,
   text,
@@ -94,7 +70,6 @@ const ChatBubble = memo(function ChatBubble({
 
   const stateColor = naviStateColors[naviState] || naviStateColors.idle;
 
-  // Calculate proximity glow with extended distance for chat mode
   useLayoutEffect(() => {
     if (bubbleRef.current) {
       const rect = bubbleRef.current.getBoundingClientRect();
@@ -105,9 +80,6 @@ const ChatBubble = memo(function ChatBubble({
   }, [naviPosition.x, naviPosition.y]);
 
   const isUser = role === 'user';
-
-
-  // Dynamic glow color based on Navi state
   const glowColor = stateColor.glow;
   const primaryColor = stateColor.primary;
 
@@ -137,23 +109,15 @@ const ChatBubble = memo(function ChatBubble({
         stiffness: 350,
         delay: index * 0.03,
       }}
+      // Mark individual bubbles as interactive (blocks Navi touch)
+      data-chat-bubble
       className={cn(
         'relative max-w-[85%] px-4 py-3',
         rounded.lg,
-        // User: right-aligned, darker glass with slight warmth
         isUser
           ? 'self-end bg-gray/30 border border-white/[0.08] backdrop-blur-xl'
-          // Navi: left-aligned, bluer frosted glass
           : 'self-start bg-cyan-950/40 border border-cyan-400/[0.15] backdrop-blur-2xl'
       )}
-      style={{
-        // Dynamic proximity glow based on Navi state color
-        // boxShadow: glowIntensity > 0.03
-        //   ? `inset 0 0 ${25 * glowIntensity}px ${glowColor.replace('0.4', `${glowIntensity * 0.2}`)}, 0 0 ${35 * glowIntensity}px ${glowColor.replace('0.4', `${glowIntensity * 0.25}`)}`
-        //   : !isUser
-        //     ? `0 0 15px ${glowColor.replace('0.4', '0.08')}` // Subtle default glow for Navi
-        //     : 'none',
-      }}
     >
       {/* Proximity glow gradient overlay */}
       {glowIntensity > 0.03 && (
@@ -165,7 +129,7 @@ const ChatBubble = memo(function ChatBubble({
         />
       )}
 
-      {/* Navi bubble top highlight - color matches state */}
+      {/* Navi bubble top highlight */}
       {!isUser && (
         <div
           className="absolute inset-x-0 top-0 h-px rounded-t-xl"
@@ -234,6 +198,7 @@ const StatusBubble = memo(function StatusBubble({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -10, scale: 0.95 }}
       transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+      data-chat-bubble
       className={cn(
         'self-start max-w-[85%] px-4 py-3',
         rounded.lg,
@@ -241,9 +206,6 @@ const StatusBubble = memo(function StatusBubble({
       )}
       style={{
         borderColor: `${primaryColor}30`,
-        // boxShadow: glowIntensity > 0.03
-        //   ? `inset 0 0 ${25 * glowIntensity}px ${glowColor.replace('0.4', `${glowIntensity * 0.15}`)}, 0 0 ${30 * glowIntensity}px ${glowColor.replace('0.4', `${glowIntensity * 0.2}`)}`
-        //   : `0 0 20px ${glowColor.replace('0.4', '0.1')}`,
       }}
     >
       {/* Glow overlay */}
@@ -309,6 +271,7 @@ const ListeningIndicator = memo(function ListeningIndicator({ naviState }: { nav
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
+      data-chat-bubble
       className={cn(
         'self-end max-w-[85%] px-4 py-3',
         rounded.lg,
@@ -350,7 +313,7 @@ export function ChatUI({
   currentTurn,
   isCapturing,
   activeCards,
-  onCloseCards,
+  onDismissCards,
   naviPosition: externalNaviPosition,
   naviState = 'idle',
   liveStatus,
@@ -364,27 +327,6 @@ export function ChatUI({
 
   // Has cards to show
   const hasCards = activeCards && activeCards.length > 0;
-
-  // Update Navi position periodically
-  useLayoutEffect(() => {
-    if (externalNaviPosition) return;
-
-    let animationId: number;
-    const tick = () => {
-      const newPos = getNaviPosition();
-      if (
-        Math.abs(newPos.x - lastPositionRef.current.x) > 1 ||
-        Math.abs(newPos.y - lastPositionRef.current.y) > 1
-      ) {
-        lastPositionRef.current = newPos;
-        setInternalNaviPosition(newPos);
-      }
-      animationId = requestAnimationFrame(tick);
-    };
-    animationId = requestAnimationFrame(tick);
-
-    return () => cancelAnimationFrame(animationId);
-  }, [externalNaviPosition]);
 
   // Build conversation list
   const conversationItems = useMemo(() => {
@@ -409,95 +351,184 @@ export function ChatUI({
     return items;
   }, [messages, currentTurn]);
 
-  // Auto-scroll to bottom
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // ============================================
+  // Drag-to-Scroll with proper constraints
+  // ============================================
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [maxScroll, setMaxScroll] = useState(0);
+
+  // Raw drag position (negative = scrolled up/towards older messages)
+  const rawY = useMotionValue(0);
+  // Smoothed position with spring
+  const y = useSpring(rawY, { damping: 30, stiffness: 300 });
+
+  // Calculate max scroll distance
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
+    const updateMaxScroll = () => {
+      if (containerRef.current && contentRef.current) {
+        const containerHeight = containerRef.current.clientHeight;
+        const contentHeight = contentRef.current.scrollHeight;
+        const max = Math.max(0, contentHeight - containerHeight);
+        setMaxScroll(max);
+      }
+    };
+
+    updateMaxScroll();
+    const observer = new ResizeObserver(updateMaxScroll);
+    if (contentRef.current) {
+      observer.observe(contentRef.current);
     }
+    return () => observer.disconnect();
   }, [conversationItems.length, currentTurn?.text, liveStatus]);
 
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    // Set Y to show the bottom (most negative value)
+    if (maxScroll > 0) {
+      rawY.set(-maxScroll);
+    }
+  }, [conversationItems.length, currentTurn?.text, liveStatus, maxScroll, rawY]);
+
+  // Handle drag
+  const handleDrag = useCallback((_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const currentY = rawY.get();
+    let newY = currentY + info.delta.y;
+
+    // Elastic resistance at boundaries
+    if (newY > 0) {
+      // Pulling down past top - elastic
+      newY = newY * 0.3;
+    } else if (newY < -maxScroll) {
+      // Pulling up past bottom - elastic
+      const overscroll = -maxScroll - newY;
+      newY = -maxScroll - overscroll * 0.3;
+    }
+
+    rawY.set(newY);
+  }, [rawY, maxScroll]);
+
+  // Handle drag end
+  const handleDragEnd = useCallback((_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const currentY = rawY.get();
+    const velocity = info.velocity.y;
+
+    // Apply momentum
+    let targetY = currentY + velocity * 0.2;
+
+    // Clamp to valid range
+    targetY = Math.max(-maxScroll, Math.min(0, targetY));
+
+    rawY.set(targetY);
+  }, [rawY, maxScroll]);
+
+  // Update Navi position periodically
+  useLayoutEffect(() => {
+    if (externalNaviPosition) return;
+
+    let animationId: number;
+    const tick = () => {
+      const newPos = getNaviPosition();
+      if (
+        Math.abs(newPos.x - lastPositionRef.current.x) > 1 ||
+        Math.abs(newPos.y - lastPositionRef.current.y) > 1
+      ) {
+        lastPositionRef.current = newPos;
+        setInternalNaviPosition(newPos);
+      }
+      animationId = requestAnimationFrame(tick);
+    };
+    animationId = requestAnimationFrame(tick);
+
+    return () => cancelAnimationFrame(animationId);
+  }, [externalNaviPosition]);
+
   return (
-      <div className="flex flex-col overflow-hidden flex-1 min-h-0 relative justify-end gap-4">
+    <div className="flex flex-col overflow-hidden flex-1 min-h-0 relative justify-end gap-4">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="px-4 pt-8 pb-4"
+      >
+        <h1 className="text-2xl font-semibold text-white/80 text-center flex-none">
+          Navi
+        </h1>
+      </motion.div>
+
+      {/* Chat messages container */}
+      <div
+        ref={containerRef}
+        className='flex-1 min-h-0 overflow-hidden pb-16'
+        style={{
+          // Fade edges
+          maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
+        }}
+      >
+        {/* Draggable content - only blocks Navi when touching bubbles inside */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="px-4 pt-8 pb-4"
+          ref={contentRef}
+          drag="y"
+          dragMomentum={false}
+          dragElastic={0}
+          onDrag={handleDrag}
+          onDragEnd={handleDragEnd}
+          style={{ y }}
+          className={cn(
+            'flex flex-col gap-3 px-4 py-4 min-h-full justify-end',
+            'cursor-grab active:cursor-grabbing',
+            'touch-none select-none',
+          )}
         >
-          <h1 className="text-2xl font-semibold text-white/80 text-center flex-none">
-            Navi
-          </h1>
-        </motion.div>
-        {/* Chat messages container - flexible height */}
-        <div className='flex-1 min-h-0 flex flex-col'>
-          <div
-            ref={scrollRef}
-            className={cn(
-              'flex-1 w-full',
-              'flex flex-col gap-3 px-4 py-4 overflow-y-auto',
-              'hide-scrollbar overscroll-contain touch-pan-y',
-              'justify-end',
+          <AnimatePresence mode="popLayout">
+            {conversationItems.map((item, index) => (
+              <ChatBubble
+                key={item.id}
+                role={item.role}
+                text={item.text}
+                naviPosition={naviPosition}
+                naviState={naviState}
+                index={index}
+              />
+            ))}
+
+            {/* Show listening indicator when capturing */}
+            {isCapturing && (!currentTurn || !currentTurn.text.trim()) && (
+              <ListeningIndicator key="listening" naviState={naviState} />
             )}
-            style={{
-              // Fade edges instead of hard cut
-              maskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 92%, transparent 100%)',
-              WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 30%, black 92%, transparent 100%)',
-              minHeight: '200px',
-              maxHeight: '100%',
-            }}
-          >
-            <AnimatePresence mode="popLayout">
-              {conversationItems.map((item, index) => (
-                <ChatBubble
-                  key={item.id}
-                  role={item.role}
-                  text={item.text}
-                  naviPosition={naviPosition}
-                  naviState={naviState}
-                  index={index}
-                />
-              ))}
 
-              {/* Show listening indicator when capturing */}
-              {isCapturing && (!currentTurn || !currentTurn.text.trim()) && (
-                <ListeningIndicator key="listening" naviState={naviState} />
-              )}
-
-              {/* Live status bubble (Navi's thinking status) */}
-              {liveStatus && (
-                <StatusBubble
-                  key="live-status"
-                  status={liveStatus}
-                  naviPosition={naviPosition}
-                  naviState={naviState}
-                />
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        {/* Result Cards section - only shown when cards exist */}
-        <AnimatePresence>
-          {hasCards && (
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 30 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="flex-1 max-h-[120px]"
-            >
-              <ResultCards
-                cards={activeCards!}
-                onClose={onCloseCards}
+            {/* Live status bubble */}
+            {liveStatus && (
+              <StatusBubble
+                key="live-status"
+                status={liveStatus}
                 naviPosition={naviPosition}
                 naviState={naviState}
               />
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>
+        </motion.div>
       </div>
+
+      {/* Result Cards section */}
+      <AnimatePresence>
+        {hasCards && (
+          <motion.div
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 30 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="flex-shrink-0 max-h-[120px]"
+          >
+            <ResultCards
+              cards={activeCards!}
+              onDismiss={onDismissCards}
+              naviPosition={naviPosition}
+              naviState={naviState}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

@@ -47,6 +47,7 @@ interface UseGeminiLiveReturn {
   sendText: (text: string) => void;
   clearMessages: () => void;
   clearCards: () => void;
+  removeCard: (index: number) => void;
 }
 
 export function useGeminiLive({
@@ -555,5 +556,6 @@ export function useGeminiLive({
     sendText,
     clearMessages,
     clearCards: () => setActiveCards([]),
+    removeCard: (index: number) => setActiveCards(prev => prev.filter((_, i) => i !== index)),
   };
 }

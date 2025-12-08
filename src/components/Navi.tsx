@@ -507,8 +507,9 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
     // Check if the event target is in a "safe" area (not header or control bar)
     const isInInteractiveArea = (target: EventTarget | null) => {
       if (!target || !(target instanceof Element)) return false;
-      // Check if target is inside header, control bar, button, input, or modal
-      const excluded = target.closest('header, [data-control-bar], button, input, textarea, [role="dialog"], a, [data-interactive]');
+      // Check if target is inside header, control bar, button, input, modal, or draggable chat bubbles
+      // Note: [data-chat-bubble] is draggable for scrolling, [data-result-cards] is draggable for dismiss
+      const excluded = target.closest('header, [data-control-bar], button, input, textarea, [role="dialog"], a, [data-interactive], [data-chat-bubble], [data-result-cards]');
       return !excluded;
     };
 

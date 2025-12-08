@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Mic, Send, Keyboard, Settings, Radio, Fingerprint, Sparkles, FileText, LogOut, X } from 'lucide-react';
+import { Mic, Keyboard, Settings, Radio, Fingerprint, Sparkles, FileText, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { MicMode } from '../utils/constants';
 import type { ConnectionStatus } from '../hooks/useGeminiLive';
 import type { NaviState } from './Navi';
+import { KeyboardInputModal } from './KeyboardInputModal';
 
 // Export radial menu info for Navi positioning
 export interface RadialMenuState {
@@ -56,7 +57,6 @@ export function ControlBar({
   onDisconnect,
   onRadialMenuChange,
 }: ControlBarProps) {
-  const [textInput, setTextInput] = useState('');
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [showRadialMenu, setShowRadialMenu] = useState(false);
   const [selectedButton, setSelectedButton] = useState<string | null>(null);
@@ -117,13 +117,11 @@ export function ControlBar({
     setShowKeyboard(prev => !prev);
   }, []);
 
-  const handleSendText = useCallback(() => {
-    if (textInput.trim() && isConnected) {
-      onSendText(textInput.trim());
-      setTextInput('');
-      setShowKeyboard(false); // Hide keyboard after sending
+  const handleSendText = useCallback((text: string) => {
+    if (text.trim() && isConnected) {
+      onSendText(text.trim());
     }
-  }, [textInput, isConnected, onSendText]);
+  }, [isConnected, onSendText]);
 
   // Calculate which radial button is closest to finger position
   const getClosestButton = useCallback((fingerX: number, fingerY: number) => {
@@ -336,63 +334,15 @@ export function ControlBar({
       style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 20px), 20px)' }}
       data-control-bar>
 
-      {/* Keyboard Mode - Fixed overlay at bottom, doesn't affect layout */}
-      <AnimatePresence>
-        {showKeyboard && (
-          <motion.div
-            initial={{ opacity: 0, y: 100 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 100 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="fixed bottom-0 left-0 right-0 z-[100] px-4"
-            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 16px), 16px)' }}
-          >
-            {/* Extra padding wrapper to push above iOS keyboard */}
-            <div className="mb-[env(keyboard-inset-height,0px)]">
-              <div className="max-w-lg mx-auto relative bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-3 shadow-2xl ring-1 ring-white/5">
-                {/* Close button */}
-                <button
-                  onClick={toggleKeyboard}
-                  className="absolute -top-3 right-3 w-8 h-8 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/20 transition-all z-10"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+      {/* Keyboard Input Modal - Page stays fixed, modal overlays */}
+      <KeyboardInputModal
+        isOpen={showKeyboard}
+        onClose={() => setShowKeyboard(false)}
+        onSend={handleSendText}
+        isConnected={isConnected}
+      />
 
-                {/* Textarea */}
-                <textarea
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendText();
-                    }
-                  }}
-                  placeholder="Type a message..."
-                  disabled={!isConnected}
-                  rows={4}
-                  className="w-full bg-transparent border-none text-white placeholder-white/50 focus:ring-0 px-3 py-2 outline-none font-medium resize-none select-text"
-                />
-
-                {/* Send button */}
-                <div className="flex justify-end mt-2">
-                  <button
-                    onClick={handleSendText}
-                    disabled={!isConnected || !textInput.trim()}
-                    className="px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-all disabled:opacity-30 disabled:scale-100 active:scale-95 flex items-center gap-2"
-                  >
-                    <Send className="w-4 h-4" />
-                    <span className="text-sm font-medium">Send</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Control Buttons Container - Hidden when keyboard is shown */}
-      {!showKeyboard && (
+      {/* Control Buttons Container - Always visible */}
       <div className="flex items-center justify-center glass-button-vars">
 
         {/* Center: Main Action Button with Radial Menu */}
@@ -556,7 +506,6 @@ export function ControlBar({
         </div>
 
       </div>
-      )}
     </div>
   );
 }

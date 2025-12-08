@@ -324,7 +324,7 @@ export function App() {
               currentTurn={currentTurn}
               isCapturing={isCapturing}
               activeCards={activeCards}
-              onCloseCards={clearCards}
+              onDismissCards={clearCards}
               naviState={naviState}
               liveStatus={liveStatus}
             />
