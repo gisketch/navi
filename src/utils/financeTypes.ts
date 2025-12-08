@@ -1,7 +1,7 @@
 /**
  * Finance Types & Mock Data
  * Based on the "Golden Rule" zero-based budgeting system
- * 
+ *
  * Architecture:
  * - Cycles: Time containers (pay periods)
  * - Incomes: Manual money entries (salary, freelance)
@@ -83,7 +83,7 @@ export interface CycleOverview {
 // Mock Data - Toggle with USE_MOCK_DATA
 // ============================================
 
-export const USE_MOCK_DATA = true;
+export const USE_MOCK_DATA = false;
 
 // Current active cycle (Dec 1 - Dec 15)
 export const MOCK_CYCLES: FinancialCycle[] = [
@@ -341,17 +341,17 @@ export function calculateWalletStats(
 ): WalletStats {
   const daysRemaining = getDaysRemaining(cycleEndDate);
   const spent = allocation.total_budget - allocation.current_balance;
-  
+
   // If there's a daily limit, use it; otherwise calculate from remaining balance
-  const dailySafeSpend = allocation.daily_limit 
+  const dailySafeSpend = allocation.daily_limit
     ? Math.min(allocation.daily_limit, Math.floor(allocation.current_balance / Math.max(1, daysRemaining)))
     : Math.floor(allocation.current_balance / Math.max(1, daysRemaining));
-  
+
   // Check if on track: current balance should be >= (days remaining / total days) * total budget
   const totalDays = 14; // Assuming 2-week cycles
   const idealRemaining = (daysRemaining / totalDays) * allocation.total_budget;
   const isOnTrack = allocation.current_balance >= idealRemaining * 0.9; // 10% buffer
-  
+
   return {
     totalBudget: allocation.total_budget,
     currentBalance: allocation.current_balance,
@@ -372,11 +372,11 @@ export function calculateCycleOverview(
   const totalIncome = incomes
     .filter(i => i.is_confirmed)
     .reduce((sum, i) => sum + i.amount, 0);
-  
+
   const totalAllocated = allocations.reduce((sum, a) => sum + a.total_budget, 0);
   const totalSpent = allocations.reduce((sum, a) => sum + (a.total_budget - a.current_balance), 0);
   const unallocated = totalIncome - totalAllocated;
-  
+
   return {
     totalIncome,
     totalAllocated,
@@ -395,25 +395,25 @@ export function generateWalletPaceData(
 ): DailySpendData[] {
   const totalDays = getTotalDays(cycle.start_date, cycle.end_date);
   const dailyIdealDrop = allocation.total_budget / totalDays;
-  
+
   const data: DailySpendData[] = [];
-  
+
   // Filter transactions for this allocation
   const walletTx = transactions.filter(t => t.allocation_id === allocation.id);
-  
+
   // Sort transactions by date
   const sortedTx = [...walletTx].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
-  
+
   for (let day = 0; day <= totalDays; day++) {
     const date = new Date(cycle.start_date);
     date.setDate(date.getDate() + day);
     const dateStr = date.toISOString().split('T')[0];
-    
+
     // Calculate ideal balance (linear drop)
     const idealBalance = allocation.total_budget - (dailyIdealDrop * day);
-    
+
     // Calculate actual balance
     const txUpToDay = sortedTx.filter(tx => {
       const txDate = tx.timestamp.split('T')[0];
@@ -421,41 +421,41 @@ export function generateWalletPaceData(
     });
     const spent = txUpToDay.reduce((sum, tx) => sum + tx.amount, 0);
     const actualBalance = allocation.total_budget - spent;
-    
+
     data.push({
       date: dateStr,
       ideal: Math.round(idealBalance),
       actual: Math.round(actualBalance),
     });
   }
-  
+
   return data;
 }
 
 // Allocation category colors
 export const categoryColors: Record<AllocationCategory, { accent: string; glow: string; bg: string }> = {
-  living: { 
-    accent: 'rgb(52, 211, 153)', 
+  living: {
+    accent: 'rgb(52, 211, 153)',
     glow: 'rgba(52, 211, 153, 0.4)',
     bg: 'rgba(52, 211, 153, 0.1)'
   },
-  play: { 
-    accent: 'rgb(167, 139, 250)', 
+  play: {
+    accent: 'rgb(167, 139, 250)',
     glow: 'rgba(167, 139, 250, 0.4)',
     bg: 'rgba(167, 139, 250, 0.1)'
   },
-  bills: { 
-    accent: 'rgb(96, 165, 250)', 
+  bills: {
+    accent: 'rgb(96, 165, 250)',
     glow: 'rgba(96, 165, 250, 0.4)',
     bg: 'rgba(96, 165, 250, 0.1)'
   },
-  debt: { 
-    accent: 'rgb(251, 191, 36)', 
+  debt: {
+    accent: 'rgb(251, 191, 36)',
     glow: 'rgba(251, 191, 36, 0.4)',
     bg: 'rgba(251, 191, 36, 0.1)'
   },
-  savings: { 
-    accent: 'rgb(34, 211, 238)', 
+  savings: {
+    accent: 'rgb(34, 211, 238)',
     glow: 'rgba(34, 211, 238, 0.4)',
     bg: 'rgba(34, 211, 238, 0.1)'
   },

@@ -6,6 +6,7 @@ import { useGeminiLive } from '../hooks/useGeminiLive';
 import { useAudioCapture } from '../hooks/useAudioCapture';
 import { useAudioPlayback } from '../hooks/useAudioPlayback';
 import { useOvernightSummaries } from '../hooks/useOvernightSummaries';
+import { useFinanceData } from '../hooks/useFinanceData';
 import { ChatUI } from './ChatUI';
 import { ControlBar } from './ControlBar';
 import { SettingsModal } from './SettingsModal';
@@ -13,6 +14,12 @@ import { Dashboard } from './Dashboard';
 import { Finance } from './Finance';
 import { BottomNavBar } from './BottomNavBar';
 import { Sidebar } from './Sidebar';
+import { ExpenseInputModal } from './ExpenseInputModal';
+import { CycleInputModal } from './CycleInputModal';
+import { BudgetTemplateInputModal } from './BudgetTemplateInputModal';
+import { AllocationInputModal } from './AllocationInputModal';
+import type { ExpenseData } from './ExpenseInputModal';
+import type { FinancialCycle, Allocation } from '../utils/financeTypes';
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../utils/constants';
 import type { MicMode } from '../utils/constants';
 import { Navi } from './Navi';
@@ -26,6 +33,10 @@ import { AnimatedBackground } from './AnimatedBackground';
 
 export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
+  const [cycleModalOpen, setCycleModalOpen] = useState(false);
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [allocationModalOpen, setAllocationModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
 
@@ -70,6 +81,74 @@ export function App() {
     isMock,
     refetch: refetchSummaries,
   } = useOvernightSummaries();
+
+  // Finance data hook (for expense modal wallet options)
+  const {
+    activeWallets,
+    cycles,
+    createTransaction,
+    createCycle,
+    createAllocation,
+  } = useFinanceData();
+
+  // Handlers for new modals
+  const handleCycleSubmit = useCallback(async (data: Partial<FinancialCycle>) => {
+    try {
+      await createCycle({
+        name: data.name || 'New Cycle',
+        start_date: data.start_date || new Date().toISOString().split('T')[0],
+        end_date: data.end_date || new Date().toISOString().split('T')[0],
+        status: data.status || 'upcoming',
+      });
+      console.log('[Finance] Cycle created:', data);
+      setCycleModalOpen(false);
+    } catch (err) {
+      console.error('[Finance] Failed to create cycle:', err);
+    }
+  }, [createCycle]);
+
+  const handleTemplateSubmit = useCallback(async (data: { name: string; allocation_rules: Record<string, number> }) => {
+    console.log('[Finance] Template created/updated:', data);
+    // Templates are local-only for now (could store in localStorage or PocketBase later)
+    setTemplateModalOpen(false);
+  }, []);
+
+  const handleAllocationSubmit = useCallback(async (data: Partial<Allocation>) => {
+    try {
+      await createAllocation({
+        name: data.name || 'New Allocation',
+        icon: data.icon || 'wallet',
+        category: data.category || 'living',
+        total_budget: data.total_budget || 0,
+        current_balance: data.total_budget || 0, // Start with full budget
+        is_strict: data.is_strict || false,
+        color: data.color || 'emerald',
+        cycle_id: data.cycle_id || '',
+        daily_limit: data.daily_limit,
+      });
+      console.log('[Finance] Allocation created:', data);
+      setAllocationModalOpen(false);
+    } catch (err) {
+      console.error('[Finance] Failed to create allocation:', err);
+    }
+  }, [createAllocation]);
+
+  // Handle expense submission
+  const handleExpenseSubmit = useCallback(async (data: ExpenseData) => {
+    try {
+      await createTransaction({
+        amount: data.amount,
+        description: data.description || data.category,
+        timestamp: new Date().toISOString(),
+        allocation_id: data.allocation_id,
+        type: 'expense',
+      });
+      console.log('[Finance] Expense logged:', data);
+      setExpenseModalOpen(false);
+    } catch (err) {
+      console.error('[Finance] Failed to log expense:', err);
+    }
+  }, [createTransaction]);
 
   // Mark initial data as loaded when summaries finish loading
   useEffect(() => {
@@ -381,11 +460,42 @@ export function App() {
                 mainButtonContent={getMainButtonIcon()}
                 isMainButtonActive={isConnected}
                 naviPosition={naviPosition}
+                onOpenExpenseModal={() => setExpenseModalOpen(true)}
+                onOpenCycleModal={() => setCycleModalOpen(true)}
+                onOpenTemplateModal={() => setTemplateModalOpen(true)}
+                onOpenAllocationModal={() => setAllocationModalOpen(true)}
               />
             </div>
           )}
         </AnimatePresence>
       </div>
+
+      {/* Expense input modal */}
+      <ExpenseInputModal
+        isOpen={expenseModalOpen}
+        onClose={() => setExpenseModalOpen(false)}
+        onSubmit={handleExpenseSubmit}
+        wallets={activeWallets}
+      />
+
+      <CycleInputModal
+        isOpen={cycleModalOpen}
+        onClose={() => setCycleModalOpen(false)}
+        onSubmit={handleCycleSubmit}
+      />
+
+      <BudgetTemplateInputModal
+        isOpen={templateModalOpen}
+        onClose={() => setTemplateModalOpen(false)}
+        onSubmit={handleTemplateSubmit}
+      />
+
+      <AllocationInputModal
+        isOpen={allocationModalOpen}
+        onClose={() => setAllocationModalOpen(false)}
+        onSubmit={handleAllocationSubmit}
+        cycles={cycles}
+      />
 
       {/* Settings modal */}
       <SettingsModal

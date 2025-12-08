@@ -6,11 +6,11 @@ import { DynamicIcon } from './DynamicIcon';
 import { cn, rounded, glass } from '../utils/glass';
 import type { Allocation, DailySpendData, WalletStats } from '../utils/financeTypes';
 import { allocationColorClasses } from '../utils/financeTypes';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Calendar, 
-  ChevronDown, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Calendar,
+  ChevronDown,
   ChevronUp,
   CheckCircle2,
   Sparkles,
@@ -275,17 +275,17 @@ function PaceGraph({
   entranceDelay: number;
 }) {
   const today = new Date().toISOString().split('T')[0];
-  
+
   // Find the max value for scaling
   const maxValue = Math.max(...data.map(d => Math.max(d.ideal, d.actual)));
-  
+
   // Only show data up to today
   const visibleData = data.filter(d => d.date <= today);
   const todayIndex = visibleData.length - 1;
-  
+
   // Calculate positions for the lines
   const getY = (value: number) => 100 - (value / maxValue) * 100;
-  
+
   // Generate SVG path for smooth lines
   const generatePath = (points: { x: number; y: number }[]) => {
     if (points.length === 0) return '';
@@ -295,20 +295,20 @@ function PaceGraph({
     }
     return path;
   };
-  
+
   const idealPoints = data.map((d, i) => ({
     x: (i / (data.length - 1)) * 100,
     y: getY(d.ideal),
   }));
-  
+
   const actualPoints = visibleData.map((d, i) => ({
     x: (i / (data.length - 1)) * 100,
     y: getY(d.actual),
   }));
-  
+
   const idealPath = generatePath(idealPoints);
   const actualPath = generatePath(actualPoints);
-  
+
   // Current status
   const currentData = visibleData[todayIndex];
   const isAboveIdeal = currentData ? currentData.actual >= currentData.ideal : true;
@@ -567,7 +567,7 @@ export function Finance({ naviPosition }: FinanceProps) {
   const playStats = playWallet ? walletStats.get(playWallet.id) : null;
 
   // Calculate days remaining
-  const daysRemaining = activeCycle 
+  const daysRemaining = activeCycle
     ? Math.max(0, Math.ceil((new Date(activeCycle.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
     : 0;
 
@@ -642,11 +642,11 @@ export function Finance({ naviPosition }: FinanceProps) {
         </header>
 
         {/* Main Content - Scrollable */}
-        <div className="flex-1 min-h-0 overflow-y-auto pb-32 lg:pb-8 hide-scrollbar overscroll-contain lg:col-span-12 lg:grid lg:grid-cols-12 lg:gap-6 lg:overflow-visible">
+        <div className="flex-1 min-h-0 overflow-y-auto pb-32 lg:pb-8 hide-scrollbar overscroll-contain lg:col-span-12 lg:grid lg:grid-cols-12 lg:gap-6">
 
           {/* Left Column: Wallets */}
           <div className="space-y-4 lg:col-span-7 lg:space-y-5">
-            
+
             {/* Living Wallet (Primary) */}
             {livingWallet && livingStats && (
               <WalletCard
@@ -681,7 +681,7 @@ export function Finance({ naviPosition }: FinanceProps) {
 
           {/* Right Column: Overview & Stashed */}
           <div className="mt-4 lg:mt-0 lg:col-span-5 space-y-4">
-            
+
             {/* Cycle Overview */}
             {cycleOverview && (
               <CycleOverviewCard
