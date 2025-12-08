@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, User, Bell, Wallet, PenLine, Calendar, FileJson, Layers, DollarSign } from 'lucide-react';
+import { Home, User, Bell, Wallet, PenLine, Layers, Banknote, CreditCard, Receipt } from 'lucide-react';
 import { calculateProximityGlow, createGlowGradient, cn, glass } from '../utils/glass';
 
 type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
@@ -8,10 +8,10 @@ type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
 // Radial menu configuration - arranged in a semi-circle above the button
 const RADIAL_BUTTONS = [
   { id: 'log-expense', icon: PenLine, angle: 90, label: 'Expense' }, // Top center
-  { id: 'add-income', icon: DollarSign, angle: 135, label: 'Income' }, // Top-left
-  { id: 'new-allocation', icon: Layers, angle: 45, label: 'Wallet' }, // Top-right
-  { id: 'new-cycle', icon: Calendar, angle: 160, label: 'Cycle' }, // Far left
-  { id: 'new-template', icon: FileJson, angle: 20, label: 'Template' }, // Far right
+  { id: 'money-drop', icon: Banknote, angle: 125, label: 'Drop' }, // Top-left
+  { id: 'new-debt', icon: CreditCard, angle: 155, label: 'Debt' }, // Far top-left
+  { id: 'new-allocation', icon: Layers, angle: 55, label: 'Wallet' }, // Top-right
+  { id: 'new-subscription', icon: Receipt, angle: 25, label: 'Bill' }, // Far top-right
 ];
 
 const RADIAL_RADIUS = 90;
@@ -28,10 +28,11 @@ interface BottomNavBarProps {
   onMainButtonPointerUp?: () => void;
   naviPosition?: { x: number; y: number };
   onOpenExpenseModal?: () => void;
-  onOpenCycleModal?: () => void;
+  onOpenMoneyDropModal?: () => void;
   onOpenTemplateModal?: () => void;
   onOpenAllocationModal?: () => void;
-  onOpenIncomeModal?: () => void;
+  onOpenDebtModal?: () => void;
+  onOpenSubscriptionModal?: () => void;
 }
 
 const NAV_ITEMS: { id: NavTab; icon: typeof Home; label: string }[] = [
@@ -50,10 +51,11 @@ export function BottomNavBar({
   isMainButtonActive = false,
   naviPosition,
   onOpenExpenseModal,
-  onOpenCycleModal,
+  onOpenMoneyDropModal,
   onOpenTemplateModal,
   onOpenAllocationModal,
-  onOpenIncomeModal,
+  onOpenDebtModal,
+  onOpenSubscriptionModal,
 }: BottomNavBarProps) {
   const mainButtonRef = useRef<HTMLButtonElement>(null);
   const [glow, setGlow] = useState({ intensity: 0, position: { x: 50, y: 50 } });
@@ -129,11 +131,8 @@ export function BottomNavBar({
       case 'log-expense':
         onOpenExpenseModal?.();
         break;
-      case 'add-income':
-        onOpenIncomeModal?.();
-        break;
-      case 'new-cycle':
-        onOpenCycleModal?.();
+      case 'money-drop':
+        onOpenMoneyDropModal?.();
         break;
       case 'new-template':
         onOpenTemplateModal?.();
@@ -141,10 +140,16 @@ export function BottomNavBar({
       case 'new-allocation':
         onOpenAllocationModal?.();
         break;
+      case 'new-debt':
+        onOpenDebtModal?.();
+        break;
+      case 'new-subscription':
+        onOpenSubscriptionModal?.();
+        break;
       default:
         break;
     }
-  }, [onOpenExpenseModal, onOpenIncomeModal, onOpenCycleModal, onOpenTemplateModal, onOpenAllocationModal]);
+  }, [onOpenExpenseModal, onOpenMoneyDropModal, onOpenTemplateModal, onOpenAllocationModal, onOpenDebtModal, onOpenSubscriptionModal]);
 
   // Handle pointer down
   const handlePointerDown = useCallback((clientX: number, clientY: number) => {

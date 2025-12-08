@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useFinanceData } from '../hooks/useFinanceData';
+import { useFinanceData } from '../contexts/FinanceContext';
 import { GlassContainer } from './Dashboard';
 import { DynamicIcon } from './DynamicIcon';
 import { cn, rounded, glass } from '../utils/glass';
-import type { Allocation, DailySpendData, WalletStats } from '../utils/financeTypes';
+import type { Allocation, DailySpendData, WalletStats, MissionItem } from '../utils/financeTypes';
 import { allocationColorClasses } from '../utils/financeTypes';
 import {
   TrendingUp,
@@ -15,6 +15,9 @@ import {
   CheckCircle2,
   Sparkles,
   AlertTriangle,
+  AlertCircle,
+  CreditCard,
+  Receipt,
 } from 'lucide-react';
 
 interface FinanceProps {
@@ -42,12 +45,14 @@ function WalletCard({
 
   return (
     <motion.div
+      layoutId={`wallet-card-${allocation.id}`}
       initial={{ opacity: 0, y: 30, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{
         delay: entranceDelay,
         duration: 0.5,
         ease: [0.2, 0.8, 0.2, 1],
+        layout: { duration: 0.3 },
       }}
     >
       <GlassContainer
@@ -257,6 +262,111 @@ function CompletedPaymentItem({
       </div>
       <span className="text-sm font-medium text-white/40 line-through">
         ₱{allocation.total_budget.toLocaleString()}
+      </span>
+    </motion.div>
+  );
+}
+
+// ============================================
+// Mission Feed List Item
+// ============================================
+function MissionFeedListItem({
+  item,
+  index,
+  entranceDelay,
+}: {
+  item: MissionItem;
+  index: number;
+  entranceDelay: number;
+}) {
+  const colorClasses = allocationColorClasses[item.allocation.color] || allocationColorClasses.cyan;
+  
+  // Determine icon and status based on mission type
+  const getTypeConfig = () => {
+    switch (item.type) {
+      case 'unassigned':
+        return {
+          icon: <AlertCircle className="w-4 h-4 text-amber-400" />,
+          status: 'Unassigned',
+          statusColor: 'text-amber-400',
+          bgColor: 'bg-amber-500/10 border-amber-500/20',
+        };
+      case 'due-bill':
+        return {
+          icon: <Receipt className="w-4 h-4 text-purple-400" />,
+          status: item.dueDate ? `Due ${new Date(item.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'Due Soon',
+          statusColor: 'text-purple-400',
+          bgColor: 'bg-purple-500/10 border-purple-500/20',
+        };
+      case 'debt-payment':
+        return {
+          icon: <CreditCard className="w-4 h-4 text-red-400" />,
+          status: item.linkedDebt?.remaining_amount 
+            ? `₱${item.linkedDebt.remaining_amount.toLocaleString()} left`
+            : 'Active',
+          statusColor: 'text-red-400',
+          bgColor: 'bg-red-500/10 border-red-500/20',
+        };
+      case 'completed':
+        return {
+          icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />,
+          status: 'Paid',
+          statusColor: 'text-emerald-400',
+          bgColor: 'bg-emerald-500/10 border-emerald-500/20',
+        };
+      default:
+        return {
+          icon: <DynamicIcon name={item.allocation.icon} className={cn('w-4 h-4', colorClasses.text)} />,
+          status: '',
+          statusColor: 'text-white/40',
+          bgColor: `${colorClasses.bg} ${colorClasses.border}`,
+        };
+    }
+  };
+
+  const config = getTypeConfig();
+  const isCompleted = item.type === 'completed';
+
+  return (
+    <motion.div
+      layoutId={`mission-${item.id}`}
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{
+        delay: entranceDelay + index * 0.06,
+        duration: 0.4,
+        ease: [0.2, 0.8, 0.2, 1],
+        layout: { duration: 0.3 },
+      }}
+      className={cn(
+        'flex items-center justify-between p-3 rounded-xl',
+        'bg-white/[0.02] border border-white/[0.05]',
+        isCompleted && 'opacity-60'
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <div className={cn('p-2 rounded-lg border', config.bgColor)}>
+          {config.icon}
+        </div>
+        <div>
+          <span className={cn(
+            'text-sm',
+            isCompleted ? 'text-white/40 line-through' : 'text-white/70'
+          )}>
+            {item.allocation.name}
+          </span>
+          {config.status && (
+            <span className={cn('text-xs ml-2', config.statusColor)}>
+              {config.status}
+            </span>
+          )}
+        </div>
+      </div>
+      <span className={cn(
+        'text-sm font-medium',
+        isCompleted ? 'text-white/30 line-through' : colorClasses.text
+      )}>
+        ₱{item.allocation.current_balance.toLocaleString()}
       </span>
     </motion.div>
   );
@@ -532,12 +642,12 @@ function CollapsibleSection({
 // ============================================
 export function Finance({ naviPosition }: FinanceProps) {
   const {
-    activeCycle,
-    activeWallets,
-    stashedWallets,
-    completedPayments,
+    activeSalaryDrop,
+    livingWallet,
+    playWallet,
+    missionFeed,
     walletStats,
-    cycleOverview,
+    dropSummary,
     livingWalletPaceData,
     isLoading,
     error,
@@ -545,10 +655,16 @@ export function Finance({ naviPosition }: FinanceProps) {
   } = useFinanceData();
 
   const [animationKey, setAnimationKey] = useState(0);
+  const hasAnimatedRef = useRef(false);
 
   // Reset animations when component mounts
   useEffect(() => {
     setAnimationKey((prev) => prev + 1);
+    // Mark as animated after a delay
+    const timer = setTimeout(() => {
+      hasAnimatedRef.current = true;
+    }, 1500); // After all animations complete
+    return () => clearTimeout(timer);
   }, []);
 
   // Animation delays
@@ -556,19 +672,15 @@ export function Finance({ naviPosition }: FinanceProps) {
   const livingWalletDelay = headerDelay + 0.2;
   const playWalletDelay = livingWalletDelay + 0.15;
   const paceDelay = playWalletDelay + 0.15;
-  const overviewDelay = paceDelay + 0.2;
-  const stashedDelay = overviewDelay + 0.2;
-  const completedDelay = stashedDelay + 0.3;
+  const missionDelay = paceDelay + 0.15;
 
-  // Get living and play wallets
-  const livingWallet = activeWallets.find(w => w.category === 'living');
-  const playWallet = activeWallets.find(w => w.category === 'play');
+  // Get wallet stats
   const livingStats = livingWallet ? walletStats.get(livingWallet.id) : null;
   const playStats = playWallet ? walletStats.get(playWallet.id) : null;
 
-  // Calculate days remaining
-  const daysRemaining = activeCycle
-    ? Math.max(0, Math.ceil((new Date(activeCycle.end_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
+  // Calculate days remaining from active salary drop
+  const daysRemaining = activeSalaryDrop?.period_end
+    ? Math.max(0, Math.ceil((new Date(activeSalaryDrop.period_end).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
     : 0;
 
   if (isLoading) {
@@ -586,7 +698,7 @@ export function Finance({ naviPosition }: FinanceProps) {
     );
   }
 
-  if (error || !activeCycle) {
+  if (error || !activeSalaryDrop) {
     return (
       <div className="flex-1 flex items-center justify-center px-5">
         <GlassContainer className="p-6 text-center">
@@ -679,54 +791,36 @@ export function Finance({ naviPosition }: FinanceProps) {
             )}
           </div>
 
-          {/* Right Column: Overview & Stashed */}
+          {/* Right Column: Drop Summary & Mission Feed */}
           <div className="mt-4 lg:mt-0 lg:col-span-5 space-y-4">
 
-            {/* Cycle Overview */}
-            {cycleOverview && (
+            {/* Drop Summary */}
+            {dropSummary && activeSalaryDrop && (
               <CycleOverviewCard
-                cycleName={activeCycle.name}
-                startDate={activeCycle.start_date}
-                endDate={activeCycle.end_date}
-                totalIncome={cycleOverview.totalIncome}
-                totalSpent={cycleOverview.totalSpent}
+                cycleName={activeSalaryDrop.name}
+                startDate={activeSalaryDrop.period_start || activeSalaryDrop.date}
+                endDate={activeSalaryDrop.period_end || activeSalaryDrop.date}
+                totalIncome={dropSummary.totalIncome}
+                totalSpent={dropSummary.totalSpent}
                 daysRemaining={daysRemaining}
                 naviPosition={naviPosition}
-                entranceDelay={overviewDelay}
+                entranceDelay={missionDelay}
               />
             )}
 
-            {/* Stashed Wallets */}
-            {stashedWallets.length > 0 && (
+            {/* Mission Feed */}
+            {missionFeed.length > 0 && (
               <CollapsibleSection
-                title="Stashed Away"
-                defaultOpen={false}
-                entranceDelay={stashedDelay}
+                title="Mission Feed"
+                defaultOpen={true}
+                entranceDelay={missionDelay + 0.2}
               >
-                {stashedWallets.map((wallet, index) => (
-                  <StashedWalletItem
-                    key={wallet.id}
-                    allocation={wallet}
+                {missionFeed.map((item, index) => (
+                  <MissionFeedListItem
+                    key={item.id}
+                    item={item}
                     index={index}
-                    entranceDelay={stashedDelay}
-                  />
-                ))}
-              </CollapsibleSection>
-            )}
-
-            {/* Completed Payments */}
-            {completedPayments.length > 0 && (
-              <CollapsibleSection
-                title="Payments Made"
-                defaultOpen={false}
-                entranceDelay={completedDelay}
-              >
-                {completedPayments.map((payment, index) => (
-                  <CompletedPaymentItem
-                    key={payment.id}
-                    allocation={payment}
-                    index={index}
-                    entranceDelay={completedDelay}
+                    entranceDelay={missionDelay + 0.2}
                   />
                 ))}
               </CollapsibleSection>

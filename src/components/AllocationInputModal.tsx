@@ -12,13 +12,13 @@ import {
     Banknote,
 } from 'lucide-react';
 import { cn, rounded, glass } from '../utils/glass';
-import type { Allocation, FinancialCycle, AllocationCategory } from '../utils/financeTypes';
+import type { Allocation, MoneyDrop, AllocationCategory } from '../utils/financeTypes';
 
 interface AllocationInputModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: (data: Partial<Allocation>) => Promise<void>;
-    cycles: FinancialCycle[]; // Available cycles to link to
+    moneyDrops: MoneyDrop[]; // Available money drops to link to
     initialData?: Allocation | null;
 }
 
@@ -26,11 +26,11 @@ export function AllocationInputModal({
     isOpen,
     onClose,
     onSubmit,
-    cycles,
+    moneyDrops,
     initialData
 }: AllocationInputModalProps) {
     const [name, setName] = useState('');
-    const [cycleId, setCycleId] = useState('');
+    const [moneyDropId, setMoneyDropId] = useState('');
     const [totalBudget, setTotalBudget] = useState<string>('');
     const [type, setType] = useState<AllocationCategory>('living');
     const [isStrict, setIsStrict] = useState(false);
@@ -53,15 +53,16 @@ export function AllocationInputModal({
         if (isOpen) {
             if (initialData) {
                 setName(initialData.name);
-                setCycleId(initialData.cycle_id);
+                setMoneyDropId(initialData.money_drop_id);
                 setTotalBudget(initialData.total_budget.toString());
                 setType(initialData.category);
                 setIsStrict(initialData.is_strict);
             } else {
                 setName('');
-                // Default to active cycle if available, otherwise first upcoming
-                const defaultCycle = cycles.find(c => c.status === 'active') || cycles.find(c => c.status === 'upcoming') || cycles[0];
-                setCycleId(defaultCycle?.id || '');
+                // Default to most recent received money drop
+                const receivedDrops = moneyDrops.filter(d => d.is_received);
+                const defaultDrop = receivedDrops[receivedDrops.length - 1] || moneyDrops[0];
+                setMoneyDropId(defaultDrop?.id || '');
                 setTotalBudget('');
                 setType('living');
                 setIsStrict(false);
@@ -69,11 +70,11 @@ export function AllocationInputModal({
             setError(null);
             setShowSuccess(false);
         }
-    }, [isOpen, initialData, cycles]);
+    }, [isOpen, initialData, moneyDrops]);
 
     const handleSubmit = useCallback(async () => {
-        if (!cycleId) {
-            setError('Please select a cycle');
+        if (!moneyDropId) {
+            setError('Please select a money drop');
             return;
         }
         if (!name.trim()) {
@@ -91,7 +92,7 @@ export function AllocationInputModal({
         try {
             await onSubmit({
                 name: name.trim(),
-                cycle_id: cycleId,
+                money_drop_id: moneyDropId,
                 total_budget: budgetValue,
                 current_balance: budgetValue, // Default balance match budget for new
                 category: type,
@@ -111,7 +112,7 @@ export function AllocationInputModal({
         } finally {
             setIsSubmitting(false);
         }
-    }, [name, cycleId, totalBudget, type, isStrict, initialData, onSubmit, onClose]);
+    }, [name, moneyDropId, totalBudget, type, isStrict, initialData, onSubmit, onClose]);
 
     const CATEGORY_OPTIONS: { id: AllocationCategory; label: string; icon: any }[] = [
         { id: 'living', label: 'Living', icon: Wallet },
@@ -196,22 +197,22 @@ export function AllocationInputModal({
                                     <p className="text-sm text-white/40">Create a wallet for a specific purpose</p>
                                 </div>
 
-                                {/* Cycle Selector */}
+                                {/* Money Drop Selector */}
                                 <div className="space-y-2">
-                                    <label className="text-xs text-white/40 uppercase tracking-wider font-medium">Link to Cycle</label>
+                                    <label className="text-xs text-white/40 uppercase tracking-wider font-medium">Link to Money Drop</label>
                                     <select
-                                        value={cycleId}
-                                        onChange={(e) => setCycleId(e.target.value)}
+                                        value={moneyDropId}
+                                        onChange={(e) => setMoneyDropId(e.target.value)}
                                         className={cn(
                                             'w-full p-3 rounded-lg outline-none appearance-none',
                                             'bg-white/[0.03] border border-white/[0.08] text-white text-sm',
                                             'focus:border-cyan-400/50 transition-all'
                                         )}
                                     >
-                                        <option value="" disabled>Select a cycle...</option>
-                                        {cycles.map((c) => (
-                                            <option key={c.id} value={c.id} className="bg-neutral-900">
-                                                {c.name} ({c.status})
+                                        <option value="" disabled>Select a money drop...</option>
+                                        {moneyDrops.map((d) => (
+                                            <option key={d.id} value={d.id} className="bg-neutral-900">
+                                                {d.name} - ₱{d.amount.toLocaleString()} ({d.type})
                                             </option>
                                         ))}
                                     </select>

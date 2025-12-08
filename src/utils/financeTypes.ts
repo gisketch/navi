@@ -1,11 +1,14 @@
 /**
  * Finance Types & Mock Data
- * Based on the "Golden Rule" zero-based budgeting system
+ * Based on the "Money Drop" zero-based budgeting system
  *
  * Architecture:
- * - Cycles: Time containers (pay periods)
- * - Incomes: Manual money entries (salary, freelance)
- * - Allocations: Virtual wallets/buckets (Living, Play, Bills)
+ * - Money Drops: Source of money (Salary or Extra)
+ *   - Salary Drop: Regular income with period (period_start/end), creates daily budget
+ *   - Extra Drop: One-time income without period, targeted to debts/savings
+ * - Allocations: Virtual wallets/buckets linked to money drops
+ * - Debts: Tracked debts with priority and remaining amounts
+ * - Subscriptions: Recurring bills (utilities, subscriptions, rent)
  * - Transactions: Money leaving wallets
  */
 
@@ -13,28 +16,76 @@
 // Types
 // ============================================
 
-export type CycleStatus = 'upcoming' | 'active' | 'completed';
-// PocketBase uses 'type' with values: wallet, bill, debt, savings
-// We map these to our UI categories
+export type MoneyDropType = 'salary' | 'extra';
 export type AllocationType = 'wallet' | 'bill' | 'debt' | 'savings';
 export type AllocationCategory = 'living' | 'play' | 'bills' | 'debt' | 'savings';
 export type TransactionType = 'expense' | 'transfer' | 'payment';
+export type DebtPriority = 'critical' | 'high' | 'medium' | 'low';
+export type SubscriptionCategory = 'subscription' | 'utility' | 'rent';
 
-export interface FinancialCycle {
+// ============================================
+// Core Interfaces
+// ============================================
+
+/**
+ * Money Drop - Unified concept replacing cycles + incomes
+ * Salary type has period_start/period_end
+ * Extra type targets specific debts/savings
+ */
+export interface MoneyDrop {
   id: string;
   name: string;
-  start_date: string; // ISO date
-  end_date: string; // ISO date
-  status: CycleStatus;
+  amount: number;
+  date: string; // ISO date - when received/expected
+  is_received: boolean; // false = expected, true = received
+  type: MoneyDropType;
+  period_start?: string; // ISO date - only for salary type
+  period_end?: string; // ISO date - only for salary type
 }
 
-export interface Income {
+/**
+ * Debt tracking
+ */
+export interface Debt {
   id: string;
+  name: string;
+  total_amount: number;
+  remaining_amount: number;
+  priority: DebtPriority;
+  due_date?: string; // ISO date - optional
+  notes?: string;
+}
+
+/**
+ * Subscription / Recurring bill
+ */
+export interface Subscription {
+  id: string;
+  name: string;
   amount: number;
-  source: string; // e.g., "Netzon Salary", "Freelance"
-  date_received: string; // ISO date
-  cycle_id: string;
-  is_confirmed: boolean; // false = expected, true = received
+  billing_day: number; // 1-31
+  category: SubscriptionCategory;
+  is_active: boolean;
+}
+
+/**
+ * Budget template for auto-allocations on salary drops
+ */
+export interface BudgetTemplate {
+  id: string;
+  name: string;
+  allocation_rules: AllocationRule[];
+  salary: number; // Base salary this template is designed for
+}
+
+export interface AllocationRule {
+  name: string;
+  type: AllocationType;
+  percentage?: number; // Either percentage or fixed_amount
+  fixed_amount?: number;
+  is_strict: boolean;
+  linked_subscription_id?: string; // For bills
+  linked_debt_id?: string; // For debt payments
 }
 
 // Raw allocation from PocketBase
@@ -45,7 +96,9 @@ export interface AllocationRaw {
   total_budget: number;
   current_balance: number;
   is_strict: boolean;
-  cycle_id: string;
+  money_drop_id: string;
+  linked_debt_id?: string;
+  linked_subscription_id?: string;
 }
 
 // Enriched allocation for UI (with derived fields)
@@ -58,7 +111,9 @@ export interface Allocation {
   current_balance: number;
   is_strict: boolean;
   color: string; // derived from category
-  cycle_id: string;
+  money_drop_id: string;
+  linked_debt_id?: string;
+  linked_subscription_id?: string;
   daily_limit?: number; // calculated, not stored
 }
 
@@ -71,7 +126,10 @@ export interface Transaction {
   type?: TransactionType; // optional since PB doesn't have this
 }
 
-// Computed/derived types
+// ============================================
+// Computed/Derived Types
+// ============================================
+
 export interface DailySpendData {
   date: string;
   ideal: number;
@@ -87,11 +145,26 @@ export interface WalletStats {
   isOnTrack: boolean;
 }
 
-export interface CycleOverview {
+export interface ActiveDropSummary {
   totalIncome: number;
   totalAllocated: number;
   totalSpent: number;
   unallocated: number;
+  daysRemaining: number;
+  dailyBudget: number;
+}
+
+// Mission Feed item types
+export type MissionType = 'unassigned' | 'due-bill' | 'debt-payment' | 'completed';
+
+export interface MissionItem {
+  id: string;
+  type: MissionType;
+  allocation: Allocation;
+  linkedDebt?: Debt;
+  linkedSubscription?: Subscription;
+  dueDate?: string;
+  priority: number; // For sorting: 0 = unassigned, 1 = due soon, 2 = debt, 3 = completed
 }
 
 // ============================================
@@ -134,6 +207,19 @@ export const allocationColorClasses: Record<string, {
     border: 'border-red-500/30',
     glow: 'rgba(248, 113, 113, 0.5)',
   },
+  blue: {
+    text: 'text-blue-400',
+    bg: 'bg-blue-500/20',
+    border: 'border-blue-500/30',
+    glow: 'rgba(96, 165, 250, 0.5)',
+  },
+};
+
+export const priorityColors: Record<DebtPriority, string> = {
+  critical: 'red',
+  high: 'amber',
+  medium: 'cyan',
+  low: 'emerald',
 };
 
 // ============================================
@@ -143,7 +229,7 @@ export const allocationColorClasses: Record<string, {
 // Map PB allocation type to UI category
 function typeToCategory(type: AllocationType): AllocationCategory {
   switch (type) {
-    case 'wallet': return 'living'; // Default wallet = living expenses
+    case 'wallet': return 'living';
     case 'bill': return 'bills';
     case 'debt': return 'debt';
     case 'savings': return 'savings';
@@ -165,7 +251,6 @@ function categoryToColor(category: AllocationCategory): string {
 
 // Map category to default icon
 function categoryToIcon(category: AllocationCategory, name: string): string {
-  // Check name for hints
   const lowerName = name.toLowerCase();
   if (lowerName.includes('play') || lowerName.includes('fun') || lowerName.includes('entertainment')) {
     return 'Gamepad2';
@@ -176,10 +261,12 @@ function categoryToIcon(category: AllocationCategory, name: string): string {
   if (lowerName.includes('transport') || lowerName.includes('gas') || lowerName.includes('commute')) {
     return 'Car';
   }
+  if (lowerName.includes('living') || lowerName.includes('daily')) {
+    return 'ShoppingCart';
+  }
   
-  // Default by category
   switch (category) {
-    case 'living': return 'ShoppingCart';
+    case 'living': return 'Wallet';
     case 'play': return 'Gamepad2';
     case 'bills': return 'Receipt';
     case 'savings': return 'PiggyBank';
@@ -190,7 +277,6 @@ function categoryToIcon(category: AllocationCategory, name: string): string {
 
 // Transform raw PB allocation to enriched UI allocation
 export function transformAllocation(raw: AllocationRaw): Allocation {
-  // Detect if name suggests it's a "play" wallet
   const lowerName = raw.name.toLowerCase();
   const isPlay = lowerName.includes('play') || lowerName.includes('fun') || 
                  lowerName.includes('entertainment') || lowerName.includes('leisure');
@@ -206,11 +292,52 @@ export function transformAllocation(raw: AllocationRaw): Allocation {
     current_balance: raw.current_balance,
     is_strict: raw.is_strict,
     color: categoryToColor(category),
-    cycle_id: raw.cycle_id,
+    money_drop_id: raw.money_drop_id,
+    linked_debt_id: raw.linked_debt_id,
+    linked_subscription_id: raw.linked_subscription_id,
   };
 }
 
-// Transform PB transaction (field name differences)
+// Transform PB money drop
+export function transformMoneyDrop(raw: Record<string, unknown>): MoneyDrop {
+  return {
+    id: raw.id as string,
+    name: (raw.name as string) || 'Unnamed Drop',
+    amount: raw.amount as number,
+    date: ((raw.date as string) || '').split('T')[0],
+    is_received: raw.is_received as boolean ?? false,
+    type: (raw.type as MoneyDropType) || 'salary',
+    period_start: raw.period_start ? ((raw.period_start as string) || '').split('T')[0] : undefined,
+    period_end: raw.period_end ? ((raw.period_end as string) || '').split('T')[0] : undefined,
+  };
+}
+
+// Transform PB debt
+export function transformDebt(raw: Record<string, unknown>): Debt {
+  return {
+    id: raw.id as string,
+    name: (raw.name as string) || 'Unnamed Debt',
+    total_amount: raw.total_amount as number,
+    remaining_amount: raw.remaining_amount as number,
+    priority: (raw.priority as DebtPriority) || 'medium',
+    due_date: raw.due_date ? ((raw.due_date as string) || '').split('T')[0] : undefined,
+    notes: raw.notes as string | undefined,
+  };
+}
+
+// Transform PB subscription
+export function transformSubscription(raw: Record<string, unknown>): Subscription {
+  return {
+    id: raw.id as string,
+    name: (raw.name as string) || 'Unnamed Subscription',
+    amount: raw.amount as number,
+    billing_day: raw.billing_day as number,
+    category: (raw.category as SubscriptionCategory) || 'subscription',
+    is_active: raw.is_active as boolean ?? true,
+  };
+}
+
+// Transform PB transaction
 export function transformTransaction(raw: Record<string, unknown>): Transaction {
   return {
     id: raw.id as string,
@@ -222,27 +349,262 @@ export function transformTransaction(raw: Record<string, unknown>): Transaction 
   };
 }
 
-// Transform PB cycle (dates may need parsing)
-export function transformCycle(raw: Record<string, unknown>): FinancialCycle {
+// Transform PB budget template
+export function transformBudgetTemplate(raw: Record<string, unknown>): BudgetTemplate {
   return {
     id: raw.id as string,
-    name: (raw.name as string) || 'Unnamed Cycle',
-    start_date: ((raw.start_date as string) || '').split('T')[0], // Strip time part
-    end_date: ((raw.end_date as string) || '').split('T')[0],
-    status: (raw.status as CycleStatus) || 'upcoming',
+    name: (raw.name as string) || 'Unnamed Template',
+    allocation_rules: (raw.allocation_rules as AllocationRule[]) || [],
+    salary: raw.salary as number,
   };
 }
 
-// Transform PB income
-export function transformIncome(raw: Record<string, unknown>): Income {
+// ============================================
+// Helper Functions
+// ============================================
+
+/**
+ * Get active salary drop (within period and received)
+ */
+export function getActiveSalaryDrop(drops: MoneyDrop[]): MoneyDrop | null {
+  const today = new Date().toISOString().split('T')[0];
+  
+  return drops.find(drop => 
+    drop.type === 'salary' &&
+    drop.is_received &&
+    drop.period_start &&
+    drop.period_end &&
+    drop.period_start <= today &&
+    today <= drop.period_end
+  ) || null;
+}
+
+/**
+ * Get all active money drops (salary + extras with remaining balance)
+ */
+export function getActiveDrops(
+  drops: MoneyDrop[],
+  allocations: Allocation[]
+): MoneyDrop[] {
+  const today = new Date().toISOString().split('T')[0];
+  
+  return drops.filter(drop => {
+    if (!drop.is_received) return false;
+    
+    if (drop.type === 'salary') {
+      return drop.period_start && drop.period_end &&
+             drop.period_start <= today && today <= drop.period_end;
+    }
+    
+    // Extra drop: active if any allocations have remaining balance
+    const dropAllocations = allocations.filter(a => a.money_drop_id === drop.id);
+    return dropAllocations.some(a => a.current_balance > 0);
+  });
+}
+
+/**
+ * Get allocations for a specific money drop
+ */
+export function getAllocationsForDrop(
+  allocations: Allocation[],
+  dropId: string
+): Allocation[] {
+  return allocations.filter(a => a.money_drop_id === dropId);
+}
+
+/**
+ * Calculate days remaining in a salary drop period
+ */
+export function getDaysRemaining(drop: MoneyDrop): number {
+  if (drop.type !== 'salary' || !drop.period_end) return 0;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const endDate = new Date(drop.period_end);
+  endDate.setHours(0, 0, 0, 0);
+  
+  const diffTime = endDate.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  return Math.max(0, diffDays + 1); // Include today
+}
+
+/**
+ * Calculate wallet stats for an allocation
+ */
+export function calculateWalletStats(
+  allocation: Allocation,
+  drop: MoneyDrop | null
+): WalletStats {
+  const spent = allocation.total_budget - allocation.current_balance;
+  const daysRemaining = drop ? getDaysRemaining(drop) : 1;
+  const dailySafeSpend = daysRemaining > 0 ? allocation.current_balance / daysRemaining : 0;
+  const idealDailySpend = daysRemaining > 0 ? allocation.total_budget / daysRemaining : 0;
+  
   return {
-    id: raw.id as string,
-    amount: raw.amount as number,
-    source: (raw.source as string) || '',
-    date_received: ((raw.date_received as string) || '').split('T')[0],
-    cycle_id: raw.cycle_id as string,
-    is_confirmed: raw.is_confirmed as boolean ?? false,
+    totalBudget: allocation.total_budget,
+    currentBalance: allocation.current_balance,
+    spent,
+    dailySafeSpend: Math.round(dailySafeSpend * 100) / 100,
+    daysRemaining,
+    isOnTrack: dailySafeSpend >= idealDailySpend * 0.8, // Within 20% of ideal
   };
+}
+
+/**
+ * Calculate active drop summary
+ */
+export function calculateDropSummary(
+  drop: MoneyDrop,
+  allocations: Allocation[]
+): ActiveDropSummary {
+  const dropAllocations = allocations.filter(a => a.money_drop_id === drop.id);
+  const totalAllocated = dropAllocations.reduce((sum, a) => sum + a.total_budget, 0);
+  const totalSpent = dropAllocations.reduce((sum, a) => sum + (a.total_budget - a.current_balance), 0);
+  const daysRemaining = getDaysRemaining(drop);
+  const remainingBalance = dropAllocations.reduce((sum, a) => sum + a.current_balance, 0);
+  
+  return {
+    totalIncome: drop.amount,
+    totalAllocated,
+    totalSpent,
+    unallocated: drop.amount - totalAllocated,
+    daysRemaining,
+    dailyBudget: daysRemaining > 0 ? remainingBalance / daysRemaining : 0,
+  };
+}
+
+/**
+ * Generate mission feed from allocations
+ */
+export function generateMissionFeed(
+  allocations: Allocation[],
+  debts: Debt[],
+  subscriptions: Subscription[]
+): MissionItem[] {
+  const missions: MissionItem[] = [];
+  const today = new Date();
+  const currentDay = today.getDate();
+  
+  for (const allocation of allocations) {
+    let mission: MissionItem;
+    
+    // Skip living/play wallets - they appear in hero section
+    if (allocation.category === 'living' || allocation.category === 'play') {
+      continue;
+    }
+    
+    const linkedDebt = allocation.linked_debt_id 
+      ? debts.find(d => d.id === allocation.linked_debt_id) 
+      : undefined;
+    const linkedSubscription = allocation.linked_subscription_id
+      ? subscriptions.find(s => s.id === allocation.linked_subscription_id)
+      : undefined;
+    
+    // Determine mission type
+    if (allocation.current_balance === 0) {
+      // Completed
+      mission = {
+        id: allocation.id,
+        type: 'completed',
+        allocation,
+        linkedDebt,
+        linkedSubscription,
+        priority: 3,
+      };
+    } else if (linkedSubscription) {
+      // Bill - check if due soon
+      const dueDate = new Date(today);
+      dueDate.setDate(linkedSubscription.billing_day);
+      if (linkedSubscription.billing_day < currentDay) {
+        dueDate.setMonth(dueDate.getMonth() + 1);
+      }
+      
+      mission = {
+        id: allocation.id,
+        type: 'due-bill',
+        allocation,
+        linkedSubscription,
+        dueDate: dueDate.toISOString().split('T')[0],
+        priority: 1,
+      };
+    } else if (linkedDebt) {
+      // Debt payment
+      mission = {
+        id: allocation.id,
+        type: 'debt-payment',
+        allocation,
+        linkedDebt,
+        priority: 2,
+      };
+    } else {
+      // Unassigned (savings or other)
+      mission = {
+        id: allocation.id,
+        type: 'unassigned',
+        allocation,
+        priority: 0,
+      };
+    }
+    
+    missions.push(mission);
+  }
+  
+  // Sort by priority
+  return missions.sort((a, b) => a.priority - b.priority);
+}
+
+/**
+ * Generate pace data for wallet visualization
+ */
+export function generateWalletPaceData(
+  allocation: Allocation,
+  transactions: Transaction[],
+  drop: MoneyDrop | null
+): DailySpendData[] {
+  if (!drop || drop.type !== 'salary' || !drop.period_start || !drop.period_end) {
+    return [];
+  }
+  
+  const startDate = new Date(drop.period_start);
+  const endDate = new Date(drop.period_end);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const idealDailySpend = allocation.total_budget / totalDays;
+  
+  // Filter transactions for this allocation
+  const allocationTxns = transactions.filter(t => t.allocation_id === allocation.id);
+  
+  // Build daily spend map
+  const dailySpendMap = new Map<string, number>();
+  for (const txn of allocationTxns) {
+    const date = txn.timestamp.split('T')[0];
+    dailySpendMap.set(date, (dailySpendMap.get(date) || 0) + txn.amount);
+  }
+  
+  // Generate pace data
+  const paceData: DailySpendData[] = [];
+  let cumulativeIdeal = 0;
+  let cumulativeActual = 0;
+  
+  const currentDate = new Date(startDate);
+  while (currentDate <= endDate && currentDate <= today) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    cumulativeIdeal += idealDailySpend;
+    cumulativeActual += dailySpendMap.get(dateStr) || 0;
+    
+    paceData.push({
+      date: dateStr,
+      ideal: Math.round(cumulativeIdeal * 100) / 100,
+      actual: Math.round(cumulativeActual * 100) / 100,
+    });
+    
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return paceData;
 }
 
 // ============================================
@@ -251,55 +613,89 @@ export function transformIncome(raw: Record<string, unknown>): Income {
 
 export const USE_MOCK_DATA = false;
 
-// Current active cycle (Dec 1 - Dec 15)
-export const MOCK_CYCLES: FinancialCycle[] = [
+// Mock Money Drops
+export const MOCK_MONEY_DROPS: MoneyDrop[] = [
   {
-    id: 'cycle-dec-early',
-    name: 'Early December',
-    start_date: '2024-12-01',
-    end_date: '2024-12-14',
-    status: 'active',
+    id: 'drop-salary-dec',
+    name: 'December Salary',
+    amount: 18000,
+    date: '2024-12-01',
+    is_received: true,
+    type: 'salary',
+    period_start: '2024-12-01',
+    period_end: '2024-12-15',
   },
   {
-    id: 'cycle-dec-mid',
-    name: 'Mid-December Run',
-    start_date: '2024-12-15',
-    end_date: '2024-12-29',
-    status: 'upcoming',
-  },
-];
-
-export const MOCK_INCOMES: Income[] = [
-  {
-    id: 'income-1',
-    amount: 15000,
-    source: 'Netzon Salary',
-    date_received: '2024-12-01',
-    cycle_id: 'cycle-dec-early',
-    is_confirmed: true,
-  },
-  {
-    id: 'income-2',
-    amount: 3000,
-    source: 'Freelance Project',
-    date_received: '2024-12-03',
-    cycle_id: 'cycle-dec-early',
-    is_confirmed: true,
+    id: 'drop-bonus',
+    name: 'Holiday Bonus',
+    amount: 5000,
+    date: '2024-12-05',
+    is_received: true,
+    type: 'extra',
   },
 ];
 
+// Mock Debts
+export const MOCK_DEBTS: Debt[] = [
+  {
+    id: 'debt-elp',
+    name: 'Elp',
+    total_amount: 50000,
+    remaining_amount: 35000,
+    priority: 'high',
+    notes: 'Personal loan',
+  },
+  {
+    id: 'debt-sloan',
+    name: 'SLoan',
+    total_amount: 80000,
+    remaining_amount: 65000,
+    priority: 'medium',
+    due_date: '2025-06-01',
+  },
+];
+
+// Mock Subscriptions
+export const MOCK_SUBSCRIPTIONS: Subscription[] = [
+  {
+    id: 'sub-rent',
+    name: 'Rent',
+    amount: 4000,
+    billing_day: 5,
+    category: 'rent',
+    is_active: true,
+  },
+  {
+    id: 'sub-internet',
+    name: 'PLDT Internet',
+    amount: 1500,
+    billing_day: 15,
+    category: 'utility',
+    is_active: true,
+  },
+  {
+    id: 'sub-spotify',
+    name: 'Spotify',
+    amount: 149,
+    billing_day: 10,
+    category: 'subscription',
+    is_active: true,
+  },
+];
+
+// Mock Allocations
 export const MOCK_ALLOCATIONS: Allocation[] = [
-  // Active wallets (shown prominently)
+  // Living wallet from salary drop
   {
     id: 'alloc-living',
     name: 'Living Wallet',
-    icon: 'Utensils',
+    icon: 'ShoppingCart',
     category: 'living',
     total_budget: 5250,
     current_balance: 3150,
     is_strict: true,
     color: 'emerald',
-    cycle_id: 'cycle-dec-early',
+    money_drop_id: 'drop-salary-dec',
     daily_limit: 350,
   },
   {
@@ -307,60 +703,66 @@ export const MOCK_ALLOCATIONS: Allocation[] = [
     name: 'Guilt-Free Play',
     icon: 'Gamepad2',
     category: 'play',
-    total_budget: 3250,
-    current_balance: 2800,
+    total_budget: 2000,
+    current_balance: 1800,
     is_strict: false,
     color: 'violet',
-    cycle_id: 'cycle-dec-early',
+    money_drop_id: 'drop-salary-dec',
   },
-  // Stashed allocations (hidden/collapsed)
+  // Bills from salary drop
   {
     id: 'alloc-rent',
-    name: 'Rent Stash',
+    name: 'Rent',
     icon: 'Home',
     category: 'bills',
     total_budget: 4000,
     current_balance: 4000,
     is_strict: true,
-    color: 'blue',
-    cycle_id: 'cycle-dec-early',
+    color: 'amber',
+    money_drop_id: 'drop-salary-dec',
+    linked_subscription_id: 'sub-rent',
   },
   {
-    id: 'alloc-emergency',
-    name: 'Emergency Fund',
-    icon: 'Shield',
-    category: 'savings',
-    total_budget: 4000,
-    current_balance: 4000,
+    id: 'alloc-internet',
+    name: 'Internet Bill',
+    icon: 'Wifi',
+    category: 'bills',
+    total_budget: 1500,
+    current_balance: 0, // Paid
     is_strict: true,
-    color: 'cyan',
-    cycle_id: 'cycle-dec-early',
+    color: 'amber',
+    money_drop_id: 'drop-salary-dec',
+    linked_subscription_id: 'sub-internet',
   },
-  // Debt payments (shown as completed actions)
+  // Debt payment from salary drop
   {
     id: 'alloc-elp',
     name: 'Pay Elp',
     icon: 'Send',
     category: 'debt',
-    total_budget: 2000,
-    current_balance: 0, // Already sent
-    is_strict: true,
-    color: 'amber',
-    cycle_id: 'cycle-dec-early',
-  },
-  {
-    id: 'alloc-sloan',
-    name: 'SLoan Payment',
-    icon: 'CreditCard',
-    category: 'debt',
-    total_budget: 1500,
-    current_balance: 0, // Already paid
+    total_budget: 3000,
+    current_balance: 0, // Sent
     is_strict: true,
     color: 'red',
-    cycle_id: 'cycle-dec-early',
+    money_drop_id: 'drop-salary-dec',
+    linked_debt_id: 'debt-elp',
+  },
+  // Extra drop allocation for debt
+  {
+    id: 'alloc-bonus-sloan',
+    name: 'Bonus → SLoan',
+    icon: 'CreditCard',
+    category: 'debt',
+    total_budget: 5000,
+    current_balance: 5000, // Not yet paid
+    is_strict: true,
+    color: 'red',
+    money_drop_id: 'drop-bonus',
+    linked_debt_id: 'debt-sloan',
   },
 ];
 
+// Mock Transactions
 export const MOCK_TRANSACTIONS: Transaction[] = [
   {
     id: 'tx-1',
@@ -388,7 +790,7 @@ export const MOCK_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-4',
-    amount: 450,
+    amount: 200,
     description: 'Steam game',
     timestamp: '2024-12-03T20:00:00Z',
     allocation_id: 'alloc-play',
@@ -396,233 +798,34 @@ export const MOCK_TRANSACTIONS: Transaction[] = [
   },
   {
     id: 'tx-5',
-    amount: 180,
-    description: 'Dinner',
-    timestamp: '2024-12-04T19:00:00Z',
-    allocation_id: 'alloc-living',
-    type: 'expense',
-  },
-  {
-    id: 'tx-6',
-    amount: 320,
-    description: 'Coffee & snacks',
-    timestamp: '2024-12-06T14:00:00Z',
-    allocation_id: 'alloc-living',
-    type: 'expense',
-  },
-  {
-    id: 'tx-7',
-    amount: 450,
-    description: 'Grocery run',
-    timestamp: '2024-12-07T11:00:00Z',
-    allocation_id: 'alloc-living',
-    type: 'expense',
-  },
-  {
-    id: 'tx-8',
-    amount: 2000,
-    description: 'Sent to Elp',
-    timestamp: '2024-12-01T10:00:00Z',
-    allocation_id: 'alloc-elp',
+    amount: 1500,
+    description: 'Paid PLDT Internet',
+    timestamp: '2024-12-03T10:00:00Z',
+    allocation_id: 'alloc-internet',
     type: 'payment',
   },
   {
-    id: 'tx-9',
-    amount: 1500,
-    description: 'SLoan Payment',
-    timestamp: '2024-12-01T10:05:00Z',
-    allocation_id: 'alloc-sloan',
+    id: 'tx-6',
+    amount: 3000,
+    description: 'Sent to Elp',
+    timestamp: '2024-12-02T14:00:00Z',
+    allocation_id: 'alloc-elp',
     type: 'payment',
   },
 ];
 
-// ============================================
-// Helper Functions
-// ============================================
-
-/**
- * Get the currently active cycle
- */
-export function getActiveCycle(cycles: FinancialCycle[]): FinancialCycle | null {
-  return cycles.find(c => c.status === 'active') || null;
-}
-
-/**
- * Get allocations for a specific cycle
- */
-export function getAllocationsForCycle(allocations: Allocation[], cycleId: string): Allocation[] {
-  return allocations.filter(a => a.cycle_id === cycleId);
-}
-
-/**
- * Get incomes for a specific cycle
- */
-export function getIncomesForCycle(incomes: Income[], cycleId: string): Income[] {
-  return incomes.filter(i => i.cycle_id === cycleId);
-}
-
-/**
- * Get transactions for a specific allocation
- */
-export function getTransactionsForAllocation(transactions: Transaction[], allocationId: string): Transaction[] {
-  return transactions.filter(t => t.allocation_id === allocationId);
-}
-
-/**
- * Calculate days remaining in a cycle
- */
-export function getDaysRemaining(endDate: string): number {
-  const end = new Date(endDate);
-  const now = new Date();
-  const diff = end.getTime() - now.getTime();
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-}
-
-/**
- * Calculate days elapsed in a cycle
- */
-export function getDaysElapsed(startDate: string): number {
-  const start = new Date(startDate);
-  const now = new Date();
-  const diff = now.getTime() - start.getTime();
-  return Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-}
-
-/**
- * Calculate total days in a cycle
- */
-export function getTotalDays(startDate: string, endDate: string): number {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const diff = end.getTime() - start.getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
-
-/**
- * Calculate wallet stats for an allocation
- */
-export function calculateWalletStats(
-  allocation: Allocation,
-  cycleEndDate: string
-): WalletStats {
-  const daysRemaining = getDaysRemaining(cycleEndDate);
-  const spent = allocation.total_budget - allocation.current_balance;
-
-  // If there's a daily limit, use it; otherwise calculate from remaining balance
-  const dailySafeSpend = allocation.daily_limit
-    ? Math.min(allocation.daily_limit, Math.floor(allocation.current_balance / Math.max(1, daysRemaining)))
-    : Math.floor(allocation.current_balance / Math.max(1, daysRemaining));
-
-  // Check if on track: current balance should be >= (days remaining / total days) * total budget
-  const totalDays = 14; // Assuming 2-week cycles
-  const idealRemaining = (daysRemaining / totalDays) * allocation.total_budget;
-  const isOnTrack = allocation.current_balance >= idealRemaining * 0.9; // 10% buffer
-
-  return {
-    totalBudget: allocation.total_budget,
-    currentBalance: allocation.current_balance,
-    spent,
-    dailySafeSpend,
-    daysRemaining,
-    isOnTrack,
-  };
-}
-
-/**
- * Calculate cycle overview
- */
-export function calculateCycleOverview(
-  incomes: Income[],
-  allocations: Allocation[]
-): CycleOverview {
-  const totalIncome = incomes
-    .filter(i => i.is_confirmed)
-    .reduce((sum, i) => sum + i.amount, 0);
-
-  const totalAllocated = allocations.reduce((sum, a) => sum + a.total_budget, 0);
-  const totalSpent = allocations.reduce((sum, a) => sum + (a.total_budget - a.current_balance), 0);
-  const unallocated = totalIncome - totalAllocated;
-
-  return {
-    totalIncome,
-    totalAllocated,
-    totalSpent,
-    unallocated,
-  };
-}
-
-/**
- * Generate pace data for a wallet
- */
-export function generateWalletPaceData(
-  allocation: Allocation,
-  transactions: Transaction[],
-  cycle: FinancialCycle
-): DailySpendData[] {
-  const totalDays = getTotalDays(cycle.start_date, cycle.end_date);
-  const dailyIdealDrop = allocation.total_budget / totalDays;
-
-  const data: DailySpendData[] = [];
-
-  // Filter transactions for this allocation
-  const walletTx = transactions.filter(t => t.allocation_id === allocation.id);
-
-  // Sort transactions by date
-  const sortedTx = [...walletTx].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  );
-
-  for (let day = 0; day <= totalDays; day++) {
-    const date = new Date(cycle.start_date);
-    date.setDate(date.getDate() + day);
-    const dateStr = date.toISOString().split('T')[0];
-
-    // Calculate ideal balance (linear drop)
-    const idealBalance = allocation.total_budget - (dailyIdealDrop * day);
-
-    // Calculate actual balance
-    const txUpToDay = sortedTx.filter(tx => {
-      const txDate = tx.timestamp.split('T')[0];
-      return txDate <= dateStr;
-    });
-    const spent = txUpToDay.reduce((sum, tx) => sum + tx.amount, 0);
-    const actualBalance = allocation.total_budget - spent;
-
-    data.push({
-      date: dateStr,
-      ideal: Math.round(idealBalance),
-      actual: Math.round(actualBalance),
-    });
-  }
-
-  return data;
-}
-
-// Allocation category colors
-export const categoryColors: Record<AllocationCategory, { accent: string; glow: string; bg: string }> = {
-  living: {
-    accent: 'rgb(52, 211, 153)',
-    glow: 'rgba(52, 211, 153, 0.4)',
-    bg: 'rgba(52, 211, 153, 0.1)'
+// Mock Budget Templates
+export const MOCK_BUDGET_TEMPLATES: BudgetTemplate[] = [
+  {
+    id: 'template-standard',
+    name: 'Standard Bi-Weekly',
+    salary: 18000,
+    allocation_rules: [
+      { name: 'Living Wallet', type: 'wallet', percentage: 30, is_strict: true },
+      { name: 'Guilt-Free Play', type: 'wallet', percentage: 10, is_strict: false },
+      { name: 'Rent', type: 'bill', fixed_amount: 4000, is_strict: true, linked_subscription_id: 'sub-rent' },
+      { name: 'Internet', type: 'bill', fixed_amount: 1500, is_strict: true, linked_subscription_id: 'sub-internet' },
+      { name: 'Pay Elp', type: 'debt', percentage: 15, is_strict: true, linked_debt_id: 'debt-elp' },
+    ],
   },
-  play: {
-    accent: 'rgb(167, 139, 250)',
-    glow: 'rgba(167, 139, 250, 0.4)',
-    bg: 'rgba(167, 139, 250, 0.1)'
-  },
-  bills: {
-    accent: 'rgb(96, 165, 250)',
-    glow: 'rgba(96, 165, 250, 0.4)',
-    bg: 'rgba(96, 165, 250, 0.1)'
-  },
-  debt: {
-    accent: 'rgb(251, 191, 36)',
-    glow: 'rgba(251, 191, 36, 0.4)',
-    bg: 'rgba(251, 191, 36, 0.1)'
-  },
-  savings: {
-    accent: 'rgb(34, 211, 238)',
-    glow: 'rgba(34, 211, 238, 0.4)',
-    bg: 'rgba(34, 211, 238, 0.1)'
-  },
-};
+];

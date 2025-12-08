@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -6,7 +6,7 @@ import { useGeminiLive } from '../hooks/useGeminiLive';
 import { useAudioCapture } from '../hooks/useAudioCapture';
 import { useAudioPlayback } from '../hooks/useAudioPlayback';
 import { useOvernightSummaries } from '../hooks/useOvernightSummaries';
-import { useFinanceData } from '../hooks/useFinanceData';
+import { useFinanceData } from '../contexts/FinanceContext';
 import { ChatUI } from './ChatUI';
 import { ControlBar } from './ControlBar';
 import { SettingsModal } from './SettingsModal';
@@ -15,12 +15,17 @@ import { Finance } from './Finance';
 import { BottomNavBar } from './BottomNavBar';
 import { Sidebar } from './Sidebar';
 import { ExpenseInputModal } from './ExpenseInputModal';
-import { CycleInputModal } from './CycleInputModal';
+import { MoneyDropInputModal } from './MoneyDropInputModal';
 import { BudgetTemplateInputModal } from './BudgetTemplateInputModal';
 import { AllocationInputModal } from './AllocationInputModal';
-import { IncomeInputModal } from './IncomeInputModal';
+import { DebtInputModal } from './DebtInputModal';
+import { SubscriptionInputModal } from './SubscriptionInputModal';
+import { ToastProvider, useToast } from './Toast';
 import type { ExpenseData } from './ExpenseInputModal';
-import type { FinancialCycle, Allocation, Income } from '../utils/financeTypes';
+import type { MoneyDropData } from './MoneyDropInputModal';
+import type { DebtData } from './DebtInputModal';
+import type { SubscriptionData } from './SubscriptionInputModal';
+import type { Allocation } from '../utils/financeTypes';
 import { STORAGE_KEYS, DEFAULT_SETTINGS } from '../utils/constants';
 import type { MicMode } from '../utils/constants';
 import { Navi } from './Navi';
@@ -32,15 +37,28 @@ type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
 
 import { AnimatedBackground } from './AnimatedBackground';
 
+// Main App wrapper with Toast Provider
 export function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
+  );
+}
+
+function AppContent() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
-  const [cycleModalOpen, setCycleModalOpen] = useState(false);
+  const [moneyDropModalOpen, setMoneyDropModalOpen] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [allocationModalOpen, setAllocationModalOpen] = useState(false);
-  const [incomeModalOpen, setIncomeModalOpen] = useState(false);
+  const [debtModalOpen, setDebtModalOpen] = useState(false);
+  const [subscriptionModalOpen, setSubscriptionModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
+
+  // Toast notifications
+  const { showToast } = useToast();
 
   // App mode (dashboard vs chat)
   const [mode, setMode] = useState<AppMode>('dashboard');
@@ -86,35 +104,48 @@ export function App() {
 
   // Finance data hook (for expense modal wallet options)
   const {
-    activeWallets,
-    cycles,
+    livingWallet,
+    playWallet,
+    moneyDrops,
+    budgetTemplates,
     createTransaction,
-    createCycle,
+    createMoneyDrop,
     createAllocation,
-    createIncome,
+    createDebt,
+    createSubscription,
   } = useFinanceData();
 
-  // Handlers for new modals
-  const handleCycleSubmit = useCallback(async (data: Partial<FinancialCycle>) => {
+  // Get active wallets for expense modal (memoized to prevent re-renders)
+  const activeWallets = useMemo(
+    () => [livingWallet, playWallet].filter(Boolean) as Allocation[],
+    [livingWallet, playWallet]
+  );
+
+  // Handlers for Money Drop modal
+  const handleMoneyDropSubmit = useCallback(async (data: MoneyDropData) => {
     try {
-      await createCycle({
-        name: data.name || 'New Cycle',
-        start_date: data.start_date || new Date().toISOString().split('T')[0],
-        end_date: data.end_date || new Date().toISOString().split('T')[0],
-        status: data.status || 'upcoming',
+      await createMoneyDrop({
+        name: data.name,
+        amount: data.amount,
+        date: data.date,
+        is_received: data.is_received,
+        type: data.type,
+        period_start: data.period_start,
+        period_end: data.period_end,
       });
-      console.log('[Finance] Cycle created:', data);
-      setCycleModalOpen(false);
+      showToast(`${data.type === 'salary' ? 'Salary' : 'Extra'} drop created!`, 'success');
+      setMoneyDropModalOpen(false);
     } catch (err) {
-      console.error('[Finance] Failed to create cycle:', err);
+      console.error('[Finance] Failed to create money drop:', err);
+      showToast('Failed to create money drop', 'error');
     }
-  }, [createCycle]);
+  }, [createMoneyDrop, showToast]);
 
   const handleTemplateSubmit = useCallback(async (data: { name: string; allocation_rules: Record<string, number> }) => {
-    console.log('[Finance] Template created/updated:', data);
     // Templates are local-only for now (could store in localStorage or PocketBase later)
+    showToast('Template saved!', 'success');
     setTemplateModalOpen(false);
-  }, []);
+  }, [showToast]);
 
   const handleAllocationSubmit = useCallback(async (data: Partial<Allocation>) => {
     try {
@@ -126,43 +157,71 @@ export function App() {
         current_balance: data.total_budget || 0, // Start with full budget
         is_strict: data.is_strict || false,
         color: data.color || 'emerald',
-        cycle_id: data.cycle_id || '',
+        money_drop_id: data.money_drop_id || '',
         daily_limit: data.daily_limit,
       });
-      console.log('[Finance] Allocation created:', data);
+      showToast('Allocation created!', 'success');
       setAllocationModalOpen(false);
     } catch (err) {
       console.error('[Finance] Failed to create allocation:', err);
+      showToast('Failed to create allocation', 'error');
     }
-  }, [createAllocation]);
+  }, [createAllocation, showToast]);
 
   // Handle expense submission
   const handleExpenseSubmit = useCallback(async (data: ExpenseData) => {
     try {
       await createTransaction({
         amount: data.amount,
-        description: data.description || data.category,
+        description: data.description || 'Expense',
         timestamp: new Date().toISOString(),
         allocation_id: data.allocation_id,
         type: 'expense',
       });
-      console.log('[Finance] Expense logged:', data);
+      showToast(`Logged ₱${data.amount.toLocaleString()}`, 'success');
       setExpenseModalOpen(false);
     } catch (err) {
       console.error('[Finance] Failed to log expense:', err);
+      showToast('Failed to log expense', 'error');
     }
-  }, [createTransaction]);
+  }, [createTransaction, showToast]);
 
-  // Handle income submission
-  const handleIncomeSubmit = useCallback(async (data: Omit<Income, 'id'>) => {
+  // Handle debt submission
+  const handleDebtSubmit = useCallback(async (data: DebtData) => {
     try {
-      await createIncome(data);
-      console.log('[Finance] Income added:', data);
-      setIncomeModalOpen(false);
+      await createDebt({
+        name: data.name,
+        total_amount: data.total_amount,
+        remaining_amount: data.remaining_amount,
+        priority: data.priority,
+        due_date: data.due_date,
+        notes: data.notes,
+      });
+      showToast(`Debt "${data.name}" added`, 'success');
+      setDebtModalOpen(false);
     } catch (err) {
-      console.error('[Finance] Failed to add income:', err);
+      console.error('[Finance] Failed to create debt:', err);
+      showToast('Failed to add debt', 'error');
     }
-  }, [createIncome]);
+  }, [createDebt, showToast]);
+
+  // Handle subscription submission
+  const handleSubscriptionSubmit = useCallback(async (data: SubscriptionData) => {
+    try {
+      await createSubscription({
+        name: data.name,
+        amount: data.amount,
+        billing_day: data.billing_day,
+        category: data.category,
+        is_active: data.is_active,
+      });
+      showToast(`"${data.name}" subscription added`, 'success');
+      setSubscriptionModalOpen(false);
+    } catch (err) {
+      console.error('[Finance] Failed to create subscription:', err);
+      showToast('Failed to add subscription', 'error');
+    }
+  }, [createSubscription, showToast]);
 
   // Mark initial data as loaded when summaries finish loading
   useEffect(() => {
@@ -475,10 +534,11 @@ export function App() {
                 isMainButtonActive={isConnected}
                 naviPosition={naviPosition}
                 onOpenExpenseModal={() => setExpenseModalOpen(true)}
-                onOpenCycleModal={() => setCycleModalOpen(true)}
+                onOpenMoneyDropModal={() => setMoneyDropModalOpen(true)}
                 onOpenTemplateModal={() => setTemplateModalOpen(true)}
                 onOpenAllocationModal={() => setAllocationModalOpen(true)}
-                onOpenIncomeModal={() => setIncomeModalOpen(true)}
+                onOpenDebtModal={() => setDebtModalOpen(true)}
+                onOpenSubscriptionModal={() => setSubscriptionModalOpen(true)}
               />
             </div>
           )}
@@ -493,10 +553,12 @@ export function App() {
         wallets={activeWallets}
       />
 
-      <CycleInputModal
-        isOpen={cycleModalOpen}
-        onClose={() => setCycleModalOpen(false)}
-        onSubmit={handleCycleSubmit}
+      {/* Money Drop input modal */}
+      <MoneyDropInputModal
+        isOpen={moneyDropModalOpen}
+        onClose={() => setMoneyDropModalOpen(false)}
+        onSubmit={handleMoneyDropSubmit}
+        budgetTemplates={budgetTemplates}
       />
 
       <BudgetTemplateInputModal
@@ -509,14 +571,21 @@ export function App() {
         isOpen={allocationModalOpen}
         onClose={() => setAllocationModalOpen(false)}
         onSubmit={handleAllocationSubmit}
-        cycles={cycles}
+        moneyDrops={moneyDrops}
       />
 
-      <IncomeInputModal
-        isOpen={incomeModalOpen}
-        onClose={() => setIncomeModalOpen(false)}
-        onSubmit={handleIncomeSubmit}
-        cycles={cycles}
+      {/* Debt input modal */}
+      <DebtInputModal
+        isOpen={debtModalOpen}
+        onClose={() => setDebtModalOpen(false)}
+        onSubmit={handleDebtSubmit}
+      />
+
+      {/* Subscription input modal */}
+      <SubscriptionInputModal
+        isOpen={subscriptionModalOpen}
+        onClose={() => setSubscriptionModalOpen(false)}
+        onSubmit={handleSubscriptionSubmit}
       />
 
       {/* Settings modal */}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import type {
   MoneyDrop,
   Debt,
@@ -36,7 +36,7 @@ import {
 } from '../utils/financeTypes';
 import { pb } from '../utils/pocketbase';
 
-interface UseFinanceDataReturn {
+interface FinanceContextType {
   // Core Data
   moneyDrops: MoneyDrop[];
   debts: Debt[];
@@ -73,13 +73,28 @@ interface UseFinanceDataReturn {
   createSubscription: (data: Omit<Subscription, 'id'>) => Promise<Subscription>;
   updateAllocationBalance: (id: string, newBalance: number) => Promise<void>;
   updateDebtRemaining: (id: string, newRemaining: number) => Promise<void>;
+  updateDebt: (id: string, data: Partial<Debt>) => Promise<void>;
+  updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
+  updateMoneyDrop: (id: string, data: Partial<MoneyDrop>) => Promise<void>;
+  updateAllocation: (id: string, data: Partial<Allocation>) => Promise<void>;
+  deleteDebt: (id: string) => Promise<void>;
+  deleteSubscription: (id: string) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
+  deleteAllocation: (id: string) => Promise<void>;
+  deleteMoneyDrop: (id: string) => Promise<void>;
 }
 
-/**
- * Hook for managing finance data with the "Money Drop" system
- * Toggle USE_MOCK_DATA in financeTypes.ts to switch between mock and real data
- */
-export function useFinanceData(): UseFinanceDataReturn {
+const FinanceContext = createContext<FinanceContextType | null>(null);
+
+export function useFinanceData(): FinanceContextType {
+  const context = useContext(FinanceContext);
+  if (!context) {
+    throw new Error('useFinanceData must be used within a FinanceProvider');
+  }
+  return context;
+}
+
+export function FinanceProvider({ children }: { children: ReactNode }) {
   const [moneyDrops, setMoneyDrops] = useState<MoneyDrop[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -96,9 +111,7 @@ export function useFinanceData(): UseFinanceDataReturn {
 
     try {
       if (USE_MOCK_DATA) {
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 500));
-
+        await new Promise(resolve => setTimeout(resolve, 300));
         setMoneyDrops(MOCK_MONEY_DROPS);
         setDebts(MOCK_DEBTS);
         setSubscriptions(MOCK_SUBSCRIPTIONS);
@@ -106,7 +119,6 @@ export function useFinanceData(): UseFinanceDataReturn {
         setTransactions(MOCK_TRANSACTIONS);
         setBudgetTemplates(MOCK_BUDGET_TEMPLATES);
       } else {
-        // Fetch from PocketBase - disable auto-cancel with requestKey: null
         const [dropsRes, debtsRes, subsRes, allocRes, txnsRes, templatesRes] = await Promise.all([
           pb.collection('money_drops').getFullList({ requestKey: null }),
           pb.collection('debts').getFullList({ requestKey: null }),
@@ -116,7 +128,6 @@ export function useFinanceData(): UseFinanceDataReturn {
           pb.collection('budget_templates').getFullList({ requestKey: null }),
         ]);
 
-        // Transform PocketBase responses
         setMoneyDrops(dropsRes.map(r => transformMoneyDrop(r as Record<string, unknown>)));
         setDebts(debtsRes.map(r => transformDebt(r as Record<string, unknown>)));
         setSubscriptions(subsRes.map(r => transformSubscription(r as Record<string, unknown>)));
@@ -125,9 +136,7 @@ export function useFinanceData(): UseFinanceDataReturn {
         setBudgetTemplates(templatesRes.map(r => transformBudgetTemplate(r as Record<string, unknown>)));
       }
     } catch (err) {
-      // Ignore auto-cancellation errors
       if (err instanceof Error && err.message.includes('autocancelled')) {
-        console.log('[Finance] Request was autocancelled, ignoring...');
         setIsLoading(false);
         return;
       }
@@ -137,63 +146,50 @@ export function useFinanceData(): UseFinanceDataReturn {
     }
   }, []);
 
-  // Initial fetch
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Get active salary drop (within period and received)
+  // Computed values
   const activeSalaryDrop = useMemo(() => getActiveSalaryDrop(moneyDrops), [moneyDrops]);
-
-  // Get all active drops (salary + extras with remaining balance)
   const activeDrops = useMemo(() => getActiveDrops(moneyDrops, allocations), [moneyDrops, allocations]);
 
-  // Get allocations for active salary drop
   const salaryDropAllocations = useMemo(() => {
     if (!activeSalaryDrop) return [];
     return getAllocationsForDrop(allocations, activeSalaryDrop.id);
   }, [allocations, activeSalaryDrop]);
 
-  // Living wallet (from active salary drop)
   const livingWallet = useMemo(() => {
     return salaryDropAllocations.find(a => a.category === 'living') || null;
   }, [salaryDropAllocations]);
 
-  // Play wallet (from active salary drop)
   const playWallet = useMemo(() => {
     return salaryDropAllocations.find(a => a.category === 'play') || null;
   }, [salaryDropAllocations]);
 
-  // Mission feed (all allocations from all active drops, excluding living/play)
   const missionFeed = useMemo(() => {
-    // Get all allocations from all active drops
     const allActiveAllocations = activeDrops.flatMap(drop => 
       getAllocationsForDrop(allocations, drop.id)
     );
     return generateMissionFeed(allActiveAllocations, debts, subscriptions);
   }, [activeDrops, allocations, debts, subscriptions]);
 
-  // Calculate wallet stats for living/play wallets
   const walletStats = useMemo(() => {
     const stats = new Map<string, WalletStats>();
-    
     if (livingWallet && activeSalaryDrop) {
       stats.set(livingWallet.id, calculateWalletStats(livingWallet, activeSalaryDrop));
     }
     if (playWallet && activeSalaryDrop) {
       stats.set(playWallet.id, calculateWalletStats(playWallet, activeSalaryDrop));
     }
-    
     return stats;
   }, [livingWallet, playWallet, activeSalaryDrop]);
 
-  // Calculate drop summary
   const dropSummary = useMemo(() => {
     if (!activeSalaryDrop) return null;
     return calculateDropSummary(activeSalaryDrop, allocations);
   }, [activeSalaryDrop, allocations]);
 
-  // Generate pace data for living wallet
   const livingWalletPaceData = useMemo(() => {
     if (!livingWallet || !activeSalaryDrop) return [];
     return generateWalletPaceData(livingWallet, transactions, activeSalaryDrop);
@@ -203,37 +199,26 @@ export function useFinanceData(): UseFinanceDataReturn {
   // Mutation Actions
   // ============================================
 
-  // Create a new transaction
   const createTransaction = useCallback(async (data: Omit<Transaction, 'id'>): Promise<Transaction> => {
     if (USE_MOCK_DATA) {
-      const newTransaction: Transaction = {
-        ...data,
-        id: `txn-${Date.now()}`,
-      };
+      const newTransaction: Transaction = { ...data, id: `txn-${Date.now()}` };
       setTransactions(prev => [...prev, newTransaction]);
-      
-      // Update allocation balance
       setAllocations(prev => prev.map(a => 
         a.id === data.allocation_id 
           ? { ...a, current_balance: a.current_balance - data.amount }
           : a
       ));
-      
       return newTransaction;
     }
     
-    // Real: create in PocketBase
     const pbData = {
       amount: data.amount,
       description: data.description,
       transaction_date: data.timestamp,
       allocation_id: data.allocation_id,
     };
-    const record = await pb.collection('transactions').create(pbData, {
-      requestKey: null,
-    });
+    const record = await pb.collection('transactions').create(pbData, { requestKey: null });
     
-    // Update allocation balance
     const allocation = allocations.find(a => a.id === data.allocation_id);
     if (allocation) {
       await pb.collection('allocations').update(data.allocation_id, {
@@ -245,160 +230,192 @@ export function useFinanceData(): UseFinanceDataReturn {
     return transformTransaction(record as Record<string, unknown>);
   }, [allocations, fetchData]);
 
-  // Create a new money drop
   const createMoneyDrop = useCallback(async (data: Omit<MoneyDrop, 'id'>): Promise<MoneyDrop> => {
     if (USE_MOCK_DATA) {
-      const newDrop: MoneyDrop = {
-        ...data,
-        id: `drop-${Date.now()}`,
-      };
+      const newDrop: MoneyDrop = { ...data, id: `drop-${Date.now()}` };
       setMoneyDrops(prev => [...prev, newDrop]);
       return newDrop;
     }
     
-    const record = await pb.collection('money_drops').create(data, {
-      requestKey: null,
-    });
+    const record = await pb.collection('money_drops').create(data, { requestKey: null });
     await fetchData();
     return transformMoneyDrop(record as Record<string, unknown>);
   }, [fetchData]);
 
-  // Create a new allocation
   const createAllocation = useCallback(async (data: Omit<Allocation, 'id'>): Promise<Allocation> => {
     if (USE_MOCK_DATA) {
-      const newAllocation: Allocation = {
-        ...data,
-        id: `alloc-${Date.now()}`,
-      };
+      const newAllocation: Allocation = { ...data, id: `alloc-${Date.now()}` };
       setAllocations(prev => [...prev, newAllocation]);
       return newAllocation;
     }
     
-    // Map category back to PB type
     const categoryToType = (cat: string): string => {
       switch (cat) {
-        case 'living':
-        case 'play': return 'wallet';
-        case 'bills': return 'bill';
+        case 'living': case 'play': return 'wallet';
+        case 'bill': return 'bill';
         case 'debt': return 'debt';
         case 'savings': return 'savings';
         default: return 'wallet';
       }
     };
-    
+
     const pbData = {
       name: data.name,
-      type: categoryToType(data.category),
       total_budget: data.total_budget,
       current_balance: data.current_balance,
-      is_strict: data.is_strict,
-      money_drop_id: data.money_drop_id,
-      linked_debt_id: data.linked_debt_id,
-      linked_subscription_id: data.linked_subscription_id,
+      is_strict: data.is_strict || false,
+      type: categoryToType(data.category),
+      money_drop_id: data.money_drop_id || null,
+      linked_debt_id: data.linked_debt_id || null,
+      linked_subscription_id: data.linked_subscription_id || null,
     };
     
-    const record = await pb.collection('allocations').create(pbData, {
-      requestKey: null,
-    });
+    const record = await pb.collection('allocations').create(pbData, { requestKey: null });
     await fetchData();
     return transformAllocation(record as unknown as AllocationRaw);
   }, [fetchData]);
 
-  // Create a new debt
   const createDebt = useCallback(async (data: Omit<Debt, 'id'>): Promise<Debt> => {
     if (USE_MOCK_DATA) {
-      const newDebt: Debt = {
-        ...data,
-        id: `debt-${Date.now()}`,
-      };
+      const newDebt: Debt = { ...data, id: `debt-${Date.now()}` };
       setDebts(prev => [...prev, newDebt]);
       return newDebt;
     }
     
-    const record = await pb.collection('debts').create(data, {
-      requestKey: null,
-    });
+    const record = await pb.collection('debts').create(data, { requestKey: null });
     await fetchData();
     return transformDebt(record as Record<string, unknown>);
   }, [fetchData]);
 
-  // Create a new subscription
   const createSubscription = useCallback(async (data: Omit<Subscription, 'id'>): Promise<Subscription> => {
     if (USE_MOCK_DATA) {
-      const newSub: Subscription = {
-        ...data,
-        id: `sub-${Date.now()}`,
-      };
+      const newSub: Subscription = { ...data, id: `sub-${Date.now()}` };
       setSubscriptions(prev => [...prev, newSub]);
       return newSub;
     }
     
-    const record = await pb.collection('subscriptions').create(data, {
-      requestKey: null,
-    });
+    const record = await pb.collection('subscriptions').create(data, { requestKey: null });
     await fetchData();
     return transformSubscription(record as Record<string, unknown>);
   }, [fetchData]);
 
-  // Update allocation balance (for payments)
   const updateAllocationBalance = useCallback(async (id: string, newBalance: number): Promise<void> => {
     if (USE_MOCK_DATA) {
-      setAllocations(prev => prev.map(a => 
-        a.id === id ? { ...a, current_balance: newBalance } : a
-      ));
+      setAllocations(prev => prev.map(a => a.id === id ? { ...a, current_balance: newBalance } : a));
       return;
     }
-    
-    await pb.collection('allocations').update(id, {
-      current_balance: newBalance,
-    }, { requestKey: null });
+    await pb.collection('allocations').update(id, { current_balance: newBalance }, { requestKey: null });
     await fetchData();
   }, [fetchData]);
 
-  // Update debt remaining amount (for payments)
   const updateDebtRemaining = useCallback(async (id: string, newRemaining: number): Promise<void> => {
     if (USE_MOCK_DATA) {
-      setDebts(prev => prev.map(d => 
-        d.id === id ? { ...d, remaining_amount: newRemaining } : d
-      ));
+      setDebts(prev => prev.map(d => d.id === id ? { ...d, remaining_amount: newRemaining } : d));
       return;
     }
-    
-    await pb.collection('debts').update(id, {
-      remaining_amount: newRemaining,
-    }, { requestKey: null });
+    await pb.collection('debts').update(id, { remaining_amount: newRemaining }, { requestKey: null });
     await fetchData();
   }, [fetchData]);
 
-  return {
-    // Core Data
+  const updateDebt = useCallback(async (id: string, data: Partial<Debt>): Promise<void> => {
+    if (USE_MOCK_DATA) {
+      setDebts(prev => prev.map(d => d.id === id ? { ...d, ...data } : d));
+      return;
+    }
+    await pb.collection('debts').update(id, data, { requestKey: null });
+    await fetchData();
+  }, [fetchData]);
+
+  const updateSubscription = useCallback(async (id: string, data: Partial<Subscription>): Promise<void> => {
+    if (USE_MOCK_DATA) {
+      setSubscriptions(prev => prev.map(s => s.id === id ? { ...s, ...data } : s));
+      return;
+    }
+    await pb.collection('subscriptions').update(id, data, { requestKey: null });
+    await fetchData();
+  }, [fetchData]);
+
+  const updateMoneyDrop = useCallback(async (id: string, data: Partial<MoneyDrop>): Promise<void> => {
+    if (USE_MOCK_DATA) {
+      setMoneyDrops(prev => prev.map(d => d.id === id ? { ...d, ...data } : d));
+      return;
+    }
+    await pb.collection('money_drops').update(id, data, { requestKey: null });
+    await fetchData();
+  }, [fetchData]);
+
+  const updateAllocation = useCallback(async (id: string, data: Partial<Allocation>): Promise<void> => {
+    if (USE_MOCK_DATA) {
+      setAllocations(prev => prev.map(a => a.id === id ? { ...a, ...data } : a));
+      return;
+    }
+    await pb.collection('allocations').update(id, data, { requestKey: null });
+    await fetchData();
+  }, [fetchData]);
+
+  const deleteDebt = useCallback(async (id: string): Promise<void> => {
+    if (USE_MOCK_DATA) {
+      setDebts(prev => prev.filter(d => d.id !== id));
+      return;
+    }
+    await pb.collection('debts').delete(id, { requestKey: null });
+    await fetchData();
+  }, [fetchData]);
+
+  const deleteSubscription = useCallback(async (id: string): Promise<void> => {
+    if (USE_MOCK_DATA) {
+      setSubscriptions(prev => prev.filter(s => s.id !== id));
+      return;
+    }
+    await pb.collection('subscriptions').delete(id, { requestKey: null });
+    await fetchData();
+  }, [fetchData]);
+
+  const deleteTransaction = useCallback(async (id: string): Promise<void> => {
+    if (USE_MOCK_DATA) {
+      setTransactions(prev => prev.filter(t => t.id !== id));
+      return;
+    }
+    await pb.collection('transactions').delete(id, { requestKey: null });
+    await fetchData();
+  }, [fetchData]);
+
+  const deleteAllocation = useCallback(async (id: string): Promise<void> => {
+    if (USE_MOCK_DATA) {
+      setAllocations(prev => prev.filter(a => a.id !== id));
+      return;
+    }
+    await pb.collection('allocations').delete(id, { requestKey: null });
+    await fetchData();
+  }, [fetchData]);
+
+  const deleteMoneyDrop = useCallback(async (id: string): Promise<void> => {
+    if (USE_MOCK_DATA) {
+      setMoneyDrops(prev => prev.filter(d => d.id !== id));
+      return;
+    }
+    await pb.collection('money_drops').delete(id, { requestKey: null });
+    await fetchData();
+  }, [fetchData]);
+
+  const value: FinanceContextType = {
     moneyDrops,
     debts,
     subscriptions,
     allocations,
     transactions,
     budgetTemplates,
-    
-    // Active State
     activeSalaryDrop,
     activeDrops,
-    
-    // Allocation Categories
     livingWallet,
     playWallet,
     missionFeed,
-    
-    // Stats
     walletStats,
     dropSummary,
     livingWalletPaceData,
-    
-    // State
     isLoading,
     error,
     isMock: USE_MOCK_DATA,
-    
-    // Actions
     refetch: fetchData,
     createTransaction,
     createMoneyDrop,
@@ -407,5 +424,20 @@ export function useFinanceData(): UseFinanceDataReturn {
     createSubscription,
     updateAllocationBalance,
     updateDebtRemaining,
+    updateDebt,
+    updateSubscription,
+    updateMoneyDrop,
+    updateAllocation,
+    deleteDebt,
+    deleteSubscription,
+    deleteTransaction,
+    deleteAllocation,
+    deleteMoneyDrop,
   };
+
+  return (
+    <FinanceContext.Provider value={value}>
+      {children}
+    </FinanceContext.Provider>
+  );
 }

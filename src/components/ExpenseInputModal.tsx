@@ -2,12 +2,6 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
-  Utensils, 
-  Car, 
-  Coffee, 
-  ShoppingBag, 
-  Gamepad2, 
-  Receipt,
   Sparkles,
   Check,
   AlertCircle,
@@ -27,18 +21,7 @@ export interface ExpenseData {
   amount: number;
   description: string;
   allocation_id: string;
-  category: string;
 }
-
-// Quick category suggestions
-const QUICK_CATEGORIES = [
-  { id: 'food', icon: Utensils, label: 'Food', keywords: ['lunch', 'dinner', 'breakfast', 'meal', 'eat', 'food', 'rice', 'ulam'] },
-  { id: 'transpo', icon: Car, label: 'Transpo', keywords: ['grab', 'taxi', 'jeep', 'bus', 'mrt', 'lrt', 'transpo', 'fare', 'gas', 'fuel'] },
-  { id: 'coffee', icon: Coffee, label: 'Coffee', keywords: ['coffee', 'starbucks', 'sb', 'kape', 'cafe'] },
-  { id: 'shopping', icon: ShoppingBag, label: 'Shopping', keywords: ['shop', 'buy', 'bought', 'lazada', 'shopee'] },
-  { id: 'gaming', icon: Gamepad2, label: 'Gaming', keywords: ['game', 'steam', 'load', 'topup', 'mobile legends', 'ml'] },
-  { id: 'misc', icon: Receipt, label: 'Other', keywords: [] },
-];
 
 export function ExpenseInputModal({
   isOpen,
@@ -49,7 +32,6 @@ export function ExpenseInputModal({
   const [input, setInput] = useState('');
   const [parsedAmount, setParsedAmount] = useState<number | null>(null);
   const [parsedDescription, setParsedDescription] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,14 +51,14 @@ export function ExpenseInputModal({
       setInput('');
       setParsedAmount(null);
       setParsedDescription('');
-      setSelectedCategory(null);
       setError(null);
       setShowSuccess(false);
       // Default to living wallet if available
       const livingWallet = wallets.find(w => w.category === 'living');
       setSelectedWallet(livingWallet?.id || wallets[0]?.id || null);
     }
-  }, [isOpen, wallets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]); // Only reset when modal opens, not when wallets change
 
   // Parse input as user types (e.g., "150 lunch" or "lunch 150")
   const parseInput = useCallback((value: string) => {
@@ -86,7 +68,6 @@ export function ExpenseInputModal({
     if (!value.trim()) {
       setParsedAmount(null);
       setParsedDescription('');
-      setSelectedCategory(null);
       return;
     }
 
@@ -109,22 +90,7 @@ export function ExpenseInputModal({
 
     setParsedAmount(amount);
     setParsedDescription(description);
-
-    // Auto-detect category from description
-    if (description) {
-      const lowerDesc = description.toLowerCase();
-      for (const cat of QUICK_CATEGORIES) {
-        if (cat.keywords.some(kw => lowerDesc.includes(kw))) {
-          setSelectedCategory(cat.id);
-          return;
-        }
-      }
-    }
-    // Default to misc if no match
-    if (description && !selectedCategory) {
-      setSelectedCategory('misc');
-    }
-  }, [selectedCategory]);
+  }, []);
 
   // Handle form submission
   const handleSubmit = useCallback(async () => {
@@ -153,9 +119,8 @@ export function ExpenseInputModal({
     try {
       await onSubmit({
         amount: parsedAmount,
-        description: parsedDescription || selectedCategory || 'Expense',
+        description: parsedDescription || 'Expense',
         allocation_id: selectedWallet,
-        category: selectedCategory || 'misc',
       });
 
       setShowSuccess(true);
@@ -167,7 +132,7 @@ export function ExpenseInputModal({
     } finally {
       setIsSubmitting(false);
     }
-  }, [parsedAmount, parsedDescription, selectedCategory, selectedWallet, wallets, onSubmit, onClose]);
+  }, [parsedAmount, parsedDescription, selectedWallet, wallets, onSubmit, onClose]);
 
   // Handle keyboard submit
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -322,32 +287,6 @@ export function ExpenseInputModal({
                     </motion.div>
                   )}
                 </AnimatePresence>
-
-                {/* Category Quick Select */}
-                <div className="mb-4">
-                  <p className="text-xs text-white/30 uppercase tracking-wider mb-2">Category</p>
-                  <div className="flex flex-wrap gap-2">
-                    {QUICK_CATEGORIES.map((cat) => {
-                      const Icon = cat.icon;
-                      const isSelected = selectedCategory === cat.id;
-                      return (
-                        <button
-                          key={cat.id}
-                          onClick={() => setSelectedCategory(cat.id)}
-                          className={cn(
-                            'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-all',
-                            isSelected
-                              ? 'bg-cyan-400/20 text-cyan-400 border border-cyan-400/30'
-                              : 'bg-white/[0.05] text-white/50 border border-white/[0.08] hover:bg-white/[0.08]'
-                          )}
-                        >
-                          <Icon size={14} />
-                          {cat.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
 
                 {/* Wallet Selector */}
                 <div className="mb-5">
