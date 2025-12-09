@@ -14,7 +14,7 @@ const RADIAL_BUTTONS = [
   { id: 'new-subscription', icon: Receipt, angle: 25, label: 'Bill' }, // Far top-right
 ];
 
-const RADIAL_RADIUS = 150;
+const RADIAL_RADIUS = 120;
 const HOLD_THRESHOLD = 200; // ms to trigger radial menu
 const SELECTION_RADIUS = 50;
 
@@ -392,190 +392,199 @@ export function BottomNavBar({
       animate={{ y: 0, opacity: 1 }}
       exit={{ y: 100, opacity: 0 }}
       transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-      className="fixed bottom-0 left-0 right-0 z-40 px-6"
-      style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 20px), 20px)' }}
+      className="relative z-40"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      <div className="mx-auto max-w-md flex items-end justify-around gap-4">
-        {/* Left nav items */}
-        {NAV_ITEMS.slice(0, 2).map((item) => (
-          <NavIconButton
-            key={item.id}
-            icon={item.icon}
-            isActive={activeTab === item.id}
-            onClick={() => onTabChange(item.id)}
-          />
-        ))}
+      {/* Center main button with radial menu - positioned ABOVE and OUTSIDE the glass container */}
+      <div className="absolute left-1/2 -translate-x-1/2 -top-5 z-50">
+        {/* Radial Menu */}
+        <AnimatePresence>
+          {showRadialMenu && (
+            <>
+              {RADIAL_BUTTONS.map((btn, index) => {
+                const angleRad = (btn.angle * Math.PI) / 180;
+                const parallaxX = hasEntered ? fingerOffset.x : 0;
+                const parallaxY = hasEntered ? fingerOffset.y : 0;
+                const x = Math.cos(angleRad) * RADIAL_RADIUS + parallaxX;
+                const y = -Math.sin(angleRad) * RADIAL_RADIUS + parallaxY;
+                const isSelected = selectedButton === btn.id;
+                const Icon = btn.icon;
 
-        {/* Center main button with radial menu */}
-        <div className="relative -mb-1">
-          {/* Radial Menu */}
-          <AnimatePresence>
-            {showRadialMenu && (
-              <>
-                {RADIAL_BUTTONS.map((btn, index) => {
-                  const angleRad = (btn.angle * Math.PI) / 180;
-                  const parallaxX = hasEntered ? fingerOffset.x : 0;
-                  const parallaxY = hasEntered ? fingerOffset.y : 0;
-                  const x = Math.cos(angleRad) * RADIAL_RADIUS + parallaxX;
-                  const y = -Math.sin(angleRad) * RADIAL_RADIUS + parallaxY;
-                  const isSelected = selectedButton === btn.id;
-                  const Icon = btn.icon;
-
-                  return (
-                    <motion.div
-                      key={btn.id}
-                      initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
-                      animate={{ opacity: 1, scale: 1, x, y }}
-                      exit={{ opacity: 0, scale: 0, x: 0, y: 0 }}
-                      transition={hasEntered ? {
-                        type: 'spring',
-                        stiffness: 600,
-                        damping: 30,
-                      } : {
-                        type: 'spring',
-                        stiffness: 400,
-                        damping: 25,
-                        delay: index * 0.05,
-                      }}
-                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-50"
-                    >
-                      {/* Radial button with label ABOVE */}
-                      <div className="flex flex-col items-center gap-1.5">
-                        {/* Label - positioned above the icon */}
-                        <motion.span
-                          initial={{ opacity: 0, y: 5 }}
-                          animate={{ opacity: isSelected ? 1 : 0.7, y: 0 }}
-                          className={cn(
-                            'text-[10px] font-semibold whitespace-nowrap uppercase tracking-wider',
-                            'px-2 py-0.5 rounded-full',
-                            isSelected
-                              ? 'text-emerald-300 bg-emerald-500/20'
-                              : 'text-white/60 bg-black/30'
-                          )}
-                        >
-                          {btn.label}
-                        </motion.span>
-                        {/* Icon button */}
-                        <div
-                          className={cn(
-                            'relative w-14 h-14 rounded-full flex items-center justify-center',
-                            glass.blur.xl,
-                            'transition-all duration-150',
-                            isSelected
-                              ? 'bg-emerald-500/20 border-2 border-emerald-400/50 shadow-[0_0_30px_rgba(52,211,153,0.3)]'
-                              : 'bg-white/[0.08] border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3)]'
-                          )}
-                        >
-                          <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
-                          <Icon className={cn(
-                            'w-6 h-6 relative',
-                            isSelected ? 'text-emerald-400' : 'text-white/70'
-                          )} />
-                        </div>
+                return (
+                  <motion.div
+                    key={btn.id}
+                    initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                    animate={{ opacity: 1, scale: 1, x, y }}
+                    exit={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                    transition={hasEntered ? {
+                      type: 'spring',
+                      stiffness: 600,
+                      damping: 30,
+                    } : {
+                      type: 'spring',
+                      stiffness: 400,
+                      damping: 25,
+                      delay: index * 0.05,
+                    }}
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-50"
+                  >
+                    {/* Radial button with label ABOVE */}
+                    <div className="flex flex-col items-center gap-1.5">
+                      {/* Label - positioned above the icon */}
+                      <motion.span
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: isSelected ? 1 : 0.7, y: 0 }}
+                        className={cn(
+                          'text-[10px] font-semibold whitespace-nowrap uppercase tracking-wider',
+                          'px-2 py-0.5 rounded-full',
+                          isSelected
+                            ? 'text-emerald-300 bg-emerald-500/20'
+                            : 'text-white/60 bg-black/30'
+                        )}
+                      >
+                        {btn.label}
+                      </motion.span>
+                      {/* Icon button */}
+                      <div
+                        className={cn(
+                          'relative w-14 h-14 rounded-full flex items-center justify-center',
+                          glass.blur.xl,
+                          'transition-all duration-150',
+                          isSelected
+                            ? 'bg-emerald-500/20 border-2 border-emerald-400/50 shadow-[0_0_30px_rgba(52,211,153,0.3)]'
+                            : 'bg-white/[0.08] border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3)]'
+                        )}
+                      >
+                        <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+                        <Icon className={cn(
+                          'w-6 h-6 relative',
+                          isSelected ? 'text-emerald-400' : 'text-white/70'
+                        )} />
                       </div>
-                    </motion.div>
-                  );
-                })}
+                    </div>
+                  </motion.div>
+                );
+              })}
 
-                {/* Dim overlay */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 bg-black/40 -z-10"
-                  style={{ pointerEvents: 'none' }}
-                />
-              </>
-            )}
-          </AnimatePresence>
+              {/* Dim overlay */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/40 -z-10"
+                style={{ pointerEvents: 'none' }}
+              />
+            </>
+          )}
+        </AnimatePresence>
 
-          {/* Base ambient glow */}
+        {/* Base ambient glow */}
+        <div
+          className={cn(
+            'absolute inset-0 rounded-full blur-2xl transition-all duration-500',
+            showRadialMenu
+              ? 'bg-emerald-400/30 scale-150'
+              : isMainButtonActive
+                ? 'bg-cyan-400/30 scale-150'
+                : isFinanceTab
+                  ? 'bg-emerald-400/10 scale-100'
+                  : 'bg-cyan-400/10 scale-100'
+          )}
+        />
+
+        {/* Navi proximity glow */}
+        <div
+          className="absolute inset-[-8px] rounded-full pointer-events-none transition-opacity duration-300"
+          style={{
+            opacity: glow.intensity,
+            background: createGlowGradient(
+              glow.position,
+              isFinanceTab ? 'rgba(52, 211, 153, 0.6)' : 'rgba(34, 211, 238, 0.6)'
+            ),
+            filter: 'blur(8px)',
+          }}
+        />
+
+        <motion.button
+          ref={mainButtonRef}
+          whileTap={{ scale: 0.92 }}
+          onClick={handleMainButtonClick}
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+          data-interactive
+          className={cn(
+            'relative w-[72px] h-[72px] rounded-full flex items-center justify-center',
+            glass.blur.xl,
+            'bg-white/[0.08]',
+            'transition-all duration-300',
+            showRadialMenu
+              ? 'border-2 border-emerald-400/50 shadow-[0_0_30px_rgba(52,211,153,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)] scale-95'
+              : isMainButtonActive
+                ? 'border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+                : 'border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
+          )}
+        >
+          {/* Inner highlight */}
+          <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+
+          {/* Navi proximity inner glow */}
           <div
-            className={cn(
-              'absolute inset-0 rounded-full blur-2xl transition-all duration-500',
-              showRadialMenu
-                ? 'bg-emerald-400/30 scale-150'
-                : isMainButtonActive
-                  ? 'bg-cyan-400/30 scale-150'
-                  : isFinanceTab
-                    ? 'bg-emerald-400/10 scale-100'
-                    : 'bg-cyan-400/10 scale-100'
-            )}
-          />
-
-          {/* Navi proximity glow */}
-          <div
-            className="absolute inset-[-8px] rounded-full pointer-events-none transition-opacity duration-300"
+            className="absolute inset-0 rounded-full pointer-events-none transition-opacity duration-300"
             style={{
-              opacity: glow.intensity,
+              opacity: glow.intensity * 0.5,
               background: createGlowGradient(
                 glow.position,
-                isFinanceTab ? 'rgba(52, 211, 153, 0.6)' : 'rgba(34, 211, 238, 0.6)'
+                isFinanceTab ? 'rgba(52, 211, 153, 0.3)' : 'rgba(34, 211, 238, 0.3)'
               ),
-              filter: 'blur(8px)',
             }}
           />
 
-          <motion.button
-            ref={mainButtonRef}
-            whileTap={{ scale: 0.92 }}
-            onClick={handleMainButtonClick}
-            onMouseDown={handleMouseDown}
-            onTouchStart={handleTouchStart}
-            data-interactive
-            className={cn(
-              'relative w-[72px] h-[72px] rounded-full flex items-center justify-center',
-              glass.blur.xl,
-              'bg-white/[0.08]',
-              'transition-all duration-300',
-              showRadialMenu
-                ? 'border-2 border-emerald-400/50 shadow-[0_0_30px_rgba(52,211,153,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)] scale-95'
-                : isMainButtonActive
-                  ? 'border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
-                  : 'border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
-            )}
-          >
-            {/* Inner highlight */}
-            <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+          {getButtonContent()}
+        </motion.button>
+      </div>
 
-            {/* Navi proximity inner glow */}
-            <div
-              className="absolute inset-0 rounded-full pointer-events-none transition-opacity duration-300"
-              style={{
-                opacity: glow.intensity * 0.5,
-                background: createGlowGradient(
-                  glow.position,
-                  isFinanceTab ? 'rgba(52, 211, 153, 0.3)' : 'rgba(34, 211, 238, 0.3)'
-                ),
-              }}
-            />
-
-            {getButtonContent()}
-          </motion.button>
-
-          {/* Hold hint for finance tab */}
-          {isFinanceTab && !showRadialMenu && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1 }}
-              className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap"
-            >
-              <span className="text-[10px] text-white/30">Hold to log</span>
-            </motion.div>
+      {/* Glassmorphism card background */}
+      <div className="relative mx-3 mb-2 rounded-2xl">
+        {/* Glass background with blur */}
+        <div
+          className={cn(
+            'absolute inset-0',
+            'bg-white/[0.03] backdrop-blur-2xl',
+            'border border-white/[0.08]',
+            'rounded-2xl',
           )}
-        </div>
+        />
+        {/* Top highlight line */}
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent rounded-t-2xl" />
 
-        {/* Right nav items */}
-        {NAV_ITEMS.slice(2).map((item) => (
-          <NavIconButton
-            key={item.id}
-            icon={item.icon}
-            isActive={activeTab === item.id}
-            onClick={() => onTabChange(item.id)}
-            disabled={item.id === 'notifications'} // Only notifications is disabled
-          />
-        ))}
+        {/* Nav content */}
+        <div className="relative pt-3 pb-3 px-2">
+          <div className="mx-auto max-w-md flex items-center justify-around gap-4">
+            {/* Left nav items */}
+            {NAV_ITEMS.slice(0, 2).map((item) => (
+              <NavIconButton
+                key={item.id}
+                icon={item.icon}
+                isActive={activeTab === item.id}
+                onClick={() => onTabChange(item.id)}
+              />
+            ))}
+
+            {/* Spacer for center button */}
+            <div className="w-[72px]" />
+
+            {/* Right nav items */}
+            {NAV_ITEMS.slice(2).map((item) => (
+              <NavIconButton
+                key={item.id}
+                icon={item.icon}
+                isActive={activeTab === item.id}
+                onClick={() => onTabChange(item.id)}
+                disabled={item.id === 'notifications'}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     </motion.nav>
   );

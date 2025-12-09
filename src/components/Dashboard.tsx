@@ -410,7 +410,7 @@ export function Dashboard({
       {/* ===== SCROLLABLE BOTTOM SECTION - Overnight Cards ===== */}
       <div
         data-scrollable
-        className="flex-1 min-h-0 overflow-y-auto px-5 lg:px-8 pb-32 lg:pb-8 overscroll-contain touch-pan-y"
+        className="flex-1 min-h-0 overflow-y-auto px-5 lg:px-8 pb-6 overscroll-contain touch-pan-y"
       >
         <div className="space-y-3 lg:grid lg:grid-cols-2 lg:gap-4 lg:space-y-0">
           <AnimatePresence mode="popLayout">

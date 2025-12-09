@@ -467,7 +467,8 @@ function AppContent() {
   // Render
   // ============================================
   return (
-    <div className="flex flex-col h-[100dvh] text-white overflow-hidden relative bg-black overscroll-none">
+    // Root container - flex column, full viewport height
+    <div className="flex flex-col h-screen bg-black text-white">
       <AnimatedBackground mode={mode} />
 
       {/* Desktop Sidebar - only in dashboard mode */}
@@ -480,9 +481,9 @@ function AppContent() {
         />
       )}
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative z-10">
-        {/* Finance Voice Overlay - Moved here to be in same stacking context but lower z-index than Navi */}
+      {/* Main Content Area - flex-1 takes remaining space, overflow-hidden */}
+      <main className="flex-1 flex flex-col overflow-hidden relative z-10">
+        {/* Finance Voice Overlay */}
         <FinanceVoiceOverlay
           isOpen={isFinanceVoiceActive}
           currentTurn={financeVoiceSession.currentTurn}
@@ -505,7 +506,7 @@ function AppContent() {
           )}
         </AnimatePresence>
 
-        {/* Navi - Position changes based on mode and finance voice active */}
+        {/* Navi */}
         <Navi
           state={naviState}
           audioLevel={activeVoiceSession.audioLevel}
@@ -530,7 +531,7 @@ function AppContent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.3 }}
-              className="flex-1 min-h-0"
+              className="flex-1 flex flex-col min-h-0"
             >
               <Dashboard
                 cards={cards}
@@ -555,7 +556,7 @@ function AppContent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.3 }}
-              className="flex-1 min-h-0"
+              className="flex-1 flex flex-col min-h-0"
             >
               <Finance 
                 naviPosition={naviPosition}
@@ -575,7 +576,7 @@ function AppContent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.3 }}
-              className="flex-1 min-h-0"
+              className="flex-1 flex flex-col min-h-0"
             >
               <Logs
                 naviPosition={naviPosition}
@@ -598,7 +599,7 @@ function AppContent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="flex-1 flex flex-col h-dvh"
+              className="flex-1 flex flex-col min-h-0"
             >
               <ChatUI
                 messages={voiceSession.messages}
@@ -628,37 +629,36 @@ function AppContent() {
             </motion.div>
           )}
         </AnimatePresence>
+      </main>
 
-        {/* Bottom Nav Bar - only in dashboard mode, hidden on desktop */}
-        <AnimatePresence>
-          {mode === 'dashboard' && (
-            <div className="lg:hidden">
-              <BottomNavBar
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                onMainButtonClick={handleMainButtonClick}
-                mainButtonContent={getMainButtonIcon()}
-                isMainButtonActive={activeVoiceSession.isConnected || isFinanceVoiceActive}
-                naviPosition={naviPosition}
-                onOpenExpenseModal={() => openModal('expense')}
-                onOpenMoneyDropModal={() => openModal('moneyDrop')}
-                onOpenTemplateModal={() => openModal('template')}
-                onOpenAllocationModal={() => openModal('allocation')}
-                onOpenDebtModal={() => openModal('debt')}
-                onOpenSubscriptionModal={() => openModal('subscription')}
-                // Finance voice mode props
-                financeVoiceMode={isFinanceVoiceActive}
-                isCapturing={financeVoiceSession.isCapturing}
-                onToggleCapture={handleFinanceVoiceMicToggle}
-                onMoveToChat={handleMoveToChat}
-                onCloseFinanceVoice={handleFinanceVoiceClose}
-              />
-            </div>
-          )}
-        </AnimatePresence>
-      </div>
+      {/* Footer - Bottom Nav Bar */}
+      <AnimatePresence>
+        {mode === 'dashboard' && (
+          <footer className="lg:hidden w-full shrink-0">
+            <BottomNavBar
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              onMainButtonClick={handleMainButtonClick}
+              mainButtonContent={getMainButtonIcon()}
+              isMainButtonActive={activeVoiceSession.isConnected || isFinanceVoiceActive}
+              naviPosition={naviPosition}
+              onOpenExpenseModal={() => openModal('expense')}
+              onOpenMoneyDropModal={() => openModal('moneyDrop')}
+              onOpenTemplateModal={() => openModal('template')}
+              onOpenAllocationModal={() => openModal('allocation')}
+              onOpenDebtModal={() => openModal('debt')}
+              onOpenSubscriptionModal={() => openModal('subscription')}
+              financeVoiceMode={isFinanceVoiceActive}
+              isCapturing={financeVoiceSession.isCapturing}
+              onToggleCapture={handleFinanceVoiceMicToggle}
+              onMoveToChat={handleMoveToChat}
+              onCloseFinanceVoice={handleFinanceVoiceClose}
+            />
+          </footer>
+        )}
+      </AnimatePresence>
 
-      {/* Finance Confirmation Modal */}
+      {/* Modals */}
       <FinanceConfirmationModal
         isOpen={!!pendingAction}
         pendingAction={pendingAction}
@@ -667,8 +667,6 @@ function AppContent() {
         onSelectMatch={selectMatch}
         isProcessing={isConfirmationProcessing}
       />
-
-      {/* All modals rendered via ModalManager */}
       <ModalManager />
     </div>
   );

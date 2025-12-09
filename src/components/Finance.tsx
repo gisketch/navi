@@ -15,7 +15,6 @@ import {
   CheckCircle2,
   Sparkles,
   AlertTriangle,
-  AlertCircle,
   CreditCard,
   Receipt,
   Banknote,
@@ -330,11 +329,9 @@ function MissionCard({
 function PaceGraph({
   data,
   naviPosition,
-  entranceDelay,
 }: {
   data: DailySpendData[];
   naviPosition?: { x: number; y: number };
-  entranceDelay: number;
 }) {
   const today = new Date().toISOString().split('T')[0];
   const maxValue = Math.max(...data.map(d => Math.max(d.ideal, d.actual)));
@@ -370,81 +367,69 @@ function PaceGraph({
     visibleData[todayIndex].actual <= visibleData[todayIndex].ideal;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: entranceDelay, duration: 0.5, ease: [0.2, 0.8, 0.2, 1] }}
-    >
-      <GlassContainer naviPosition={naviPosition} glowColor="rgba(34, 211, 238, 0.3)">
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <TrendingUp size={14} className="text-cyan-400" />
-              <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wider">
-                Spending Pace
-              </h3>
-            </div>
-            <div className={cn(
-              'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium',
-              isOnTrack
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                : 'bg-red-500/10 text-red-400 border border-red-500/20'
-            )}>
-              {isOnTrack ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-              {isOnTrack ? 'On Track' : 'Over'}
-            </div>
-          </div>
-
-          <div className="relative h-24">
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
-              <defs>
-                <linearGradient id="idealGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="rgba(255,255,255,0.1)" />
-                  <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-                </linearGradient>
-                <linearGradient id="actualGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor={isOnTrack ? 'rgba(52,211,153,0.3)' : 'rgba(239,68,68,0.3)'} />
-                  <stop offset="100%" stopColor="transparent" />
-                </linearGradient>
-              </defs>
-
-              <path
-                d={`${generatePath(idealPoints)} L 100 100 L 0 100 Z`}
-                fill="url(#idealGradient)"
-              />
-              <path d={generatePath(idealPoints)} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="0.5" strokeDasharray="2 2" />
-
-              {actualPoints.length > 1 && (
-                <>
-                  <path
-                    d={`${generatePath(actualPoints)} L ${actualPoints[actualPoints.length - 1].x} 100 L 0 100 Z`}
-                    fill="url(#actualGradient)"
-                  />
-                  <path
-                    d={generatePath(actualPoints)}
-                    fill="none"
-                    stroke={isOnTrack ? 'rgba(52,211,153,0.8)' : 'rgba(239,68,68,0.8)'}
-                    strokeWidth="1.5"
-                  />
-                  <circle
-                    cx={actualPoints[actualPoints.length - 1].x}
-                    cy={actualPoints[actualPoints.length - 1].y}
-                    r="2"
-                    fill={isOnTrack ? '#34D399' : '#EF4444'}
-                  />
-                </>
-              )}
-            </svg>
-          </div>
-
-          <div className="flex justify-between text-[10px] text-white/30 mt-2">
-            <span>Start</span>
-            <span>Today</span>
-            <span>End</span>
+    <GlassContainer naviPosition={naviPosition} glowColor="rgba(34, 211, 238, 0.3)">
+      <div className="p-4">
+        <div className="flex items-center justify-end mb-3">
+          <div className={cn(
+            'flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium',
+            isOnTrack
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+              : 'bg-red-500/10 text-red-400 border border-red-500/20'
+          )}>
+            {isOnTrack ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+            {isOnTrack ? 'On Track' : 'Over'}
           </div>
         </div>
-      </GlassContainer>
-    </motion.div>
+
+        <div className="relative h-24">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
+            <defs>
+              <linearGradient id="idealGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="rgba(255,255,255,0.1)" />
+                <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+              </linearGradient>
+              <linearGradient id="actualGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor={isOnTrack ? 'rgba(52,211,153,0.3)' : 'rgba(239,68,68,0.3)'} />
+                <stop offset="100%" stopColor="transparent" />
+              </linearGradient>
+            </defs>
+
+            <path
+              d={`${generatePath(idealPoints)} L 100 100 L 0 100 Z`}
+              fill="url(#idealGradient)"
+            />
+            <path d={generatePath(idealPoints)} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="0.5" strokeDasharray="2 2" />
+
+            {actualPoints.length > 1 && (
+              <>
+                <path
+                  d={`${generatePath(actualPoints)} L ${actualPoints[actualPoints.length - 1].x} 100 L 0 100 Z`}
+                  fill="url(#actualGradient)"
+                />
+                <path
+                  d={generatePath(actualPoints)}
+                  fill="none"
+                  stroke={isOnTrack ? 'rgba(52,211,153,0.8)' : 'rgba(239,68,68,0.8)'}
+                  strokeWidth="1.5"
+                />
+                <circle
+                  cx={actualPoints[actualPoints.length - 1].x}
+                  cy={actualPoints[actualPoints.length - 1].y}
+                  r="2"
+                  fill={isOnTrack ? '#34D399' : '#EF4444'}
+                />
+              </>
+            )}
+          </svg>
+        </div>
+
+        <div className="flex justify-between text-[10px] text-white/30 mt-2">
+          <span>Start</span>
+          <span>Today</span>
+          <span>End</span>
+        </div>
+      </div>
+    </GlassContainer>
   );
 }
 
@@ -710,120 +695,82 @@ export function Finance({ naviPosition, onPayBill, onPayDebt }: FinanceProps) {
           )}
         </div>
 
-        {/* Pace Graph - STATIC */}
+        {/* Pace Graph - STATIC but collapsible */}
         {livingWalletPaceData.length > 0 && (
           <div className="mb-4">
-            <PaceGraph
-              data={livingWalletPaceData}
-              naviPosition={naviPosition}
+            <CollapsibleSection
+              title="Spending Pace"
+              icon={<TrendingUp size={12} className="text-cyan-400" />}
+              defaultOpen={false}
               entranceDelay={paceDelay}
-            />
+            >
+              <PaceGraph
+                data={livingWalletPaceData}
+                naviPosition={naviPosition}
+              />
+            </CollapsibleSection>
           </div>
         )}
+
+        {/* Missions Header with category pills - STATIC, not scrollable */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: missionDelay }}
+          className="flex items-center gap-2 py-2 px-1 mb-2"
+        >
+          <span className="text-xs font-semibold text-white/30 uppercase tracking-wider">Missions</span>
+          <div className="flex items-center gap-1.5">
+            {unassignedItems.length > 0 && (
+              <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-amber-500/20 text-amber-400 font-medium">
+                {unassignedItems.length}
+              </span>
+            )}
+            {billItems.length > 0 && (
+              <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-purple-500/20 text-purple-400 font-medium">
+                {billItems.length}
+              </span>
+            )}
+            {debtItems.length > 0 && (
+              <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-red-500/20 text-red-400 font-medium">
+                {debtItems.length}
+              </span>
+            )}
+            {completedItems.length > 0 && (
+              <span className="px-1.5 py-0.5 text-[10px] rounded-full bg-emerald-500/20 text-emerald-400 font-medium">
+                {completedItems.length}
+              </span>
+            )}
+          </div>
+        </motion.div>
       </div>
 
-      {/* ===== SCROLLABLE BOTTOM SECTION - Missions ===== */}
+      {/* ===== SCROLLABLE BOTTOM SECTION - Mission Cards Only ===== */}
       <div 
         data-scrollable
-        className="flex-1 min-h-0 overflow-y-auto px-5 lg:px-8 pb-32 lg:pb-8 overscroll-contain touch-pan-y"
+        className="flex-1 min-h-0 overflow-y-auto px-5 lg:px-8 pb-6 overscroll-contain touch-pan-y"
       >
+        {/* All missions in one list */}
         <div className="space-y-2">
-          {/* Unassigned Cash */}
-          {unassignedItems.length > 0 && (
-            <CollapsibleSection
-              title="Unassigned Cash"
-              icon={<AlertCircle size={12} className="text-amber-400" />}
-              defaultOpen={true}
+          {missions.map((item, index) => (
+            <MissionCard
+              key={item.id}
+              item={item}
+              index={index}
               entranceDelay={missionDelay}
-              badge={
-                <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-amber-500/20 text-amber-400">
-                  ₱{unassignedCash.toLocaleString()}
-                </span>
+              onClick={
+                item.type === 'due-bill' 
+                  ? () => onPayBill?.(item.allocation)
+                  : item.type === 'debt-payment'
+                    ? () => onPayDebt?.(item.allocation)
+                    : undefined
               }
-            >
-              {unassignedItems.map((item, index) => (
-                <MissionCard
-                  key={item.id}
-                  item={item}
-                  index={index}
-                  entranceDelay={missionDelay}
-                />
-              ))}
-            </CollapsibleSection>
-          )}
-
-          {/* Bills Due */}
-          {billItems.length > 0 && (
-            <CollapsibleSection
-              title="Bills Due"
-              icon={<Receipt size={12} className="text-purple-400" />}
-              defaultOpen={true}
-              entranceDelay={missionDelay + 0.1}
-              badge={
-                <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-purple-500/20 text-purple-400">
-                  {billItems.length}
-                </span>
-              }
-            >
-              {billItems.map((item, index) => (
-                <MissionCard
-                  key={item.id}
-                  item={item}
-                  index={index}
-                  entranceDelay={missionDelay + 0.1}
-                  onClick={() => onPayBill?.(item.allocation)}
-                />
-              ))}
-            </CollapsibleSection>
-          )}
-
-          {/* Debts */}
-          {debtItems.length > 0 && (
-            <CollapsibleSection
-              title="Debts"
-              icon={<CreditCard size={12} className="text-red-400" />}
-              defaultOpen={true}
-              entranceDelay={missionDelay + 0.2}
-              badge={
-                <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-red-500/20 text-red-400">
-                  {debtItems.length}
-                </span>
-              }
-            >
-              {debtItems.map((item, index) => (
-                <MissionCard
-                  key={item.id}
-                  item={item}
-                  index={index}
-                  entranceDelay={missionDelay + 0.2}
-                  onClick={() => onPayDebt?.(item.allocation)}
-                />
-              ))}
-            </CollapsibleSection>
-          )}
-
-          {/* Completed */}
-          {completedItems.length > 0 && (
-            <CollapsibleSection
-              title="Completed"
-              icon={<CheckCircle2 size={12} className="text-emerald-400" />}
-              defaultOpen={false}
-              entranceDelay={missionDelay + 0.3}
-              badge={
-                <span className="ml-2 px-1.5 py-0.5 text-[10px] rounded-full bg-emerald-500/20 text-emerald-400">
-                  {completedItems.length}
-                </span>
-              }
-            >
-              {completedItems.map((item, index) => (
-                <MissionCard
-                  key={item.id}
-                  item={item}
-                  index={index}
-                  entranceDelay={missionDelay + 0.3}
-                />
-              ))}
-            </CollapsibleSection>
+            />
+          ))}
+          {missions.length === 0 && (
+            <div className="text-center py-8 text-white/30 text-sm">
+              No missions yet
+            </div>
           )}
         </div>
       </div>

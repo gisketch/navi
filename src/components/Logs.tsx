@@ -646,7 +646,7 @@ export function Logs({
       {/* ===== SCROLLABLE BOTTOM SECTION - Content ===== */}
       <div 
         data-scrollable
-        className="flex-1 min-h-0 overflow-y-auto px-4 pb-32 overscroll-contain touch-pan-y"
+        className="flex-1 min-h-0 overflow-y-auto px-4 pb-6 overscroll-contain touch-pan-y"
       >
         {isLoading ? (
           <div className="text-center py-12">
