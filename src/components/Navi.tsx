@@ -1,7 +1,14 @@
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 
+// Import wing images for PWA offline compatibility
+import wingtopImg from '../assets/wingtop.png';
+import wingbotImg from '../assets/wingbot.png';
+
 export type NaviState = 'offline' | 'idle' | 'listening' | 'thinking' | 'speaking';
+
+// Connectivity state for color overrides
+export type ConnectivityState = 'online' | 'syncing' | 'offline';
 
 // Radial menu state for Navi positioning
 export interface RadialMenuState {
@@ -22,6 +29,7 @@ interface NaviProps {
   spinTrigger?: number; // Increment to trigger a wing spin animation
   position?: NaviPosition; // Where Navi should be positioned
   onPositionChange?: (pos: { x: number; y: number }) => void; // Callback for position updates
+  connectivityState?: ConnectivityState; // Override body color based on network status
 }
 
 // Color schemes for each state
@@ -70,6 +78,20 @@ const stateColors = {
     gradient: 'radial-gradient(circle, #ffffff 0%, #e0ffff 25%, #00ffff 60%, rgba(0,170,255,0.4) 100%)',
     outerGradient: 'radial-gradient(circle, rgba(34,211,238,0.4) 0%, rgba(34,211,238,0) 70%)',
     ring: '#00ffff',
+  },
+};
+
+// Connectivity override colors
+const connectivityColors = {
+  offline: {
+    // Gray for offline
+    primary: '#9ca3af', // gray-400
+    secondary: '#6b7280', // gray-500
+    glow: 'rgba(156, 163, 175, 0.4)',
+    glowOuter: 'rgba(107, 114, 128, 0.3)',
+    gradient: 'radial-gradient(circle, #e5e7eb 0%, #d1d5db 25%, #9ca3af 60%, rgba(107,114,128,0.4) 100%)',
+    outerGradient: 'radial-gradient(circle, rgba(156,163,175,0.4) 0%, rgba(156,163,175,0) 70%)',
+    ring: '#9ca3af',
   },
 };
 
@@ -324,9 +346,11 @@ const getWingSpeed = (state: NaviState) => {
   }
 };
 
-export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuState, spinTrigger = 0, position = 'center', onPositionChange }: NaviProps) {
+export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuState, spinTrigger = 0, position = 'center', onPositionChange, connectivityState = 'online' }: NaviProps) {
   const particles = [0, 0.35, 0.7, 1.05, 1.4, 1.75, 2.1];
   const flapSpeed = getWingSpeed(state);
+
+
 
   // Track if we've connected (transitioned from offline)
   const [hasConnected, setHasConnected] = useState(false);
@@ -788,7 +812,7 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
                 <motion.img
                   key={`wing-lt-${effectiveFlapSpeed}-${wingScale}`}
                   className="size-16 origin-right"
-                  src='wingtop.png'
+                  src={wingtopImg}
                   id="wing-left-top"
                   animate={wingScale === 1 && state !== 'offline' ? { scaleX: [1, 0.4, 1], scaleY: [0.8, 1, 0.8] } : {}}
                   transition={{ duration: effectiveFlapSpeed || 0.32, repeat: Infinity, ease: "easeOut" }}
@@ -796,7 +820,7 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
                 <motion.img
                   key={`wing-lb-${effectiveFlapSpeed}-${wingScale}`}
                   className="size-8 origin-right"
-                  src='wingbot.png'
+                  src={wingbotImg}
                   id="wing-left-bot"
                   animate={wingScale === 1 && state !== 'offline' ? { scaleX: [1, 0.4, 1] } : {}}
                   transition={{ duration: effectiveFlapSpeed || 0.32, repeat: Infinity, ease: "easeIn", delay: 0.05 }}
@@ -827,6 +851,8 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
                   {/* Colored body layers */}
                   {Object.entries(stateColors).map(([colorState, colorValues]) => {
                     const isActive = state === colorState;
+                    // Hide normal state colors when connectivity override is active
+                    const hideForConnectivity = connectivityState !== 'online';
 
                     return (
                       <motion.div
@@ -837,7 +863,7 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
                           boxShadow: `0 0 15px 5px ${colorValues.glow}, 0 0 30px 10px ${colorValues.glowOuter}`,
                         }}
                         animate={{
-                          opacity: isActive ? 1 : 0,
+                          opacity: (isActive && !hideForConnectivity) ? 1 : 0,
                           scale: isActive
                             ? (state === 'offline'
                               ? [1, 1.03, 1]  // Very subtle pulse for offline
@@ -861,6 +887,24 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
                       />
                     );
                   })}
+                  
+                  {/* Connectivity override layers */}
+                  {/* Offline - Gray */}
+                  <motion.div
+                    className="absolute inset-0 size-12 rounded-full"
+                    style={{
+                      background: connectivityColors.offline.gradient,
+                      boxShadow: `0 0 15px 5px ${connectivityColors.offline.glow}, 0 0 30px 10px ${connectivityColors.offline.glowOuter}`,
+                    }}
+                    animate={{
+                      opacity: connectivityState === 'offline' ? 1 : 0,
+                      scale: connectivityState === 'offline' ? [1, 1.03, 1] : 1,
+                    }}
+                    transition={{
+                      opacity: { duration: 0.5, ease: "easeInOut" },
+                      scale: { duration: 2.5, repeat: Infinity, ease: "easeInOut" },
+                    }}
+                  />
                 </div>
               </div>
 
@@ -881,7 +925,7 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
                 <motion.img
                   key={`wing-rt-${effectiveFlapSpeed}-${wingScale}`}
                   className="size-16 origin-right -translate-x-full"
-                  src='wingtop.png'
+                  src={wingtopImg}
                   id="wing-right-top"
                   style={{ scaleX: -1 }}
                   animate={wingScale === 1 && state !== 'offline' ? { scaleX: [-1, -0.4, -1], scaleY: [0.8, 1, 0.8] } : { scaleX: -1 }}
@@ -890,7 +934,7 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
                 <motion.img
                   key={`wing-rb-${effectiveFlapSpeed}-${wingScale}`}
                   className="size-8 origin-right -translate-x-full"
-                  src='wingbot.png'
+                  src={wingbotImg}
                   id="wing-right-bot"
                   style={{ scaleX: -1 }}
                   animate={wingScale === 1 && state !== 'offline' ? { scaleX: [-1, -0.4, -1] } : { scaleX: -1 }}

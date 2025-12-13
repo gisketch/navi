@@ -4,15 +4,15 @@ import { AnimatePresence, motion } from 'framer-motion';
 // Contexts
 import { useSettings, SettingsProvider } from '../contexts/SettingsContext';
 import { useModalContext, ModalProvider } from '../contexts/ModalContext';
-import { FinanceProvider } from '../contexts/FinanceContext';
+import { FinanceProvider, useFinanceData } from '../contexts/FinanceContext';
 import { FinanceToolsProvider, useFinanceTools, type FinanceToolName, type FinanceToolArgs } from '../contexts/FinanceToolsContext';
 import { FunctionCallLogProvider } from '../contexts/FunctionCallLogContext';
+import { SyncProvider, useSyncStatus } from '../contexts/SyncContext';
 
 // Hooks
 import { useOvernightSummaries } from '../hooks/useOvernightSummaries';
 import { useVoiceSession } from '../hooks/useVoiceSession';
 import { useNaviState, type AppMode } from '../hooks/useNaviState';
-import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 // Components
 import { ChatUI } from './ChatUI';
@@ -28,7 +28,7 @@ import { ModalManager } from './modals/ModalManager';
 import { FinanceConfirmationModal } from './modals/FinanceConfirmationModal';
 import { FinanceVoiceOverlay } from './FinanceVoiceOverlay';
 import { Navi } from './Navi';
-import type { RadialMenuState } from './Navi';
+import type { RadialMenuState, ConnectivityState } from './Navi';
 import { FINANCE_ONLY_SYSTEM_PROMPT, FINANCE_SYSTEM_PROMPT } from '../utils/tools';
 import type { Allocation } from '../utils/financeTypes';
 
@@ -49,15 +49,27 @@ export function App() {
       <SettingsProvider>
         <FunctionCallLogProvider>
           <FinanceProvider>
-            <FinanceToolsProvider>
-              <ModalProvider>
-                <AppContent />
-              </ModalProvider>
-            </FinanceToolsProvider>
+            <SyncWrapper />
           </FinanceProvider>
         </FunctionCallLogProvider>
       </SettingsProvider>
     </ToastProvider>
+  );
+}
+
+// Wrapper to access FinanceContext for sync callbacks
+function SyncWrapper() {
+  const { refetch } = useFinanceData();
+  const { showToast } = useToast();
+  
+  return (
+    <SyncProvider onSyncComplete={refetch} onShowToast={showToast}>
+      <FinanceToolsProvider>
+        <ModalProvider>
+          <AppContent />
+        </ModalProvider>
+      </FinanceToolsProvider>
+    </SyncProvider>
   );
 }
 
@@ -89,7 +101,14 @@ function AppContent() {
     selectMatch,
   } = useFinanceTools();
 
-  const isOnline = useOnlineStatus();
+  // Use sync context for connectivity status
+  const { isOnline, syncStatus, hasPendingChanges } = useSyncStatus();
+
+  // Map sync status to Navi connectivity state
+  const connectivityState: ConnectivityState = 
+    !isOnline ? 'offline' : 
+    syncStatus === 'syncing' || hasPendingChanges ? 'syncing' : 
+    'online';
 
   // ============================================
   // App State
@@ -277,6 +296,11 @@ function AppContent() {
 
   // Handle finance voice overlay open
   const handleFinanceVoiceOpen = useCallback(async () => {
+    if (!isOnline) {
+      showToast('Cannot connect while offline', 'error');
+      return;
+    }
+    
     if (!settings.hasApiKey) {
       openModal('settings');
       return;
@@ -304,7 +328,7 @@ function AppContent() {
     } catch (error) {
       console.error('[App] Error in handleFinanceVoiceOpen:', error);
     }
-  }, [settings.hasApiKey, openModal, financeVoiceSession]);
+  }, [isOnline, settings.hasApiKey, openModal, financeVoiceSession, showToast]);
 
   // Backup: Also try to auto-start if somehow the first attempt didn't work
   useEffect(() => {
@@ -524,20 +548,9 @@ function AppContent() {
               {error}
             </motion.div>
           )}
-          {!isOnline && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="fixed top-0 left-0 right-0 z-50 bg-gray-900/80 px-4 py-2 text-center text-sm text-gray-400 backdrop-blur-sm flex items-center justify-center gap-2"
-            >
-              <div className="w-2 h-2 rounded-full bg-gray-500" />
-              <span>Offline Mode</span>
-            </motion.div>
-          )}
         </AnimatePresence>
 
-        {/* Navi */}
+        {/* Navi - with connectivity state for color override */}
         <Navi
           state={naviState}
           audioLevel={activeVoiceSession.audioLevel}
@@ -551,6 +564,7 @@ function AppContent() {
                 : 'center'
           }
           onPositionChange={mode === 'dashboard' ? handleNaviPositionChange : undefined}
+          connectivityState={connectivityState}
         />
 
         {/* Dashboard Mode - Home Tab */}
@@ -685,6 +699,7 @@ function AppContent() {
               onToggleCapture={handleFinanceVoiceMicToggle}
               onMoveToChat={handleMoveToChat}
               onCloseFinanceVoice={handleFinanceVoiceClose}
+              isSyncing={syncStatus === 'syncing' || hasPendingChanges}
             />
           </footer>
         )}

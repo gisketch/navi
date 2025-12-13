@@ -8,6 +8,10 @@ import {
   type DailySummary,
   type UrgencyLevel,
 } from '../utils/constants';
+import {
+  saveDashboardCache,
+  getDashboardCache,
+} from '../utils/offlineCache';
 
 interface UseOvernightSummariesReturn {
   cards: OvernightCard[];
@@ -69,7 +73,7 @@ export function useOvernightSummaries(): UseOvernightSummariesReturn {
     return [...cardsToSort].sort((a, b) => urgencyOrder[a.urgency] - urgencyOrder[b.urgency]);
   }, []);
 
-  // Fetch cards from PocketBase
+  // Fetch cards from PocketBase (with cache fallback)
   const fetchCards = useCallback(async () => {
     if (USE_MOCK_DATA) {
       // Use mock data
@@ -98,17 +102,47 @@ export function useOvernightSummaries(): UseOvernightSummariesReturn {
         requestKey: null,
       });
 
-      setCards(sortByUrgency(cardsResult.items));
-      setDailySummary(summaryResult.items[0] || null);
+      const sortedCards = sortByUrgency(cardsResult.items);
+      const summary = summaryResult.items[0] || null;
+      
+      setCards(sortedCards);
+      setDailySummary(summary);
       setLastUpdated(new Date().toISOString());
       setIsMock(false);
+
+      // Save to cache after successful fetch
+      await saveDashboardCache({
+        overnightCards: sortedCards,
+        dailySummary: summary,
+      });
+      console.log('[useOvernightSummaries] Data fetched and cached');
     } catch (err) {
       console.error('[useOvernightSummaries] Fetch error:', err);
-      setError('Failed to fetch summaries. Using mock data.');
-      // Fallback to mock data on error
-      setCards(sortByUrgency(MOCK_OVERNIGHT_CARDS));
-      setDailySummary(MOCK_DAILY_SUMMARY);
-      setIsMock(true);
+      
+      // Try to load from cache first
+      try {
+        const cached = await getDashboardCache();
+        if (cached && cached.overnightCards.length > 0) {
+          setCards(sortByUrgency(cached.overnightCards));
+          setDailySummary(cached.dailySummary);
+          setLastUpdated(new Date().toISOString());
+          setIsMock(false);
+          setError('Using cached data (offline)');
+          console.log('[useOvernightSummaries] Loaded from cache');
+        } else {
+          // No cache available - fallback to mock data
+          setError('Failed to fetch summaries. Using mock data.');
+          setCards(sortByUrgency(MOCK_OVERNIGHT_CARDS));
+          setDailySummary(MOCK_DAILY_SUMMARY);
+          setIsMock(true);
+        }
+      } catch (cacheErr) {
+        // Cache failed too - fallback to mock data
+        setError('Failed to fetch summaries. Using mock data.');
+        setCards(sortByUrgency(MOCK_OVERNIGHT_CARDS));
+        setDailySummary(MOCK_DAILY_SUMMARY);
+        setIsMock(true);
+      }
     } finally {
       setIsLoading(false);
     }

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, User, Bell, Wallet, PenLine, Layers, Banknote, CreditCard, Receipt, Mic, MicOff, MessageSquare, X } from 'lucide-react';
+import { Home, User, Bell, Wallet, PenLine, Layers, Banknote, CreditCard, Receipt, Mic, MicOff, MessageSquare, X, Loader2 } from 'lucide-react';
 import { calculateProximityGlow, createGlowGradient, cn, glass } from '../utils/glass';
 
 type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
@@ -39,6 +39,8 @@ interface BottomNavBarProps {
   onToggleCapture?: () => void;
   onMoveToChat?: () => void;
   onCloseFinanceVoice?: () => void;
+  // Sync status
+  isSyncing?: boolean;
 }
 
 const NAV_ITEMS: { id: NavTab; icon: typeof Home; label: string }[] = [
@@ -68,6 +70,8 @@ export function BottomNavBar({
   onToggleCapture,
   onMoveToChat,
   onCloseFinanceVoice,
+  // Sync status
+  isSyncing = false,
 }: BottomNavBarProps) {
   const mainButtonRef = useRef<HTMLButtonElement>(null);
   const [glow, setGlow] = useState({ intensity: 0, position: { x: 50, y: 50 } });
@@ -277,8 +281,14 @@ export function BottomNavBar({
     onMainButtonClick();
   }, [onMainButtonClick]);
 
-  // Determine button content based on tab
+  // Determine button content based on tab and sync status
   const getButtonContent = () => {
+    // Show spinner when syncing, regardless of tab
+    if (isSyncing) {
+      return (
+        <Loader2 className="w-6 h-6 text-pink-400 animate-spin" />
+      );
+    }
     if (isFinanceTab) {
       return (
         <Banknote className="w-7 h-7 text-emerald-400" />
