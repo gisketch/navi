@@ -654,23 +654,16 @@ function AppContent() {
                 onDismissCards={voiceSession.clearCards}
                 naviState={naviState}
                 liveStatus={voiceSession.liveStatus}
-              />
-
-              <ControlBar
-                state={naviState}
-                micMode={settings.micMode}
-                connectionStatus={voiceSession.connectionStatus}
-                isCapturing={voiceSession.isCapturing}
-                isPlaying={voiceSession.isPlaying}
-                onStartCapture={voiceSession.startCapture}
-                onStopCapture={voiceSession.stopCapture}
-                onSendText={voiceSession.sendText}
-                onStopPlayback={voiceSession.stopPlayback}
+                onToggleCapture={() => {
+                  if (voiceSession.isCapturing) {
+                    voiceSession.stopCapture();
+                  } else {
+                    voiceSession.startCapture();
+                  }
+                }}
                 onOpenSettings={() => openModal('settings')}
-                onConnect={handleConnect}
-                onDisconnect={handleDisconnect}
-                onRadialMenuChange={setRadialMenuState}
-                isOnline={isOnline}
+                onClose={handleDisconnect}
+                onCameraFrame={voiceSession.sendVideo}
               />
             </motion.div>
           )}

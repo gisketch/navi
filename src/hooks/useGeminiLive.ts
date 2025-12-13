@@ -81,6 +81,7 @@ interface UseGeminiLiveReturn {
   connect: () => Promise<void>;
   disconnect: () => void;
   sendAudio: (base64Audio: string) => void;
+  sendVideo: (base64Image: string, mimeType?: string) => void;
   sendText: (text: string) => void;
   clearMessages: () => void;
   clearCards: () => void;
@@ -518,12 +519,10 @@ export function useGeminiLive({
 
       const config: any = {
         responseModalities: [Modality.AUDIO],
-        generationConfig: {
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: {
-                voiceName,
-              },
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName,
             },
           },
         },
@@ -614,6 +613,32 @@ export function useGeminiLive({
     }
   }, [onError]);
 
+  // Send video/image frame to Gemini Live
+  const sendVideo = useCallback((base64Image: string, mimeType: string = 'image/jpeg') => {
+    if (!sessionRef.current) {
+      console.warn('[Navi] Cannot send video: no session');
+      return;
+    }
+
+    if (statusRef.current !== 'connected') {
+      console.warn('[Navi] Cannot send video: status is', statusRef.current);
+      return;
+    }
+
+    try {
+      console.log('[Navi] Sending video frame to Gemini, size:', base64Image.length, 'chars');
+      sessionRef.current.sendRealtimeInput({
+        video: {
+          data: base64Image,
+          mimeType,
+        },
+      });
+    } catch (error) {
+      console.error('[Navi] Error sending video:', error);
+      onError?.(error instanceof Error ? error : new Error('Failed to send video'));
+    }
+  }, [onError]);
+
   const sendText = useCallback((text: string) => {
     if (!sessionRef.current || statusRef.current !== 'connected') {
       console.warn('[Navi] Cannot send text: not connected');
@@ -678,6 +703,7 @@ export function useGeminiLive({
     connect,
     disconnect,
     sendAudio,
+    sendVideo,
     sendText,
     clearMessages,
     clearCards: () => setActiveCards([]),

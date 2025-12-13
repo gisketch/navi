@@ -54,6 +54,7 @@ interface UseVoiceSessionReturn {
   
   // Chat actions
   sendText: (text: string) => void;
+  sendVideo: (base64Image: string, mimeType?: string) => void;
   clearCards: () => void;
   
   // Tool response (for confirming pending finance actions)
@@ -83,6 +84,7 @@ export function useVoiceSession({
     connect: geminiConnect,
     disconnect: geminiDisconnect,
     sendAudio,
+    sendVideo,
     sendText,
     liveStatus,
     isToolActive,
@@ -182,6 +184,7 @@ export function useVoiceSession({
     
     // Chat actions
     sendText,
+    sendVideo,
     clearCards,
     
     // Tool response
