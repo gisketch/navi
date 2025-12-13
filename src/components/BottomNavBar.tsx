@@ -1,9 +1,10 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, User, Bell, Wallet, PenLine, Layers, Banknote, CreditCard, Receipt, Mic, MicOff, MessageSquare, X, Loader2 } from 'lucide-react';
+import { Home, User, Bell, Wallet, PenLine, Layers, Banknote, CreditCard, Receipt, Mic, MicOff, MessageSquare, X, Loader2, Camera, Settings, LogOut } from 'lucide-react';
 import { calculateProximityGlow, createGlowGradient, cn, glass } from '../utils/glass';
 
 type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
+type NavMode = 'dashboard' | 'chat';
 
 // Radial menu configuration - arranged in a semi-circle above the button
 const RADIAL_BUTTONS = [
@@ -19,40 +20,43 @@ const HOLD_THRESHOLD = 200; // ms to trigger radial menu
 const SELECTION_RADIUS = 50;
 
 interface BottomNavBarProps {
-  activeTab: NavTab;
-  onTabChange: (tab: NavTab) => void;
+  // Mode determines which buttons to show
+  mode?: NavMode;
+  // Dashboard mode props
+  activeTab?: NavTab;
+  onTabChange?: (tab: NavTab) => void;
+  // Common props
   onMainButtonClick: () => void;
   mainButtonContent: React.ReactNode;
   isMainButtonActive?: boolean;
   onMainButtonPointerDown?: (e: React.PointerEvent) => void;
   onMainButtonPointerUp?: () => void;
   naviPosition?: { x: number; y: number };
+  // Dashboard: Radial menu modals
   onOpenExpenseModal?: () => void;
   onOpenMoneyDropModal?: () => void;
   onOpenTemplateModal?: () => void;
   onOpenAllocationModal?: () => void;
   onOpenDebtModal?: () => void;
   onOpenSubscriptionModal?: () => void;
-  // Finance voice mode
+  // Dashboard: Finance voice mode (overlay on dashboard)
   financeVoiceMode?: boolean;
   isCapturing?: boolean;
   onToggleCapture?: () => void;
   onMoveToChat?: () => void;
   onCloseFinanceVoice?: () => void;
-  // Sync status
+  // Dashboard: Sync status
   isSyncing?: boolean;
+  // Chat mode props
+  isCameraActive?: boolean;
+  onToggleCamera?: () => void;
+  onOpenSettings?: () => void;
+  onExitChat?: () => void;
 }
 
-const NAV_ITEMS: { id: NavTab; icon: typeof Home; label: string }[] = [
-  { id: 'home', icon: Home, label: 'Home' },
-  { id: 'finance', icon: Wallet, label: 'Finance' },
-  // Main button goes in the middle
-  { id: 'notifications', icon: Bell, label: 'Alerts' },
-  { id: 'profile', icon: User, label: 'Logs' },
-];
-
 export function BottomNavBar({
-  activeTab,
+  mode = 'dashboard',
+  activeTab = 'home',
   onTabChange,
   onMainButtonClick,
   mainButtonContent,
@@ -72,6 +76,11 @@ export function BottomNavBar({
   onCloseFinanceVoice,
   // Sync status
   isSyncing = false,
+  // Chat mode props
+  isCameraActive = false,
+  onToggleCamera,
+  onOpenSettings,
+  onExitChat,
 }: BottomNavBarProps) {
   const mainButtonRef = useRef<HTMLButtonElement>(null);
   const [glow, setGlow] = useState({ intensity: 0, position: { x: 50, y: 50 } });
@@ -570,29 +579,55 @@ export function BottomNavBar({
         {/* Nav content */}
         <div className="relative pt-3 pb-3 px-2">
           <div className="mx-auto max-w-md flex items-center justify-around gap-4">
-            {/* Left nav items */}
-            {NAV_ITEMS.slice(0, 2).map((item) => (
-              <NavIconButton
-                key={item.id}
-                icon={item.icon}
-                isActive={activeTab === item.id}
-                onClick={() => onTabChange(item.id)}
-              />
-            ))}
+            {/* Position 1: Home / Camera */}
+            <NavIconButton
+              key={mode === 'dashboard' ? 'home' : 'camera'}
+              icon={mode === 'dashboard' ? Home : Camera}
+              isActive={mode === 'dashboard' ? activeTab === 'home' : isCameraActive}
+              onClick={() => {
+                if (mode === 'dashboard') onTabChange?.('home');
+                else onToggleCamera?.();
+              }}
+              mode={mode}
+            />
+
+            {/* Position 2: Finance / Chat */}
+            <NavIconButton
+              key={mode === 'dashboard' ? 'finance' : 'chat'}
+              icon={mode === 'dashboard' ? Wallet : MessageSquare}
+              isActive={mode === 'dashboard' ? activeTab === 'finance' : false}
+              onClick={() => {
+                if (mode === 'dashboard') onTabChange?.('finance');
+              }}
+              mode={mode}
+            />
 
             {/* Spacer for center button */}
             <div className="w-[72px]" />
 
-            {/* Right nav items */}
-            {NAV_ITEMS.slice(2).map((item) => (
-              <NavIconButton
-                key={item.id}
-                icon={item.icon}
-                isActive={activeTab === item.id}
-                onClick={() => onTabChange(item.id)}
-                disabled={item.id === 'notifications'}
-              />
-            ))}
+            {/* Position 3: Notifications / Settings */}
+            <NavIconButton
+              key={mode === 'dashboard' ? 'notifications' : 'settings'}
+              icon={mode === 'dashboard' ? Bell : Settings}
+              isActive={false}
+              onClick={() => {
+                if (mode === 'chat') onOpenSettings?.();
+              }}
+              disabled={mode === 'dashboard'}
+              mode={mode}
+            />
+
+            {/* Position 4: Profile / Exit */}
+            <NavIconButton
+              key={mode === 'dashboard' ? 'profile' : 'exit'}
+              icon={mode === 'dashboard' ? User : LogOut}
+              isActive={mode === 'dashboard' ? activeTab === 'profile' : false}
+              onClick={() => {
+                if (mode === 'dashboard') onTabChange?.('profile');
+                else onExitChat?.();
+              }}
+              mode={mode}
+            />
           </div>
         </div>
       </div>
@@ -600,15 +635,16 @@ export function BottomNavBar({
   );
 }
 
-// Simple icon-only nav button
+// Animated icon button with spin transition on mode change
 interface NavIconButtonProps {
   icon: typeof Home;
   isActive: boolean;
   onClick: () => void;
   disabled?: boolean;
+  mode: NavMode;
 }
 
-function NavIconButton({ icon: Icon, isActive, onClick, disabled }: NavIconButtonProps) {
+function NavIconButton({ icon: Icon, isActive, onClick, disabled, mode }: NavIconButtonProps) {
   return (
     <motion.button
       whileTap={{ scale: 0.85 }}
@@ -632,16 +668,27 @@ function NavIconButton({ icon: Icon, isActive, onClick, disabled }: NavIconButto
         </motion.div>
       )}
 
-      <Icon
-        size={24}
-        strokeWidth={isActive ? 2.5 : 1.5}
-        className={cn(
-          'relative transition-all duration-300',
-          isActive
-            ? 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]'
-            : 'text-white/40 hover:text-white/60'
-        )}
-      />
+      {/* Spinning icon transition */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`${mode}-${Icon.displayName || Icon.name}`}
+          initial={{ opacity: 0, rotate: -90, scale: 0.5 }}
+          animate={{ opacity: 1, rotate: 0, scale: 1 }}
+          exit={{ opacity: 0, rotate: 90, scale: 0.5 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+        >
+          <Icon
+            size={24}
+            strokeWidth={isActive ? 2.5 : 1.5}
+            className={cn(
+              'relative transition-colors duration-300',
+              isActive
+                ? 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]'
+                : 'text-white/40 hover:text-white/60'
+            )}
+          />
+        </motion.div>
+      </AnimatePresence>
     </motion.button>
   );
 }

@@ -1,12 +1,11 @@
 import { useMemo, memo, useRef, useLayoutEffect, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'framer-motion';
 import type { PanInfo } from 'framer-motion';
-import { Camera, MessageSquare, Settings, X, Mic, MicOff } from 'lucide-react';
 import type { ChatMessage, CardData } from '../utils/constants';
 import { ResultCards } from './ResultCards';
 import { cn, rounded, calculateProximityGlow, createGlowGradient } from '../utils/glass';
-import { GlassNavBar, type NavButton } from './GlassNavBar';
 import { CameraPreview } from './CameraPreview';
+import { CameraControls } from './CameraControls';
 import { useCamera } from '../hooks/useCamera';
 import type { NaviState } from './Navi';
 
@@ -39,12 +38,12 @@ interface ChatUIProps {
   naviPosition?: { x: number; y: number };
   naviState?: NaviState;
   liveStatus?: string | null;
-  // New props for controls
-  onToggleCapture?: () => void;
-  onOpenSettings?: () => void;
-  onClose?: () => void;
-  // Camera frame callback for Gemini
+  // Camera props (controlled by parent via BottomNavBar)
+  isCameraActive: boolean;
   onCameraFrame?: (base64Image: string) => void;
+  // Chat visibility (for AR mode - hide bubbles, move Navi to corner)
+  isChatVisible?: boolean;
+  onToggleChatVisible?: () => void;
 }
 
 // Get Navi's actual center position from DOM
@@ -330,18 +329,16 @@ export function ChatUI({
   naviPosition: externalNaviPosition,
   naviState = 'idle',
   liveStatus,
-  onToggleCapture,
-  onOpenSettings,
-  onClose,
+  isCameraActive,
   onCameraFrame,
+  isChatVisible = true,
+  onToggleChatVisible,
 }: ChatUIProps) {
   // Track Navi's real position
   const [internalNaviPosition, setInternalNaviPosition] = useState(() => getNaviPosition());
   const lastPositionRef = useRef(internalNaviPosition);
 
-  // Camera state
-  const [showCamera, setShowCamera] = useState(false);
-  
+  // Camera hook
   const camera = useCamera({
     initialFacing: 'environment',
     width: 640,
@@ -350,6 +347,22 @@ export function ChatUI({
     quality: 0.7,
     onFrame: onCameraFrame,
   });
+
+  // Sync camera state with parent
+  // Use stable refs to avoid infinite loops
+  const cameraIsActive = camera.state.isActive;
+  const startCamera = camera.startCamera;
+  const stopCamera = camera.stopCamera;
+  
+  useEffect(() => {
+    if (isCameraActive && !cameraIsActive) {
+      // Start camera when parent says it should be active
+      startCamera('streaming');
+    } else if (!isCameraActive && cameraIsActive) {
+      // Stop camera when parent says it should be inactive
+      stopCamera();
+    }
+  }, [isCameraActive, cameraIsActive, startCamera, stopCamera]);
 
   // Use external position if provided, otherwise track internally
   const naviPosition = externalNaviPosition || internalNaviPosition;
@@ -379,37 +392,6 @@ export function ChatUI({
 
     return items;
   }, [messages, currentTurn]);
-
-  // ============================================
-  // Camera controls
-  // ============================================
-  
-  const handleToggleCamera = useCallback(async () => {
-    if (camera.state.isActive) {
-      camera.stopCamera();
-      setShowCamera(false);
-    } else {
-      // Show camera UI first so the video element is mounted
-      setShowCamera(true);
-      // Wait for next frame so React renders the CameraPreview
-      requestAnimationFrame(async () => {
-        // Small delay to ensure video element is in DOM
-        await new Promise(resolve => setTimeout(resolve, 100));
-        const success = await camera.startCamera('streaming');
-        if (!success) {
-          setShowCamera(false);
-        }
-      });
-    }
-  }, [camera]);
-
-  const handleToggleStreaming = useCallback(() => {
-    if (camera.state.mode === 'streaming') {
-      camera.setMode('snapshot');
-    } else {
-      camera.setMode('streaming');
-    }
-  }, [camera]);
 
   // ============================================
   // Drag-to-Scroll with proper constraints
@@ -496,58 +478,17 @@ export function ChatUI({
 
     return () => cancelAnimationFrame(animationId);
   }, [externalNaviPosition]);
-
-  // ============================================
-  // Nav bar buttons
-  // ============================================
-  
-  const leftButtons: NavButton[] = [
-    {
-      id: 'camera',
-      icon: <Camera className="w-5 h-5" />,
-      onClick: handleToggleCamera,
-      isActive: showCamera,
-      activeColor: 'cyan',
-    },
-    {
-      id: 'chat',
-      icon: <MessageSquare className="w-5 h-5" />,
-      onClick: () => {}, // Chat is always visible, this is a mode indicator
-      isActive: true,
-      activeColor: 'cyan',
-    },
-  ];
-
-  const rightButtons: NavButton[] = [
-    {
-      id: 'settings',
-      icon: <Settings className="w-5 h-5" />,
-      onClick: onOpenSettings,
-    },
-    {
-      id: 'close',
-      icon: <X className="w-5 h-5" />,
-      onClick: onClose,
-      activeColor: 'red',
-    },
-  ];
-
-  const mainButtonContent = isCapturing ? (
-    <Mic className="w-7 h-7 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
-  ) : (
-    <MicOff className="w-7 h-7 text-white/70" />
-  );
-
   return (
     <div className="flex flex-col flex-1 min-h-0 relative">
-      {/* AR Camera background (fullscreen behind everything) */}
+      {/* AR Camera background (truly fullscreen, behind everything including navbar) */}
       <AnimatePresence>
-        {showCamera && (
+        {isCameraActive && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 z-0"
+            className="fixed inset-0"
+            style={{ zIndex: 5 }} // Below navbar (z-40) but camera controls inside are z-50
           >
             <CameraPreview
               videoRef={camera.videoRef}
@@ -556,93 +497,108 @@ export function ChatUI({
               facing={camera.state.facing}
               hasPermission={camera.state.hasPermission}
               error={camera.state.error}
-              onToggle={handleToggleCamera}
-              onFlip={camera.flipCamera}
-              onSnapshot={camera.takeSnapshot}
-              onToggleStreaming={handleToggleStreaming}
               isStreaming={camera.state.mode === 'streaming'}
-              className="h-full"
+              className="h-full w-full"
             />
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* Camera Controls - rendered via Portal to document.body */}
+      <CameraControls
+        isVisible={isCameraActive}
+        isChatVisible={isChatVisible ?? true}
+        onToggleChat={onToggleChatVisible || (() => {})}
+        onFlipCamera={camera.flipCamera}
+      />
+
       {/* Main content layer */}
       <div className={cn(
         'flex flex-col flex-1 min-h-0 relative z-10',
-        showCamera && 'bg-transparent'
+        isCameraActive && 'bg-transparent'
       )}>
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="px-4 pt-8 pb-4"
-          style={{
-            paddingTop: 'calc(env(safe-area-inset-top, 20px) + 12px)',
-          }}
-        >
-          <h1 className={cn(
-            'text-2xl font-semibold text-center flex-none',
-            showCamera ? 'text-white drop-shadow-lg' : 'text-white/80'
-          )}>
-            Navi
-          </h1>
-        </motion.div>
-
-        {/* Chat messages container */}
-        <div
-          ref={containerRef}
-          className="flex-1 min-h-0 overflow-hidden pb-28"
-          style={{
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
-          }}
-        >
-          <motion.div
-            ref={contentRef}
-            drag="y"
-            dragMomentum={false}
-            dragElastic={0}
-            onDrag={handleDrag}
-            onDragEnd={handleDragEnd}
-            style={{ y }}
-            className={cn(
-              'flex flex-col gap-3 px-4 py-4 min-h-full justify-end',
-              'cursor-grab active:cursor-grabbing',
-              'touch-none select-none',
-            )}
-          >
-            <AnimatePresence mode="popLayout">
-              {conversationItems.map((item, index) => (
-                <ChatBubble
-                  key={item.id}
-                  role={item.role}
-                  text={item.text}
-                  naviPosition={naviPosition}
-                  naviState={naviState}
-                  index={index}
-                />
-              ))}
-
-              {isCapturing && (!currentTurn || !currentTurn.text.trim()) && (
-                <ListeningIndicator key="listening" naviState={naviState} />
-              )}
-
-              {liveStatus && (
-                <StatusBubble
-                  key="live-status"
-                  status={liveStatus}
-                  naviPosition={naviPosition}
-                  naviState={naviState}
-                />
-              )}
-            </AnimatePresence>
-          </motion.div>
-        </div>
-
-        {/* Result Cards section */}
+        {/* Header - always visible */}
         <AnimatePresence>
-          {hasCards && (
+          {isChatVisible && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="px-4 pt-8 pb-4"
+              style={{
+                paddingTop: 'calc(env(safe-area-inset-top, 20px) + 12px)',
+              }}
+            >
+              <h1 className={cn(
+                'text-2xl font-semibold text-center flex-none',
+                isCameraActive ? 'text-white drop-shadow-lg' : 'text-white/80'
+              )}>
+                Navi
+              </h1>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Chat messages container - hidden when chat not visible */}
+        <AnimatePresence>
+          {isChatVisible && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex-1 min-h-0 overflow-hidden pb-28"
+              style={{
+                maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 85%, transparent 100%)',
+              }}
+            >
+              <motion.div
+                ref={contentRef}
+                drag="y"
+                dragMomentum={false}
+                dragElastic={0}
+                onDrag={handleDrag}
+                onDragEnd={handleDragEnd}
+                style={{ y }}
+                className={cn(
+                  'flex flex-col gap-3 px-4 py-4 min-h-full justify-end',
+                  'cursor-grab active:cursor-grabbing',
+                  'touch-none select-none',
+                )}
+              >
+                <AnimatePresence mode="popLayout">
+                  {conversationItems.map((item, index) => (
+                    <ChatBubble
+                      key={item.id}
+                      role={item.role}
+                      text={item.text}
+                      naviPosition={naviPosition}
+                      naviState={naviState}
+                      index={index}
+                    />
+                  ))}
+
+                  {isCapturing && (!currentTurn || !currentTurn.text.trim()) && (
+                    <ListeningIndicator key="listening" naviState={naviState} />
+                  )}
+
+                  {liveStatus && (
+                    <StatusBubble
+                      key="live-status"
+                      status={liveStatus}
+                      naviPosition={naviPosition}
+                      naviState={naviState}
+                    />
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Result Cards section - also hidden when chat not visible */}
+        <AnimatePresence>
+          {hasCards && isChatVisible && (
             <motion.div
               layout
               initial={{ opacity: 0, x: 30, height: 0, marginTop: -16 }}
@@ -670,17 +626,6 @@ export function ChatUI({
           )}
         </AnimatePresence>
       </div>
-
-      {/* Bottom Nav Bar */}
-      <GlassNavBar
-        leftButtons={leftButtons}
-        rightButtons={rightButtons}
-        mainButtonContent={mainButtonContent}
-        onMainButtonClick={onToggleCapture}
-        isMainButtonActive={isCapturing}
-        mainButtonColor={isCapturing ? 'amber' : 'cyan'}
-        naviPosition={naviPosition}
-      />
     </div>
   );
 }

@@ -16,7 +16,7 @@ import { useNaviState, type AppMode } from '../hooks/useNaviState';
 
 // Components
 import { ChatUI } from './ChatUI';
-import { ControlBar } from './ControlBar';
+// ControlBar removed - now integrated into ChatUI
 import { Dashboard } from './Dashboard';
 import { Finance } from './Finance';
 import { Logs } from './Logs';
@@ -116,7 +116,7 @@ function AppContent() {
   const [mode, setMode] = useState<AppMode>('dashboard');
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [error, setError] = useState<string | null>(null);
-  const [radialMenuState, setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
+  const [radialMenuState, _setRadialMenuState] = useState<RadialMenuState | undefined>(undefined);
 
   // Track Navi's position for glow effects
   const [naviPosition, setNaviPosition] = useState<{ x: number; y: number } | undefined>();
@@ -127,6 +127,12 @@ function AppContent() {
   // Finance voice overlay state
   const [isFinanceVoiceActive, setIsFinanceVoiceActive] = useState(false);
   const [isConfirmationProcessing, setIsConfirmationProcessing] = useState(false);
+
+  // Chat mode camera state (controlled by BottomNavBar in chat mode)
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  
+  // Chat visibility state (for AR camera mode - hide bubbles, move Navi to corner)
+  const [isChatVisible, setIsChatVisible] = useState(true);
 
   // Pending tool info for sending response after confirmation
   const [pendingToolInfo, setPendingToolInfo] = useState<{
@@ -561,7 +567,9 @@ function AppContent() {
               ? 'center'
               : mode === 'dashboard'
                 ? 'top-right'
-                : 'center'
+                : (isCameraActive && !isChatVisible)
+                  ? 'top-right'  // AR mode with chat hidden - Navi in corner
+                  : 'center'
           }
           onPositionChange={mode === 'dashboard' ? handleNaviPositionChange : undefined}
           connectivityState={connectivityState}
@@ -654,49 +662,71 @@ function AppContent() {
                 onDismissCards={voiceSession.clearCards}
                 naviState={naviState}
                 liveStatus={voiceSession.liveStatus}
-                onToggleCapture={() => {
-                  if (voiceSession.isCapturing) {
-                    voiceSession.stopCapture();
-                  } else {
-                    voiceSession.startCapture();
-                  }
-                }}
-                onOpenSettings={() => openModal('settings')}
-                onClose={handleDisconnect}
+                isCameraActive={isCameraActive}
                 onCameraFrame={voiceSession.sendVideo}
+                isChatVisible={isChatVisible}
+                onToggleChatVisible={() => setIsChatVisible(prev => !prev)}
               />
             </motion.div>
           )}
         </AnimatePresence>
       </main>
 
-      {/* Footer - Bottom Nav Bar */}
-      <AnimatePresence>
-        {mode === 'dashboard' && (
-          <footer className="lg:hidden w-full shrink-0">
-            <BottomNavBar
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              onMainButtonClick={handleMainButtonClick}
-              mainButtonContent={getMainButtonIcon()}
-              isMainButtonActive={activeVoiceSession.isConnected || isFinanceVoiceActive}
-              naviPosition={naviPosition}
-              onOpenExpenseModal={() => openModal('expense')}
-              onOpenMoneyDropModal={() => openModal('moneyDrop')}
-              onOpenTemplateModal={() => openModal('template')}
-              onOpenAllocationModal={() => openModal('allocation')}
-              onOpenDebtModal={() => openModal('debt')}
-              onOpenSubscriptionModal={() => openModal('subscription')}
-              financeVoiceMode={isFinanceVoiceActive}
-              isCapturing={financeVoiceSession.isCapturing}
-              onToggleCapture={handleFinanceVoiceMicToggle}
-              onMoveToChat={handleMoveToChat}
-              onCloseFinanceVoice={handleFinanceVoiceClose}
-              isSyncing={syncStatus === 'syncing' || hasPendingChanges}
-            />
-          </footer>
-        )}
-      </AnimatePresence>
+      {/* Footer - Bottom Nav Bar (always visible, icons animate on mode change) */}
+      <footer className="lg:hidden w-full shrink-0">
+        <BottomNavBar
+          mode={mode === 'chat' ? 'chat' : 'dashboard'}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onMainButtonClick={mode === 'chat' 
+            ? () => {
+                if (voiceSession.isCapturing) {
+                  voiceSession.stopCapture();
+                } else {
+                  voiceSession.startCapture();
+                }
+              }
+            : handleMainButtonClick
+          }
+          mainButtonContent={mode === 'chat'
+            ? (voiceSession.isCapturing ? (
+                <Mic className="w-7 h-7 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
+              ) : (
+                <Mic className="w-7 h-7 text-white/70" />
+              ))
+            : getMainButtonIcon()
+          }
+          isMainButtonActive={mode === 'chat' 
+            ? voiceSession.isCapturing 
+            : (activeVoiceSession.isConnected || isFinanceVoiceActive)
+          }
+          naviPosition={naviPosition}
+          onOpenExpenseModal={() => openModal('expense')}
+          onOpenMoneyDropModal={() => openModal('moneyDrop')}
+          onOpenTemplateModal={() => openModal('template')}
+          onOpenAllocationModal={() => openModal('allocation')}
+          onOpenDebtModal={() => openModal('debt')}
+          onOpenSubscriptionModal={() => openModal('subscription')}
+          financeVoiceMode={isFinanceVoiceActive}
+          isCapturing={mode === 'chat' ? voiceSession.isCapturing : financeVoiceSession.isCapturing}
+          onToggleCapture={handleFinanceVoiceMicToggle}
+          onMoveToChat={handleMoveToChat}
+          onCloseFinanceVoice={handleFinanceVoiceClose}
+          isSyncing={syncStatus === 'syncing' || hasPendingChanges}
+          isCameraActive={isCameraActive}
+          onToggleCamera={() => {
+            setIsCameraActive(prev => {
+              // When turning camera off, restore chat visibility
+              if (prev) {
+                setIsChatVisible(true);
+              }
+              return !prev;
+            });
+          }}
+          onOpenSettings={() => openModal('settings')}
+          onExitChat={handleDisconnect}
+        />
+      </footer>
 
       {/* Modals */}
       <FinanceConfirmationModal

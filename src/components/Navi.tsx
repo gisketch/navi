@@ -532,8 +532,8 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
     const isInInteractiveArea = (target: EventTarget | null) => {
       if (!target || !(target instanceof Element)) return false;
       // Check if target is inside header, control bar, button, input, modal, draggable chat bubbles,
-      // or scrollable containers (overflow-y-auto, touch-pan-y)
-      const excluded = target.closest('header, [data-control-bar], button, input, textarea, [role="dialog"], a, [data-interactive], [data-chat-bubble], [data-result-cards], [data-scrollable], .overflow-y-auto, .touch-pan-y');
+      // scrollable containers, or camera controls
+      const excluded = target.closest('header, [data-control-bar], button, input, textarea, [role="dialog"], a, [data-interactive], [data-chat-bubble], [data-result-cards], [data-scrollable], [data-camera-controls], .overflow-y-auto, .touch-pan-y');
       return !excluded;
     };
 
@@ -545,6 +545,8 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
 
     // Track if the current touch started in a scrollable area
     let touchStartedInScrollable = false;
+    // Track if Navi is actually handling this touch sequence
+    let naviIsHandlingTouch = false;
 
     // Touch events - don't prevent default on start to allow button taps
     const onTouchStart = (e: TouchEvent) => {
@@ -553,11 +555,15 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
       
       // Only handle if not on interactive element and not in scrollable area
       if (isInInteractiveArea(e.target) && !touchStartedInScrollable) {
-        // Small delay to allow button tap to register first
+        naviIsHandlingTouch = true;
         handleStart(e.touches[0].clientX, e.touches[0].clientY);
+      } else {
+        naviIsHandlingTouch = false;
       }
     };
     const onTouchMove = (e: TouchEvent) => {
+      // Don't handle if Navi isn't handling this touch
+      if (!naviIsHandlingTouch) return;
       // Don't prevent default if touch started in scrollable area - allow native scrolling
       if (touchStartedInScrollable) return;
       
@@ -568,7 +574,11 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
     };
     const onTouchEnd = () => {
       touchStartedInScrollable = false;
-      handleEnd();
+      // Only call handleEnd if Navi was handling this touch
+      if (naviIsHandlingTouch) {
+        handleEnd();
+      }
+      naviIsHandlingTouch = false;
     };
 
     // Mouse events
