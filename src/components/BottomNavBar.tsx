@@ -315,7 +315,7 @@ export function BottomNavBar({
         exit={{ y: 100, opacity: 0 }}
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
         className="fixed bottom-0 left-0 right-0 z-40 px-6"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 20px), 20px)' }}
+        // style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 20px), 20px)' }}
       >
         <div className="mx-auto max-w-md flex items-center justify-center gap-6">
           {/* Move to Chat button */}

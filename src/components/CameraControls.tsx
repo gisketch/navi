@@ -96,7 +96,7 @@ export function CameraControls({
           data-camera-controls
           style={{
             position: 'fixed',
-            bottom: '7rem', // 112px, above navbar
+            bottom: '8rem', // 112px, above navbar
             right: '0.75rem',
             display: 'flex',
             gap: '0.5rem',
@@ -114,8 +114,8 @@ export function CameraControls({
               backdropFilter: 'blur(16px)',
               WebkitBackdropFilter: 'blur(16px)',
               backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              border: isChatVisible 
-                ? '1px solid rgba(34, 211, 238, 0.3)' 
+              border: isChatVisible
+                ? '1px solid rgba(34, 211, 238, 0.3)'
                 : '1px solid rgba(251, 191, 36, 0.3)',
               transition: 'all 0.2s',
               touchAction: 'manipulation',
