@@ -28,6 +28,7 @@ interface ControlBarProps {
   onConnect: () => void | Promise<void>;
   onDisconnect?: () => void;
   onRadialMenuChange?: (state: RadialMenuState) => void;
+  isOnline: boolean;
 }
 
 // Radial menu button positions (angle in degrees, 0 = right, counter-clockwise)
@@ -56,6 +57,7 @@ export function ControlBar({
   onConnect,
   onDisconnect,
   onRadialMenuChange,
+  isOnline,
 }: ControlBarProps) {
   const [showKeyboard, setShowKeyboard] = useState(false);
   const [showRadialMenu, setShowRadialMenu] = useState(false);
@@ -298,6 +300,8 @@ export function ControlBar({
     // If radial was triggered, don't do normal click
     if (radialTriggeredRef.current) return;
 
+    if (!isOnline) return;
+
     if (!isConnected) {
       if (connectionStatus !== 'connecting') onConnect();
       return;
@@ -310,10 +314,11 @@ export function ControlBar({
         await onStartCapture();
       }
     }
-  }, [isConnected, connectionStatus, onConnect, micMode, isPlaying, isCapturing, onStopPlayback, onStopCapture, onStartCapture]);
+  }, [isConnected, connectionStatus, onConnect, micMode, isPlaying, isCapturing, onStopPlayback, onStopCapture, onStartCapture, isOnline]);
 
   // Determine current icon state based on NaviState + Connection override
   const getIconState = () => {
+    if (!isOnline) return 'offline';
     if (connectionStatus === 'connecting') return 'connecting';
     return state; // 'offline' | 'idle' | 'listening' | 'speaking' | 'thinking'
   };
@@ -334,7 +339,6 @@ export function ControlBar({
       style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 20px), 20px)' }}
       data-control-bar>
 
-      {/* Keyboard Input Modal - Page stays fixed, modal overlays */}
       {/* Keyboard Input Modal - Page stays fixed, modal overlays */}
       <AnimatePresence>
         {showKeyboard && (
@@ -394,8 +398,8 @@ export function ControlBar({
                       {/* Radial button - matches BottomNavBar main button style */}
                       <div
                         className={`relative w-14 h-14 rounded-full flex items-center justify-center backdrop-blur-xl transition-all duration-150 ${isSelected && !isDisabled
-                            ? 'bg-white/[0.08] border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
-                            : 'bg-white/[0.08] border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
+                          ? 'bg-white/[0.08] border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+                          : 'bg-white/[0.08] border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
                           }`}
                       >
                         {/* Inner highlight - same as BottomNavBar */}
@@ -426,12 +430,12 @@ export function ControlBar({
             onMouseDown={handleMainButtonMouseDown}
             onTouchStart={handleMainButtonTouchStart}
             onClick={handleMainButtonClick}
-            disabled={connectionStatus === 'connecting'}
+            disabled={connectionStatus === 'connecting' || !isOnline}
             className={`relative flex items-center justify-center w-[72px] h-[72px] rounded-full backdrop-blur-xl transition-all duration-300 hover:scale-105 active:scale-95 disabled:scale-100 disabled:opacity-70 ${showRadialMenu
-                ? 'bg-white/[0.08] border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)] scale-95'
-                : iconState === 'listening' || iconState === 'speaking'
-                  ? 'bg-white/[0.08] text-white border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
-                  : 'bg-white/[0.08] text-white border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
+              ? 'bg-white/[0.08] border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)] scale-95'
+              : iconState === 'listening' || iconState === 'speaking'
+                ? 'bg-white/[0.08] text-white border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+                : 'bg-white/[0.08] text-white border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
               }`}
           >
             {/* Inner highlight - same as BottomNavBar */}
@@ -460,7 +464,7 @@ export function ControlBar({
                   transition={{ duration: 0.3 }}
                   className="absolute inset-0 flex items-center justify-center"
                 >
-                  <Radio className="w-8 h-8" />
+                  <Radio className="w-8 h-8 text-gray-500" />
                 </motion.div>
               )}
               {/* Listening State: White Glow */}
