@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, User, Wallet, PenLine, Layers, Banknote, CreditCard, Receipt, Mic, MicOff, MessageSquare, X, Loader2, Camera, Settings, LogOut, ListTodo } from 'lucide-react';
+import { Home, User, Wallet, PenLine, Layers, Banknote, CreditCard, Receipt, Mic, Square, MessageSquare, X, Loader2, Camera, Settings, LogOut, ListTodo } from 'lucide-react';
 import { calculateProximityGlow, createGlowGradient, cn, glass } from '../utils/glass';
 
 type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
@@ -309,15 +309,17 @@ export function BottomNavBar({
 
   // Determine button content based on tab, sync status, and voice mode
   const getButtonContent = () => {
-    // Voice mode: show mic/micoff
+    // Voice mode: show stop (when recording) or mic (when idle)
     if (isVoiceMode) {
       if (voiceCapturing) {
+        // Recording - show STOP icon
         return (
-          <Mic className="w-7 h-7 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
+          <Square className="w-6 h-6 text-red-400 fill-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.5)]" />
         );
       }
+      // Idle - show Mic icon
       return (
-        <MicOff className={cn(
+        <Mic className={cn(
           'w-7 h-7',
           financeVoiceMode ? 'text-emerald-400' : 'text-purple-400'
         )} />
@@ -453,7 +455,7 @@ export function BottomNavBar({
             'absolute inset-0 rounded-full blur-2xl transition-all duration-500',
             isVoiceMode
               ? voiceCapturing
-                ? 'bg-amber-400/30 scale-150'
+                ? 'bg-red-400/30 scale-150' // Recording - red glow
                 : financeVoiceMode
                   ? 'bg-emerald-400/20 scale-100'
                   : 'bg-purple-400/20 scale-100'
@@ -494,7 +496,7 @@ export function BottomNavBar({
             'transition-all duration-300',
             isVoiceMode
               ? voiceCapturing
-                ? 'border-2 border-amber-400/50 shadow-[0_0_30px_rgba(251,191,36,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+                ? 'border-2 border-red-400/50 shadow-[0_0_30px_rgba(248,113,113,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]' // Recording - red
                 : financeVoiceMode
                   ? 'border-2 border-emerald-400/50 shadow-[0_0_30px_rgba(52,211,153,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
                   : 'border-2 border-purple-400/50 shadow-[0_0_30px_rgba(168,85,247,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'

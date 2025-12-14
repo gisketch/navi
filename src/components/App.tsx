@@ -407,43 +407,12 @@ function AppContent() {
       await financeVoiceSession.connect();
       console.log('[App] Connected! Setting finance voice active...');
       setIsFinanceVoiceActive(true);
-
-      // Wait a bit for the connection to stabilize
-      console.log('[App] Waiting 600ms before starting capture...');
-      await new Promise(resolve => setTimeout(resolve, 600));
-
-      console.log('[App] Starting capture now...');
-      console.log('[App] financeVoiceSession.isConnected:', financeVoiceSession.isConnected);
-      console.log('[App] financeVoiceSession.audioInitialized:', financeVoiceSession.audioInitialized);
-
-      await financeVoiceSession.startCapture();
-      console.log('[App] Capture started successfully!');
+      // PTT mode: Don't auto-start capture, user will press mic button
+      console.log('[App] Finance voice overlay ready (PTT mode - press mic to record)');
     } catch (error) {
       console.error('[App] Error in handleFinanceVoiceOpen:', error);
     }
   }, [isOnline, settings.hasApiKey, openModal, financeVoiceSession, showToast]);
-
-  // Backup: Also try to auto-start if somehow the first attempt didn't work
-  useEffect(() => {
-    if (
-      isFinanceVoiceActive &&
-      financeVoiceSession.isConnected &&
-      financeVoiceSession.audioInitialized &&
-      !financeVoiceSession.isCapturing
-    ) {
-      // Additional fallback attempt
-      const timer = setTimeout(() => {
-        console.log('[App] Fallback: Auto-starting finance voice capture');
-        financeVoiceSession.startCapture();
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [
-    isFinanceVoiceActive,
-    financeVoiceSession.isConnected,
-    financeVoiceSession.audioInitialized,
-    financeVoiceSession.isCapturing,
-  ]);
 
   // Handle finance voice overlay close
   const handleFinanceVoiceClose = useCallback(() => {
@@ -478,39 +447,12 @@ function AppContent() {
       await taskVoiceSession.connect();
       console.log('[App] Connected! Setting task voice active...');
       setIsTaskVoiceActive(true);
-
-      // Wait a bit for the connection to stabilize
-      console.log('[App] Waiting 600ms before starting capture...');
-      await new Promise(resolve => setTimeout(resolve, 600));
-
-      console.log('[App] Starting capture now...');
-      await taskVoiceSession.startCapture();
-      console.log('[App] Task voice capture started successfully!');
+      // PTT mode: Don't auto-start capture, user will press mic button
+      console.log('[App] Task voice overlay ready (PTT mode - press mic to record)');
     } catch (error) {
       console.error('[App] Error in handleTaskVoiceOpen:', error);
     }
   }, [isOnline, settings.hasApiKey, openModal, taskVoiceSession, showToast]);
-
-  // Backup: Auto-start task voice capture if needed
-  useEffect(() => {
-    if (
-      isTaskVoiceActive &&
-      taskVoiceSession.isConnected &&
-      taskVoiceSession.audioInitialized &&
-      !taskVoiceSession.isCapturing
-    ) {
-      const timer = setTimeout(() => {
-        console.log('[App] Fallback: Auto-starting task voice capture');
-        taskVoiceSession.startCapture();
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [
-    isTaskVoiceActive,
-    taskVoiceSession.isConnected,
-    taskVoiceSession.audioInitialized,
-    taskVoiceSession.isCapturing,
-  ]);
 
   // Handle task voice overlay close
   const handleTaskVoiceClose = useCallback(() => {
@@ -675,14 +617,15 @@ function AppContent() {
     showToast('Action cancelled', 'info');
   }, [pendingToolInfo, cancelTaskAction, isTaskVoiceActive, taskVoiceSession, voiceSession, showToast]);
 
-  // Handle finance voice mic toggle
+  // Handle finance voice mic toggle (PTT style)
   const handleFinanceVoiceMicToggle = useCallback(async () => {
-    if (financeVoiceSession.isCapturing) {
-      financeVoiceSession.stopCapture();
-    } else {
-      await financeVoiceSession.startCapture();
-    }
+    await financeVoiceSession.toggleRecording();
   }, [financeVoiceSession]);
+
+  // Handle task voice mic toggle (PTT style)
+  const handleTaskVoiceMicToggle = useCallback(async () => {
+    await taskVoiceSession.toggleRecording();
+  }, [taskVoiceSession]);
 
   // Handle main button click (different behavior per mode)
   const handleMainButtonClick = useCallback(async () => {
@@ -766,6 +709,7 @@ function AppContent() {
           isOpen={isFinanceVoiceActive}
           currentTurn={financeVoiceSession.currentTurn}
           liveStatus={financeVoiceSession.liveStatus}
+          isRecording={financeVoiceSession.isCapturing}
           naviPosition={naviPosition}
           naviState={naviState}
         />
@@ -775,6 +719,7 @@ function AppContent() {
           isOpen={isTaskVoiceActive}
           currentTurn={taskVoiceSession.currentTurn}
           liveStatus={taskVoiceSession.liveStatus}
+          isRecording={taskVoiceSession.isCapturing}
           naviPosition={naviPosition}
           naviState={naviState}
         />
@@ -959,13 +904,7 @@ function AppContent() {
           onCloseFinanceVoice={handleFinanceVoiceClose}
           taskVoiceMode={isTaskVoiceActive}
           isTaskCapturing={taskVoiceSession.isCapturing}
-          onToggleTaskCapture={() => {
-            if (taskVoiceSession.isCapturing) {
-              taskVoiceSession.stopCapture();
-            } else {
-              taskVoiceSession.startCapture();
-            }
-          }}
+          onToggleTaskCapture={handleTaskVoiceMicToggle}
           onCloseTaskVoice={handleTaskVoiceClose}
           onOpenTaskVoice={handleTaskVoiceOpen}
           isSyncing={syncStatus === 'syncing' || hasPendingChanges}

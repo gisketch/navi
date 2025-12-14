@@ -30,6 +30,9 @@ interface FinanceVoiceOverlayProps {
   // Transcription
   currentTurn: { role: 'user' | 'assistant'; text: string; id: string } | null;
   liveStatus: string | null;
+  
+  // Recording state (PTT)
+  isRecording?: boolean;
 
   // For glow calculations
   naviPosition?: { x: number; y: number };
@@ -203,25 +206,29 @@ export function FinanceVoiceOverlay({
   isOpen,
   currentTurn,
   liveStatus,
+  isRecording = false,
   naviPosition,
   naviState = 'idle',
 }: FinanceVoiceOverlayProps) {
   const [showTranscript, setShowTranscript] = useState(false);
 
+  // Don't show status while recording - user can see the stop button
+  const displayStatus = isRecording ? null : liveStatus;
+
   // Auto-show transcript when there's content
   useEffect(() => {
-    if (currentTurn?.text || liveStatus) {
+    if (currentTurn?.text || displayStatus) {
       setShowTranscript(true);
     }
-  }, [currentTurn, liveStatus]);
+  }, [currentTurn, displayStatus]);
 
   // Hide transcript after inactivity
   useEffect(() => {
-    if (!currentTurn && !liveStatus) {
+    if (!currentTurn && !displayStatus) {
       const timer = setTimeout(() => setShowTranscript(false), 3000);
       return () => clearTimeout(timer);
     }
-  }, [currentTurn, liveStatus]);
+  }, [currentTurn, displayStatus]);
 
   return (
     <AnimatePresence>
@@ -248,12 +255,12 @@ export function FinanceVoiceOverlay({
           <div className="absolute inset-0 flex flex-col items-center justify-center pt-32 pb-40 pointer-events-auto">
             {/* Live Status */}
             <AnimatePresence mode="wait">
-              {liveStatus && (
+              {displayStatus && (
                 <div className="mb-4">
                   <StatusBubble
-                    status={liveStatus}
+                    status={displayStatus}
                     naviPosition={naviPosition}
-                    naviState={naviState}
+                    naviState={isRecording ? 'listening' : naviState}
                   />
                 </div>
               )}
