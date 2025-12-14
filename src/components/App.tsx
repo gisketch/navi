@@ -6,6 +6,8 @@ import { useSettings, SettingsProvider } from '../contexts/SettingsContext';
 import { useModalContext, ModalProvider } from '../contexts/ModalContext';
 import { FinanceProvider, useFinanceData } from '../contexts/FinanceContext';
 import { FinanceToolsProvider, useFinanceTools, type FinanceToolName, type FinanceToolArgs } from '../contexts/FinanceToolsContext';
+import { TaskProvider } from '../contexts/TaskContext';
+import { TaskToolsProvider, useTaskTools, type TaskToolName, type TaskToolArgs } from '../contexts/TaskToolsContext';
 import { FunctionCallLogProvider } from '../contexts/FunctionCallLogContext';
 import { SyncProvider, useSyncStatus } from '../contexts/SyncContext';
 
@@ -19,6 +21,7 @@ import { ChatUI } from './ChatUI';
 // ControlBar removed - now integrated into ChatUI
 import { Dashboard } from './Dashboard';
 import { Finance } from './Finance';
+import { Focus } from './Focus';
 import { Logs } from './Logs';
 import { BottomNavBar } from './BottomNavBar';
 import { Sidebar } from './Sidebar';
@@ -26,14 +29,15 @@ import { AnimatedBackground } from './AnimatedBackground';
 import { ToastProvider, useToast } from './Toast';
 import { ModalManager } from './modals/ModalManager';
 import { FinanceConfirmationModal } from './modals/FinanceConfirmationModal';
+import { TaskConfirmationModal } from './modals/TaskConfirmationModal';
 import { FinanceVoiceOverlay } from './FinanceVoiceOverlay';
 import { Navi } from './Navi';
 import type { RadialMenuState, ConnectivityState } from './Navi';
-import { FINANCE_ONLY_SYSTEM_PROMPT, FINANCE_SYSTEM_PROMPT } from '../utils/tools';
+import { FINANCE_ONLY_SYSTEM_PROMPT, FINANCE_SYSTEM_PROMPT, TASK_SYSTEM_PROMPT } from '../utils/tools';
 import type { Allocation } from '../utils/financeTypes';
 
 // Icons
-import { Mic, Radio, Fingerprint, Sparkles } from 'lucide-react';
+import { Mic, Radio, Fingerprint, Sparkles, Plus } from 'lucide-react';
 
 // Types
 type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
@@ -64,11 +68,15 @@ function SyncWrapper() {
   
   return (
     <SyncProvider onSyncComplete={refetch} onShowToast={showToast}>
-      <FinanceToolsProvider>
-        <ModalProvider>
-          <AppContent />
-        </ModalProvider>
-      </FinanceToolsProvider>
+      <TaskProvider>
+        <FinanceToolsProvider>
+          <TaskToolsProvider>
+            <ModalProvider>
+              <AppContent />
+            </ModalProvider>
+          </TaskToolsProvider>
+        </FinanceToolsProvider>
+      </TaskProvider>
     </SyncProvider>
   );
 }
@@ -91,6 +99,7 @@ function AppContent() {
     openEditMoneyDrop,
     openEditTransaction,
     openPayment,
+    openTaskInput,
   } = useModalContext();
   const {
     pendingAction,
@@ -100,6 +109,15 @@ function AppContent() {
     clearPendingAction,
     selectMatch,
   } = useFinanceTools();
+
+  const {
+    pendingAction: pendingTaskAction,
+    executeTaskTool,
+    confirmPendingAction: confirmTaskAction,
+    cancelPendingAction: cancelTaskAction,
+    clearPendingAction: _clearTaskAction,
+    selectMatch: selectTaskMatch,
+  } = useTaskTools();
 
   // Use sync context for connectivity status
   const { isOnline, syncStatus, hasPendingChanges } = useSyncStatus();
@@ -179,16 +197,58 @@ function AppContent() {
   }, [executeFinanceTool]);
 
   // ============================================
+  // Task Tool Handler (for voice session)
+  // ============================================
+  const handleTaskToolCall = useCallback(async (
+    toolName: string,
+    args: Record<string, any>,
+    toolCallId: string
+  ): Promise<{ handled: boolean; result?: string; pending?: boolean }> => {
+    console.log('[App] Task tool call:', toolName, args);
+
+    const result = await executeTaskTool(
+      toolName as TaskToolName,
+      args as TaskToolArgs[TaskToolName],
+      toolCallId
+    );
+
+    if (result.needsConfirmation) {
+      setPendingToolInfo({ toolCallId, toolName });
+      return { handled: true, pending: true };
+    }
+
+    return { handled: true, result: result.result };
+  }, [executeTaskTool]);
+
+  // ============================================
+  // Combined External Tool Handler
+  // ============================================
+  const TASK_TOOL_NAMES = ['get_tasks', 'get_current_task', 'add_task', 'start_task', 'complete_task', 'pause_task'];
+  
+  const handleExternalToolCall = useCallback(async (
+    toolName: string,
+    args: Record<string, any>,
+    toolCallId: string
+  ): Promise<{ handled: boolean; result?: string; pending?: boolean }> => {
+    // Check if it's a task tool
+    if (TASK_TOOL_NAMES.includes(toolName)) {
+      return handleTaskToolCall(toolName, args, toolCallId);
+    }
+    // Otherwise, it's a finance tool
+    return handleFinanceToolCall(toolName, args, toolCallId);
+  }, [handleTaskToolCall, handleFinanceToolCall]);
+
+  // ============================================
   // Voice Session (Main Chat)
   // ============================================
   const voiceSession = useVoiceSession({
     apiKey: settings.apiKey,
-    systemInstruction: settings.systemInstruction + '\n\n' + FINANCE_SYSTEM_PROMPT,
+    systemInstruction: settings.systemInstruction + '\n\n' + FINANCE_SYSTEM_PROMPT + '\n\n' + TASK_SYSTEM_PROMPT,
     naviBrainWebhook: settings.naviBrainWebhook,
     voiceName: settings.voiceName,
     receiveNoteContent: settings.receiveNoteContent,
     onError: (err) => setError(err),
-    onExternalToolCall: handleFinanceToolCall,
+    onExternalToolCall: handleExternalToolCall,
     financeMode: false, // Full mode with all tools
   });
 
@@ -202,7 +262,7 @@ function AppContent() {
     voiceName: settings.voiceName,
     receiveNoteContent: false, // Finance mode doesn't need notes
     onError: (err) => setError(err),
-    onExternalToolCall: handleFinanceToolCall,
+    onExternalToolCall: handleExternalToolCall,
     financeMode: true, // Finance-only tools
   });
 
@@ -456,6 +516,55 @@ function AppContent() {
     showToast('Action cancelled', 'info');
   }, [pendingToolInfo, cancelPendingAction, isFinanceVoiceActive, financeVoiceSession, voiceSession, showToast]);
 
+  // Handle task confirmation
+  const handleTaskConfirm = useCallback(async () => {
+    if (!pendingToolInfo) return;
+
+    setIsConfirmationProcessing(true);
+    try {
+      const result = await confirmTaskAction();
+
+      // Send tool response back to Gemini
+      voiceSession.sendToolResponse(
+        pendingToolInfo.toolCallId,
+        pendingToolInfo.toolName,
+        result
+      );
+
+      // Parse result for toast
+      try {
+        const parsed = JSON.parse(result);
+        if (parsed.success) {
+          showToast(parsed.message, 'success');
+        } else if (parsed.error) {
+          showToast(parsed.message || 'Action failed', 'error');
+        }
+      } catch {
+        // Ignore JSON parse errors
+      }
+    } finally {
+      setIsConfirmationProcessing(false);
+      setPendingToolInfo(null);
+    }
+  }, [pendingToolInfo, confirmTaskAction, voiceSession, showToast]);
+
+  // Handle task cancel
+  const handleTaskCancel = useCallback(() => {
+    if (!pendingToolInfo) return;
+
+    const result = cancelTaskAction();
+
+    // Send cancellation response back to Gemini
+    voiceSession.sendToolResponse(
+      pendingToolInfo.toolCallId,
+      pendingToolInfo.toolName,
+      result
+    );
+
+    setPendingToolInfo(null);
+    showToast('Action cancelled', 'info');
+  }, [pendingToolInfo, cancelTaskAction, voiceSession, showToast]);
+
   // Handle finance voice mic toggle
   const handleFinanceVoiceMicToggle = useCallback(async () => {
     if (financeVoiceSession.isCapturing) {
@@ -471,6 +580,11 @@ function AppContent() {
       // In finance tab, open finance voice overlay instead of full chat
       if (activeTab === 'finance') {
         await handleFinanceVoiceOpen();
+        return;
+      }
+      // In focus/todo tab, open add task modal
+      if (activeTab === 'notifications') {
+        openTaskInput('work');
         return;
       }
       await handleConnect();
@@ -494,10 +608,14 @@ function AppContent() {
         }
       }
     }
-  }, [mode, handleConnect, voiceSession, settings.micMode]);
+  }, [mode, activeTab, handleConnect, voiceSession, settings.micMode, openTaskInput]);
 
   // Get icon for main button based on state
   const getMainButtonIcon = () => {
+    // In dashboard mode on Focus tab, show Plus icon for adding tasks
+    if (mode === 'dashboard' && activeTab === 'notifications') {
+      return <Plus className="w-6 h-6 text-white" />;
+    }
     if (voiceSession.connectionStatus === 'connecting') {
       return <div className="w-6 h-6 rounded-full border-t-2 border-white/50 animate-spin" />;
     }
@@ -575,15 +693,15 @@ function AppContent() {
           connectivityState={connectivityState}
         />
 
-        {/* Dashboard Mode - Home Tab */}
-        <AnimatePresence>
+        {/* Dashboard Mode - Tab Content */}
+        <AnimatePresence mode="wait">
           {mode === 'dashboard' && activeTab === 'home' && (
             <motion.div
               key="dashboard-home"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               className="flex-1 flex flex-col min-h-0"
             >
               <Dashboard
@@ -598,17 +716,14 @@ function AppContent() {
               />
             </motion.div>
           )}
-        </AnimatePresence>
 
-        {/* Dashboard Mode - Finance Tab */}
-        <AnimatePresence>
           {mode === 'dashboard' && activeTab === 'finance' && (
             <motion.div
               key="dashboard-finance"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               className="flex-1 flex flex-col min-h-0"
             >
               <Finance
@@ -618,17 +733,27 @@ function AppContent() {
               />
             </motion.div>
           )}
-        </AnimatePresence>
 
-        {/* Dashboard Mode - Logs Tab (Profile) */}
-        <AnimatePresence>
+          {mode === 'dashboard' && activeTab === 'notifications' && (
+            <motion.div
+              key="dashboard-focus"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="flex-1 flex flex-col min-h-0"
+            >
+              <Focus naviPosition={naviPosition} />
+            </motion.div>
+          )}
+
           {mode === 'dashboard' && activeTab === 'profile' && (
             <motion.div
               key="dashboard-logs"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               className="flex-1 flex flex-col min-h-0"
             >
               <Logs
@@ -735,6 +860,14 @@ function AppContent() {
         onConfirm={handleFinanceConfirm}
         onCancel={handleFinanceCancel}
         onSelectMatch={selectMatch}
+        isProcessing={isConfirmationProcessing}
+      />
+      <TaskConfirmationModal
+        isOpen={!!pendingTaskAction}
+        pendingAction={pendingTaskAction}
+        onConfirm={handleTaskConfirm}
+        onCancel={handleTaskCancel}
+        onSelectMatch={selectTaskMatch}
         isProcessing={isConfirmationProcessing}
       />
       <ModalManager />

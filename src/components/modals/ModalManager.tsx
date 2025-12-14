@@ -3,6 +3,7 @@ import { useModalContext } from '../../contexts/ModalContext';
 import { useFinanceData } from '../../contexts/FinanceContext';
 import { useSettings } from '../../contexts/SettingsContext';
 import { useFinanceHandlers } from '../../hooks/useFinanceHandlers';
+import { useTaskData } from '../../contexts/TaskContext';
 
 import { ExpenseInputModal } from './ExpenseInputModal';
 import { MoneyDropInputModal } from './MoneyDropInputModal';
@@ -12,8 +13,11 @@ import { DebtInputModal } from './DebtInputModal';
 import { SubscriptionInputModal } from './SubscriptionInputModal';
 import { PaymentModal } from './PaymentModal';
 import { SettingsModal } from './SettingsModal';
+import { TaskInputModal } from './TaskInputModal';
+import { TaskDetailModal } from './TaskDetailModal';
 
 import type { Allocation } from '../../utils/financeTypes';
+import type { TaskFormData } from './TaskInputModal';
 
 // ============================================
 // Modal Manager
@@ -29,12 +33,18 @@ export function ModalManager() {
     editingAllocation,
     paymentAllocation,
     paymentType,
+    editingTask,
+    taskInputCategory,
+    viewingTask,
     closeModal,
     closeDebtModal,
     closeSubscriptionModal,
     closeAllocationModal,
     closeMoneyDropModal,
     closePaymentModal,
+    closeTaskInputModal,
+    closeTaskDetailModal,
+    openTaskInput,
   } = useModalContext();
 
   const {
@@ -44,6 +54,15 @@ export function ModalManager() {
     activeDrops,
     budgetTemplates,
   } = useFinanceData();
+
+  const {
+    createTask,
+    updateTask,
+    startTask,
+    pauseTask,
+    completeTask,
+    deleteTask,
+  } = useTaskData();
 
   const settings = useSettings();
 
@@ -147,6 +166,38 @@ export function ModalManager() {
         receiveNoteContent={settings.receiveNoteContent}
         onReceiveNoteContentChange={settings.setReceiveNoteContent}
         onSave={() => {}}
+      />
+
+      {/* Task Input Modal */}
+      <TaskInputModal
+        isOpen={modals.taskInput}
+        onClose={closeTaskInputModal}
+        onSubmit={async (data: TaskFormData) => {
+          if (editingTask) {
+            await updateTask(editingTask.id, data);
+          } else {
+            await createTask(data);
+          }
+        }}
+        initialCategory={taskInputCategory}
+        editTask={editingTask}
+      />
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        isOpen={modals.taskDetail}
+        onClose={closeTaskDetailModal}
+        task={viewingTask}
+        onStart={() => viewingTask && startTask(viewingTask.id)}
+        onPause={() => viewingTask && pauseTask(viewingTask.id)}
+        onComplete={() => viewingTask && completeTask(viewingTask.id)}
+        onEdit={() => {
+          if (viewingTask) {
+            closeTaskDetailModal();
+            openTaskInput(viewingTask.category, viewingTask);
+          }
+        }}
+        onDelete={() => viewingTask && deleteTask(viewingTask.id)}
       />
     </>
   );

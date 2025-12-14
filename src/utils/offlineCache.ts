@@ -14,6 +14,7 @@ import type {
   BudgetTemplate,
 } from './financeTypes';
 import type { OvernightCard, DailySummary } from './constants';
+import type { TaskCache } from './taskTypes';
 
 // ============================================
 // Types
@@ -27,7 +28,8 @@ export type CollectionName =
   | 'transactions' 
   | 'budget_templates'
   | 'overnight_cards'
-  | 'daily_summaries';
+  | 'daily_summaries'
+  | 'tasks';
 
 export type OperationType = 'create' | 'update' | 'delete';
 
@@ -216,6 +218,24 @@ export async function getDashboardCache(): Promise<DashboardCache | null> {
   
   const { id: _, ...cache } = result;
   return cache as DashboardCache;
+}
+
+// ============================================
+// Task Cache Operations
+// ============================================
+
+const TASK_CACHE_KEY = 'task_data';
+
+export async function saveTaskCache(data: TaskCache): Promise<void> {
+  await putInStore(STORES.DASHBOARD, { id: TASK_CACHE_KEY, ...data });
+}
+
+export async function getTaskCache(): Promise<TaskCache | null> {
+  const result = await getFromStore<TaskCache & { id: string }>(STORES.DASHBOARD, TASK_CACHE_KEY);
+  if (!result) return null;
+  
+  const { id: _, ...cache } = result;
+  return cache as TaskCache;
 }
 
 // ============================================

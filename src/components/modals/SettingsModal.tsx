@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mic, Key, Save, Webhook, Info, Volume2, Cpu } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Key, Save, Webhook, Volume2, Cpu, FileText } from 'lucide-react';
 import { VOICE_OPTIONS, GEMINI_MODEL } from '../../utils/constants';
+import { cn, rounded } from '../../utils/glass';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -19,6 +21,15 @@ interface SettingsModalProps {
   receiveNoteContent: boolean;
   onReceiveNoteContentChange: (enabled: boolean) => void;
 }
+
+type TabId = 'api' | 'voice' | 'webhooks' | 'about';
+
+const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  { id: 'api', label: 'API', icon: <Key size={14} /> },
+  { id: 'voice', label: 'Voice', icon: <Volume2 size={14} /> },
+  { id: 'webhooks', label: 'Hooks', icon: <Webhook size={14} /> },
+  { id: 'about', label: 'About', icon: <Cpu size={14} /> },
+];
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
@@ -42,7 +53,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [tempNaviBrainWebhook, setTempNaviBrainWebhook] = useState(naviBrainWebhook);
   const [tempVoiceName, setTempVoiceName] = useState(voiceName);
   const [tempReceiveNoteContent, setTempReceiveNoteContent] = useState(receiveNoteContent);
-  const [activeTab, setActiveTab] = useState<'general' | 'functions'>('general');
+  const [activeTab, setActiveTab] = useState<TabId>('api');
 
   useEffect(() => {
     if (isOpen) {
@@ -73,241 +84,334 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose();
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 z-[1000]">
-      <div className="bg-[#1e1e1e] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-white/5 bg-white/5">
-          <h2 className="text-lg font-medium text-white flex items-center gap-2">
-            Settings
-          </h2>
-          <button
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             onClick={handleCancel}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/70 hover:text-white"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000]"
+          />
+
+          {/* Modal */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-x-4 top-[15%] z-[1001] mx-auto max-w-md"
           >
-            <X size={18} />
-          </button>
-        </div>
+            <div className={cn(
+              'backdrop-blur-2xl bg-white/[0.03] border border-white/10',
+              rounded.xl,
+              'overflow-hidden shadow-2xl'
+            )}>
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+                <h2 className="text-base font-medium text-white">Settings</h2>
+                <button
+                  onClick={handleCancel}
+                  className={cn(
+                    'p-1.5 hover:bg-white/10 transition-colors text-white/60 hover:text-white',
+                    rounded.full
+                  )}
+                >
+                  <X size={16} />
+                </button>
+              </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-white/5">
-          <button
-            onClick={() => setActiveTab('general')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors relative ${activeTab === 'general' ? 'text-white' : 'text-white/40 hover:text-white/70'
-              }`}
-          >
-            General
-            {activeTab === 'general' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('functions')}
-            className={`flex-1 py-3 text-sm font-medium transition-colors relative ${activeTab === 'functions' ? 'text-white' : 'text-white/40 hover:text-white/70'
-              }`}
-          >
-            Functions
-            {activeTab === 'functions' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500" />
-            )}
-          </button>
-        </div>
+              {/* Tabs */}
+              <div className="flex border-b border-white/5 px-2">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium transition-colors relative',
+                      activeTab === tab.id ? 'text-white' : 'text-white/40 hover:text-white/60'
+                    )}
+                  >
+                    {tab.icon}
+                    <span>{tab.label}</span>
+                    {activeTab === tab.id && (
+                      <motion.div
+                        layoutId="settings-tab-indicator"
+                        className="absolute bottom-0 left-2 right-2 h-0.5 bg-cyan-400 rounded-full"
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
-
-          {activeTab === 'general' && (
-            <>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-white/50 uppercase tracking-wider flex items-center gap-2">
-                    <Key size={12} /> Gemini API Key
-                  </label>
-                  <input
-                    type="password"
-                    value={tempApiKey}
-                    onChange={(e) => setTempApiKey(e.target.value)}
-                    placeholder="Paste your API key here..."
-                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all text-sm font-mono"
-                  />
-                  <p className="text-xs text-white/30">
-                    Your key is stored locally in your browser.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-white/50 uppercase tracking-wider flex items-center gap-2">
-                    <Cpu size={12} /> Model Version
-                  </label>
-                  <div className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white/50 text-sm font-mono flex items-center justify-between">
-                    <span>{GEMINI_MODEL}</span>
-                    <span className="text-[10px] text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20">Active</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-white/50 uppercase tracking-wider flex items-center gap-2">
-                      <Mic size={12} /> Microphone Mode
-                    </label>
-
-                    <div className="flex bg-black/20 p-1 rounded-xl border border-white/10">
-                      <button
-                        onClick={() => onMicModeChange('manual')}
-                        className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${micMode === 'manual'
-                          ? 'bg-white/10 text-white shadow-sm'
-                          : 'text-white/40 hover:text-white/60'
-                          }`}
-                      >
-                        Push-to-Talk
-                      </button>
-                      <button
-                        onClick={() => onMicModeChange('auto')}
-                        className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${micMode === 'auto'
-                          ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30'
-                          : 'text-white/40 hover:text-white/60'
-                          }`}
-                      >
-                        Auto
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-white/50 uppercase tracking-wider flex items-center gap-2">
-                      <Volume2 size={12} /> Voice
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={tempVoiceName}
-                        onChange={(e) => setTempVoiceName(e.target.value)}
-                        className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/30 transition-all text-sm appearance-none cursor-pointer"
-                      >
-                        {VOICE_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value} className="bg-[#1e1e1e] text-white">
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-white/50">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+              {/* Content */}
+              <div className="p-4 space-y-4 max-h-[45vh] overflow-y-auto">
+                <AnimatePresence mode="wait">
+                  {activeTab === 'api' && (
+                    <motion.div
+                      key="api"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      transition={{ duration: 0.15 }}
+                      className="space-y-4"
+                    >
+                      {/* API Key */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
+                          Gemini API Key
+                        </label>
+                        <input
+                          type="password"
+                          value={tempApiKey}
+                          onChange={(e) => setTempApiKey(e.target.value)}
+                          placeholder="Paste your API key..."
+                          className={cn(
+                            'w-full px-3 py-2 text-sm text-white placeholder-white/20',
+                            'bg-black/30 border border-white/10',
+                            rounded.lg,
+                            'focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20',
+                            'font-mono transition-all'
+                          )}
+                        />
+                        <p className="text-[10px] text-white/30">Stored locally in your browser</p>
                       </div>
-                    </div>
-                  </div>
-                </div>
 
+                      {/* Model Info */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
+                          Model
+                        </label>
+                        <div className={cn(
+                          'px-3 py-2 text-xs text-white/50 font-mono flex items-center justify-between',
+                          'bg-black/20 border border-white/5',
+                          rounded.lg
+                        )}>
+                          <span className="truncate">{GEMINI_MODEL.replace('models/', '')}</span>
+                          <span className="text-[9px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/20 flex-shrink-0 ml-2">
+                            Active
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
 
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-white/50 uppercase tracking-wider flex items-center gap-2">
-                    <Info size={12} /> System Instructions
-                  </label>
-                  <textarea
-                    value={tempSystemInstruction}
-                    readOnly
-                    disabled
-                    onChange={(e) => setTempSystemInstruction(e.target.value)}
-                    placeholder="Fetching system instructions..."
-                    className="w-full h-32 bg-black/20 border border-white/5 rounded-xl px-4 py-3 text-white/50 cursor-not-allowed resize-none focus:outline-none"
-                  />
-                  <p className="text-xs text-white/30">
-                    System instructions are managed centrally and cannot be edited here.
-                  </p>
-                </div>
+                  {activeTab === 'voice' && (
+                    <motion.div
+                      key="voice"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      transition={{ duration: 0.15 }}
+                      className="space-y-4"
+                    >
+                      {/* Voice Selection */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
+                          Voice
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={tempVoiceName}
+                            onChange={(e) => setTempVoiceName(e.target.value)}
+                            className={cn(
+                              'w-full px-3 py-2 text-sm text-white',
+                              'bg-black/30 border border-white/10',
+                              rounded.lg,
+                              'focus:outline-none focus:border-cyan-500/50',
+                              'appearance-none cursor-pointer'
+                            )}
+                          >
+                            {VOICE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value} className="bg-[#1a1a1a]">
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-white/40">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Mic Mode */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
+                          Microphone Mode
+                        </label>
+                        <div className={cn('flex p-0.5 gap-0.5', 'bg-black/30 border border-white/10', rounded.lg)}>
+                          <button
+                            onClick={() => onMicModeChange('manual')}
+                            className={cn(
+                              'flex-1 py-1.5 text-xs font-medium transition-all',
+                              rounded.md,
+                              micMode === 'manual'
+                                ? 'bg-white/10 text-white'
+                                : 'text-white/40 hover:text-white/60'
+                            )}
+                          >
+                            Push-to-Talk
+                          </button>
+                          <button
+                            onClick={() => onMicModeChange('auto')}
+                            className={cn(
+                              'flex-1 py-1.5 text-xs font-medium transition-all',
+                              rounded.md,
+                              micMode === 'auto'
+                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                                : 'text-white/40 hover:text-white/60'
+                            )}
+                          >
+                            Auto
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {activeTab === 'webhooks' && (
+                    <motion.div
+                      key="webhooks"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      transition={{ duration: 0.15 }}
+                      className="space-y-4"
+                    >
+                      {/* Brain Webhook */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-medium text-white/40 uppercase tracking-wider flex items-center gap-1.5">
+                          <Webhook size={10} /> Navi Brain (n8n)
+                        </label>
+                        <input
+                          type="text"
+                          value={tempNaviBrainWebhook}
+                          onChange={(e) => setTempNaviBrainWebhook(e.target.value)}
+                          placeholder="https://your-n8n.com/webhook/..."
+                          className={cn(
+                            'w-full px-3 py-2 text-sm text-white placeholder-white/20',
+                            'bg-black/30 border border-white/10',
+                            rounded.lg,
+                            'focus:outline-none focus:border-purple-500/50',
+                            'font-mono transition-all'
+                          )}
+                        />
+                        <p className="text-[10px] text-white/30">Search, save, read notes</p>
+                      </div>
+
+                      {/* Note Content Toggle */}
+                      <div className={cn(
+                        'flex items-center justify-between p-3',
+                        'bg-black/20 border border-white/5',
+                        rounded.lg
+                      )}>
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-white">
+                            <FileText size={12} className="text-blue-400" />
+                            Use Notes for Context
+                          </div>
+                          <p className="text-[10px] text-white/40">Remember note contents</p>
+                        </div>
+                        <button
+                          onClick={() => setTempReceiveNoteContent(!tempReceiveNoteContent)}
+                          className={cn(
+                            'relative w-10 h-5 transition-colors',
+                            rounded.full,
+                            tempReceiveNoteContent ? 'bg-cyan-500' : 'bg-white/20'
+                          )}
+                        >
+                          <motion.div
+                            animate={{ x: tempReceiveNoteContent ? 20 : 2 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                            className={cn('absolute top-0.5 w-4 h-4 bg-white', rounded.full)}
+                          />
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {activeTab === 'about' && (
+                    <motion.div
+                      key="about"
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 10 }}
+                      transition={{ duration: 0.15 }}
+                      className="space-y-3"
+                    >
+                      {/* Version Info */}
+                      <div className={cn(
+                        'p-3 space-y-2',
+                        'bg-black/20 border border-white/5',
+                        rounded.lg
+                      )}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/50">Version</span>
+                          <span className="text-xs font-mono text-white">v{__APP_VERSION__}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/50">Build</span>
+                          <span className="text-xs font-mono text-white/70">{__COMMIT_COUNT__}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/50">Model</span>
+                          <span className="text-[10px] font-mono text-cyan-400 truncate ml-2">
+                            {GEMINI_MODEL.replace('models/', '')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* System Instruction Preview */}
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
+                          System Prompt (Read-only)
+                        </label>
+                        <div className={cn(
+                          'h-24 overflow-y-auto px-3 py-2 text-[10px] text-white/40 font-mono',
+                          'bg-black/20 border border-white/5',
+                          rounded.lg
+                        )}>
+                          {tempSystemInstruction || 'Loading...'}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </>
-          )}
 
-          {activeTab === 'functions' && (
-            <div className="space-y-6">
-              <div className="bg-purple-500/5 border border-purple-500/10 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
-                    <Webhook size={18} />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-medium text-white">Navi Brain Webhook</h3>
-                    <p className="text-xs text-white/50 leading-relaxed">
-                      Connects Navi to your backend agent (n8n). All "Brain" requests (Search/Save/Read) are sent here.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Note Content Context Toggle */}
-              <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-4 flex items-center justify-between">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-medium text-white flex items-center gap-2">
-                    Use Notes for Context
-                  </h3>
-                  <p className="text-xs text-white/50">
-                    If enabled, Navi will remember the content of notes she retrieves.
-                  </p>
-                </div>
-                <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
-                  <input
-                    type="checkbox"
-                    name="toggle"
-                    id="toggle"
-                    checked={tempReceiveNoteContent}
-                    onChange={(e) => setTempReceiveNoteContent(e.target.checked)}
-                    className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out request-switch-thumb"
-                    style={{ transform: tempReceiveNoteContent ? 'translateX(100%)' : 'translateX(0)', borderColor: tempReceiveNoteContent ? '#3b82f6' : '#E5E7EB' }}
-                  />
-                  <label htmlFor="toggle" className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer transition-colors duration-200 ease-in-out ${tempReceiveNoteContent ? 'bg-blue-500' : 'bg-gray-300'}`}></label>
-                </div>
-                {/* Fallback simple checkbox if toggle css is complex */}
-                {/* <input
-                    type="checkbox"
-                    checked={tempReceiveNoteContent}
-                    onChange={(e) => setTempReceiveNoteContent(e.target.checked)}
-                    className="w-5 h-5 rounded border-white/20 bg-black/40 text-blue-500 focus:ring-offset-0 focus:ring-blue-500/50"
-                  /> */}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-white/50 uppercase tracking-wider">
-                  Webhook URL
-                </label>
-                <input
-                  type="text"
-                  value={tempNaviBrainWebhook}
-                  onChange={(e) => setTempNaviBrainWebhook(e.target.value)}
-                  placeholder="https://your-n8n-instance.com/webhook/..."
-                  className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/20 focus:outline-none focus:border-purple-500/30 focus:ring-1 focus:ring-purple-500/30 transition-all text-sm font-mono"
-                />
+              {/* Footer */}
+              <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-white/5 bg-white/[0.02]">
+                <button
+                  onClick={handleCancel}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-medium text-white/50 hover:text-white hover:bg-white/5 transition-colors',
+                    rounded.lg
+                  )}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className={cn(
+                    'px-4 py-1.5 text-xs font-medium flex items-center gap-1.5',
+                    'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30',
+                    'hover:bg-cyan-500/30 transition-colors',
+                    rounded.lg
+                  )}
+                >
+                  <Save size={12} />
+                  Save
+                </button>
               </div>
             </div>
-          )}
-
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-white/5 bg-white/5 flex items-center justify-between gap-3">
-          <div className="flex flex-col">
-            <span className="text-[10px] text-white/20 font-mono">v{__APP_VERSION__}</span>
-            <span className="text-[10px] text-white/20 font-mono">b{__COMMIT_COUNT__}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleCancel}
-              className="px-4 py-2 rounded-xl text-xs font-medium text-white/60 hover:text-white hover:bg-white/5 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="px-6 py-2 rounded-xl text-xs font-medium bg-white text-black hover:bg-gray-200 transition-colors shadow-lg shadow-white/5 flex items-center gap-2"
-            >
-              <Save size={14} />
-              Save Changes
-            </button>
-          </div>
-        </div>
-
-      </div>
-    </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 };

@@ -27,6 +27,10 @@ interface SettingsContextType {
   receiveNoteContent: boolean;
   setReceiveNoteContent: (value: boolean) => void;
   
+  // Integrations
+  obsidianWebhookUrl: string;
+  setObsidianWebhookUrl: (url: string) => void;
+  
   // Computed
   hasApiKey: boolean;
 }
@@ -53,6 +57,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   const [naviBrainWebhook, setNaviBrainWebhook] = useLocalStorage(STORAGE_KEYS.NAVI_BRAIN_WEBHOOK, DEFAULT_SETTINGS.naviBrainWebhook);
   const [voiceName, setVoiceName] = useLocalStorage(STORAGE_KEYS.VOICE_NAME, DEFAULT_SETTINGS.voiceName);
   const [receiveNoteContent, setReceiveNoteContent] = useLocalStorage(STORAGE_KEYS.RECEIVE_NOTE_CONTENT, DEFAULT_SETTINGS.receiveNoteContent);
+  const [obsidianWebhookUrl, setObsidianWebhookUrl] = useLocalStorage(STORAGE_KEYS.OBSIDIAN_WEBHOOK_URL, DEFAULT_SETTINGS.obsidianWebhookUrl);
 
   // Fetch System Prompt from webhook on mount
   useEffect(() => {
@@ -92,6 +97,10 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     receiveNoteContent,
     setReceiveNoteContent,
     
+    // Integrations
+    obsidianWebhookUrl,
+    setObsidianWebhookUrl,
+    
     // Computed
     hasApiKey: !!apiKey,
   }), [
@@ -101,6 +110,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     naviBrainWebhook, setNaviBrainWebhook,
     micMode, setMicMode,
     receiveNoteContent, setReceiveNoteContent,
+    obsidianWebhookUrl, setObsidianWebhookUrl,
   ]);
 
   return (

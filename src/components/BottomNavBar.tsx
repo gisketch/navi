@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, User, Bell, Wallet, PenLine, Layers, Banknote, CreditCard, Receipt, Mic, MicOff, MessageSquare, X, Loader2, Camera, Settings, LogOut } from 'lucide-react';
+import { Home, User, Wallet, PenLine, Layers, Banknote, CreditCard, Receipt, Mic, MicOff, MessageSquare, X, Loader2, Camera, Settings, LogOut, ListTodo } from 'lucide-react';
 import { calculateProximityGlow, createGlowGradient, cn, glass } from '../utils/glass';
 
 type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
@@ -605,15 +605,15 @@ export function BottomNavBar({
             {/* Spacer for center button */}
             <div className="w-[72px]" />
 
-            {/* Position 3: Notifications / Settings */}
+            {/* Position 3: Focus/Tasks / Settings */}
             <NavIconButton
               key={mode === 'dashboard' ? 'notifications' : 'settings'}
-              icon={mode === 'dashboard' ? Bell : Settings}
-              isActive={false}
+              icon={mode === 'dashboard' ? ListTodo : Settings}
+              isActive={mode === 'dashboard' ? activeTab === 'notifications' : false}
               onClick={() => {
-                if (mode === 'chat') onOpenSettings?.();
+                if (mode === 'dashboard') onTabChange?.('notifications');
+                else onOpenSettings?.();
               }}
-              disabled={mode === 'dashboard'}
               mode={mode}
             />
 

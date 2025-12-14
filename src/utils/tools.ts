@@ -286,6 +286,129 @@ export const FINANCE_TOOLS: Tool[] = [
 ];
 
 // ============================================
+// Task Tools (ADHD-First Focus System)
+// ============================================
+export const TASK_TOOLS: Tool[] = [
+    {
+        functionDeclarations: [
+            // ========== READ-ONLY TOOLS ==========
+            {
+                name: 'get_tasks',
+                description: "Get the user's todo list / tasks. Use when user asks about their tasks, todos, what they need to do, or what they're working on. Returns tasks organized by category (work/personal) and status.",
+                parameters: {
+                    type: 'OBJECT' as any,
+                    properties: {
+                        category: {
+                            type: 'STRING' as any,
+                            description: 'Filter by category: "work" or "personal". Leave empty for all.',
+                        },
+                        include_completed: {
+                            type: 'BOOLEAN' as any,
+                            description: 'Include completed tasks. Default false (only show todo and in_progress).',
+                        },
+                    },
+                    required: [],
+                },
+            },
+            {
+                name: 'get_current_task',
+                description: "Get the task the user is currently working on (status = 'in_progress'). Use when user asks 'what am I working on?', 'what's my current task?', or 'what should I be doing?'. Returns the active task for each category.",
+                parameters: {
+                    type: 'OBJECT' as any,
+                    properties: {
+                        category: {
+                            type: 'STRING' as any,
+                            description: 'Get current task for specific category: "work" or "personal". Leave empty for both.',
+                        },
+                    },
+                    required: [],
+                },
+            },
+
+            // ========== WRITE TOOLS (Show Confirmation Modal) ==========
+            {
+                name: 'add_task',
+                description: "Add a new task/todo. Shows confirmation modal. Use when user says they need to do something, want to remember a task, or mentions work they need to complete. IMPORTANT: Infer the category from context - coding/project/work stuff = 'work', personal errands/home/chores = 'personal'.",
+                parameters: {
+                    type: 'OBJECT' as any,
+                    properties: {
+                        title: {
+                            type: 'STRING' as any,
+                            description: 'Task title/description. Keep it concise but clear.',
+                        },
+                        category: {
+                            type: 'STRING' as any,
+                            description: 'Category: "work" or "personal". Infer from context.',
+                        },
+                        content: {
+                            type: 'STRING' as any,
+                            description: 'Optional additional notes or context for the task.',
+                        },
+                        deadline: {
+                            type: 'STRING' as any,
+                            description: 'Optional deadline in ISO format (YYYY-MM-DD). Only include if user mentions a specific date.',
+                        },
+                    },
+                    required: ['title', 'category'],
+                },
+            },
+            {
+                name: 'start_task',
+                description: "Start working on a task (set to 'in_progress'). Shows confirmation modal. Use when user says they're going to work on something, starting a task, or wants to focus on something. This will pause any other active task in the same category.",
+                parameters: {
+                    type: 'OBJECT' as any,
+                    properties: {
+                        task_name: {
+                            type: 'STRING' as any,
+                            description: 'Name/title of the task to start. Can be partial match.',
+                        },
+                        search_terms: {
+                            type: 'ARRAY' as any,
+                            items: { type: 'STRING' as any },
+                            description: 'Alternative search terms to find the task.',
+                        },
+                    },
+                    required: ['task_name'],
+                },
+            },
+            {
+                name: 'complete_task',
+                description: "Mark a task as complete. Shows confirmation modal. Use when user says they finished a task, completed something, or are done with a task.",
+                parameters: {
+                    type: 'OBJECT' as any,
+                    properties: {
+                        task_name: {
+                            type: 'STRING' as any,
+                            description: 'Name/title of the task to complete. Can be partial match. If user says "I\'m done" without specifying, use their current in_progress task.',
+                        },
+                        search_terms: {
+                            type: 'ARRAY' as any,
+                            items: { type: 'STRING' as any },
+                            description: 'Alternative search terms to find the task.',
+                        },
+                    },
+                    required: ['task_name'],
+                },
+            },
+            {
+                name: 'pause_task',
+                description: "Pause a task (set back to 'todo'). Use when user says they're stopping work on something, taking a break, or switching context.",
+                parameters: {
+                    type: 'OBJECT' as any,
+                    properties: {
+                        task_name: {
+                            type: 'STRING' as any,
+                            description: 'Name/title of the task to pause. Can be partial match. If user says "pause" or "stop" without specifying, use their current in_progress task.',
+                        },
+                    },
+                    required: [],
+                },
+            },
+        ],
+    },
+];
+
+// ============================================
 // Combined Tools (All tools for Chat mode)
 // ============================================
 export const TOOLS: Tool[] = [
@@ -293,6 +416,7 @@ export const TOOLS: Tool[] = [
         functionDeclarations: [
             ...BASE_TOOLS[0].functionDeclarations!,
             ...FINANCE_TOOLS[0].functionDeclarations!,
+            ...TASK_TOOLS[0].functionDeclarations!,
         ],
     },
 ];
@@ -386,4 +510,43 @@ Be FAST and ACTION-ORIENTED. When the user mentions money:
 The confirmation modal is your friend - it lets users review and edit. Trust it. Don't interrogate users.
 
 When multiple bills or debts match, a selection modal will appear - this is expected behavior for fuzzy search.
+`;
+
+// ============================================
+// Task System Prompt Addition
+// ============================================
+export const TASK_SYSTEM_PROMPT = `
+## Task Management Capabilities (ADHD-First Focus System)
+
+You can help manage the user's tasks/todos with an ADHD-friendly "Focus Mode" system. Key features:
+
+### Core Concepts:
+- **Work vs Personal**: Tasks are separated into categories to prevent context collapse
+- **One Thing at a Time**: Only ONE task per category can be "in_progress" at a time
+- **The Doing Now**: When a task is in_progress, it becomes THE focus - everything else fades away
+- **Start Action Ritual**: Starting a task is a deliberate action that creates a commitment
+
+### ADHD-Friendly Behavior:
+- Don't overwhelm with lists - focus on what's CURRENT
+- When asked "what should I do?", point to the in_progress task if one exists
+- If no in_progress task, suggest picking one from todo
+- Be encouraging, not naggy
+
+### Smart Category Inference:
+- "Fix the bug" / "Finish the feature" / "Code review" → work
+- "Buy groceries" / "Call mom" / "Clean room" → personal
+- "Meeting with John" → context-dependent, ask if unclear
+
+### Examples of IMMEDIATE action:
+- "I need to fix the login bug" → add_task("Fix login bug", "work")
+- "Remind me to buy milk" → add_task("Buy milk", "personal")
+- "I'm gonna work on the API now" → start_task("API") or add + start if new
+- "Done with that" → complete_task (uses current in_progress task)
+- "What am I working on?" → get_current_task()
+- "Taking a break" → pause_task (pauses current in_progress task)
+
+### Context Awareness:
+- If user has an in_progress task and says "I'm done", complete THAT task
+- If user says "pause" without specifying, pause the current in_progress task
+- Timer tracking: Tasks track when they were started for time awareness
 `;

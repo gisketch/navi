@@ -13,6 +13,7 @@ export const STORAGE_KEYS = {
   NAVI_BRAIN_WEBHOOK: 'navi_brain_webhook',
   VOICE_NAME: 'navi_voice_name',
   RECEIVE_NOTE_CONTENT: 'navi_receive_note_content',
+  OBSIDIAN_WEBHOOK_URL: 'navi_obsidian_webhook_url',
 };
 
 export interface CardData {
@@ -41,12 +42,14 @@ export interface NaviSettings {
   naviBrainWebhook: string;
   voiceName: string;
   receiveNoteContent: boolean;
+  obsidianWebhookUrl: string;
 }
 
 export type MicMode = NaviSettings['micMode'];
 
 export const DEFAULT_WEBHOOKS = {
   NAVI_BRAIN: 'https://automate.gisketch.com/webhook/navi-brain',
+  OBSIDIAN_CREATE: 'https://automate.gisketch.com/webhook/navi-obsidian-create',
 };
 
 export const VOICE_OPTIONS = [
@@ -71,8 +74,9 @@ export const DEFAULT_SETTINGS: NaviSettings = {
   apiKey: '',
   micMode: 'auto',
   naviBrainWebhook: DEFAULT_WEBHOOKS.NAVI_BRAIN,
-  voiceName: 'Kore',
+  voiceName: 'Zephyr',
   receiveNoteContent: true,
+  obsidianWebhookUrl: DEFAULT_WEBHOOKS.OBSIDIAN_CREATE,
 };
 
 // ============================================

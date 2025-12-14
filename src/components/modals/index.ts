@@ -20,3 +20,10 @@ export { PaymentModal } from './PaymentModal';
 export { SettingsModal } from './SettingsModal';
 
 export { FinanceConfirmationModal } from './FinanceConfirmationModal';
+
+export { TaskInputModal } from './TaskInputModal';
+export type { TaskFormData } from './TaskInputModal';
+
+export { TaskDetailModal } from './TaskDetailModal';
+
+export { TaskConfirmationModal } from './TaskConfirmationModal';

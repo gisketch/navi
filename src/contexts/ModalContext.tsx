@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
 import type { Allocation, Debt, Subscription, MoneyDrop, Transaction } from '../utils/financeTypes';
+import type { Task, TaskCategory } from '../utils/taskTypes';
 
 // ============================================
 // Modal Context
@@ -15,7 +16,9 @@ export type ModalType =
   | 'allocation'
   | 'debt'
   | 'subscription'
-  | 'payment';
+  | 'payment'
+  | 'taskInput'
+  | 'taskDetail';
 
 interface ModalState {
   settings: boolean;
@@ -26,6 +29,8 @@ interface ModalState {
   debt: boolean;
   subscription: boolean;
   payment: boolean;
+  taskInput: boolean;
+  taskDetail: boolean;
 }
 
 interface ModalContextType {
@@ -38,6 +43,11 @@ interface ModalContextType {
   editingAllocation: Allocation | null;
   editingMoneyDrop: MoneyDrop | null;
   editingTransaction: Transaction | null;
+  
+  // Task modal specific state
+  editingTask: Task | null;
+  taskInputCategory: TaskCategory;
+  viewingTask: Task | null;
   
   // Payment modal specific state
   paymentAllocation: Allocation | null;
@@ -54,6 +64,12 @@ interface ModalContextType {
   openEditAllocation: (allocation: Allocation) => void;
   openEditMoneyDrop: (drop: MoneyDrop) => void;
   openEditTransaction: (transaction: Transaction) => void;
+  
+  // Task modal actions
+  openTaskInput: (category?: TaskCategory, editTask?: Task) => void;
+  openTaskDetail: (task: Task) => void;
+  closeTaskInputModal: () => void;
+  closeTaskDetailModal: () => void;
   
   // Payment modal actions
   openPayment: (allocation: Allocation, type: 'bill' | 'debt') => void;
@@ -75,6 +91,8 @@ const defaultModalState: ModalState = {
   debt: false,
   subscription: false,
   payment: false,
+  taskInput: false,
+  taskDetail: false,
 };
 
 const ModalContext = createContext<ModalContextType | null>(null);
@@ -86,6 +104,9 @@ export function useModalContext(): ModalContextType {
   }
   return context;
 }
+
+// Alias for convenience
+export const useModal = useModalContext;
 
 interface ModalProviderProps {
   children: ReactNode;
@@ -101,6 +122,11 @@ export function ModalProvider({ children }: ModalProviderProps) {
   const [editingAllocation, setEditingAllocation] = useState<Allocation | null>(null);
   const [editingMoneyDrop, setEditingMoneyDrop] = useState<MoneyDrop | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  
+  // Task modal state
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [taskInputCategory, setTaskInputCategory] = useState<TaskCategory>('work');
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
   
   // Payment modal state
   const [paymentAllocation, setPaymentAllocation] = useState<Allocation | null>(null);
@@ -123,6 +149,8 @@ export function ModalProvider({ children }: ModalProviderProps) {
     setEditingMoneyDrop(null);
     setEditingTransaction(null);
     setPaymentAllocation(null);
+    setEditingTask(null);
+    setViewingTask(null);
   }, []);
 
   // Entity-specific edit actions
@@ -157,6 +185,28 @@ export function ModalProvider({ children }: ModalProviderProps) {
     setPaymentAllocation(allocation);
     setPaymentType(type);
     setModals(prev => ({ ...prev, payment: true }));
+  }, []);
+
+  // Task modal actions
+  const openTaskInput = useCallback((category: TaskCategory = 'work', editTask?: Task) => {
+    setTaskInputCategory(category);
+    setEditingTask(editTask || null);
+    setModals(prev => ({ ...prev, taskInput: true }));
+  }, []);
+
+  const openTaskDetail = useCallback((task: Task) => {
+    setViewingTask(task);
+    setModals(prev => ({ ...prev, taskDetail: true }));
+  }, []);
+
+  const closeTaskInputModal = useCallback(() => {
+    setModals(prev => ({ ...prev, taskInput: false }));
+    setEditingTask(null);
+  }, []);
+
+  const closeTaskDetailModal = useCallback(() => {
+    setModals(prev => ({ ...prev, taskDetail: false }));
+    setViewingTask(null);
   }, []);
 
   // Close with cleanup actions
@@ -195,6 +245,9 @@ export function ModalProvider({ children }: ModalProviderProps) {
     editingTransaction,
     paymentAllocation,
     paymentType,
+    editingTask,
+    taskInputCategory,
+    viewingTask,
     
     // Generic actions
     openModal,
@@ -208,6 +261,12 @@ export function ModalProvider({ children }: ModalProviderProps) {
     openEditMoneyDrop,
     openEditTransaction,
     openPayment,
+    
+    // Task modal actions
+    openTaskInput,
+    openTaskDetail,
+    closeTaskInputModal,
+    closeTaskDetailModal,
     
     // Close with cleanup
     closeDebtModal,
@@ -224,6 +283,9 @@ export function ModalProvider({ children }: ModalProviderProps) {
     editingTransaction,
     paymentAllocation,
     paymentType,
+    editingTask,
+    taskInputCategory,
+    viewingTask,
     openModal,
     closeModal,
     closeAllModals,
@@ -233,6 +295,10 @@ export function ModalProvider({ children }: ModalProviderProps) {
     openEditMoneyDrop,
     openEditTransaction,
     openPayment,
+    openTaskInput,
+    openTaskDetail,
+    closeTaskInputModal,
+    closeTaskDetailModal,
     closeDebtModal,
     closeSubscriptionModal,
     closeAllocationModal,

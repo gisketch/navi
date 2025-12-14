@@ -190,7 +190,10 @@ export function LiveStatus({ status, onStatusChange }: LiveStatusProps) {
   if (!currentDisplayStatus) return null;
 
   return (
-    <div className="fixed inset-x-0 top-24 flex items-center justify-center pointer-events-none z-30">
+    <div 
+      className="fixed inset-x-0 flex items-center justify-center pointer-events-none z-30"
+      style={{ top: 'calc(env(safe-area-inset-top, 20px) + 80px)' }}
+    >
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

@@ -23,18 +23,35 @@ body {
   user-select: none;
 }
 
+/* Scale down for PWA - makes elements appear smaller like 85% browser zoom */
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari PWA */
+  html {
+    font-size: 14px; /* Base font size reduction */
+  }
+}
+
+@media screen and (display-mode: standalone) {
+  /* PWA standalone mode */
+  html {
+    font-size: 14px;
+  }
+}
+
 #root {
   height: 100vh;
   height: 100dvh;
 }
 
 /* Hide scrollbar but allow scrolling */
-.hide-scrollbar {
+.hide-scrollbar,
+[data-scrollable] {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
-.hide-scrollbar::-webkit-scrollbar {
+.hide-scrollbar::-webkit-scrollbar,
+[data-scrollable]::-webkit-scrollbar {
   display: none;
 }
 
