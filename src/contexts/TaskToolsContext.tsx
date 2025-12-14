@@ -458,6 +458,7 @@ export function TaskToolsProvider({ children }: { children: ReactNode }) {
             deadline: args.deadline,
             obsidian_path: 'Inbox/',
             status: 'todo',
+            sort_order: Date.now(), // New tasks get high sort order (end of list)
           });
           result = JSON.stringify({
             error: false,

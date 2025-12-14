@@ -30,6 +30,7 @@ interface NaviProps {
   position?: NaviPosition; // Where Navi should be positioned
   onPositionChange?: (pos: { x: number; y: number }) => void; // Callback for position updates
   connectivityState?: ConnectivityState; // Override body color based on network status
+  dragTargetPosition?: { x: number; y: number } | null; // When dragging tasks, Navi follows this position
 }
 
 // Color schemes for each state
@@ -346,11 +347,12 @@ const getWingSpeed = (state: NaviState) => {
   }
 };
 
-export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuState, spinTrigger = 0, position = 'center', onPositionChange, connectivityState = 'online' }: NaviProps) {
+export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuState, spinTrigger = 0, position = 'center', onPositionChange, connectivityState = 'online', dragTargetPosition }: NaviProps) {
   const particles = [0, 0.35, 0.7, 1.05, 1.4, 1.75, 2.1];
   const flapSpeed = getWingSpeed(state);
 
-
+  // Is Navi following a drag?
+  const isDragging = dragTargetPosition !== null && dragTargetPosition !== undefined;
 
   // Track if we've connected (transitioned from offline)
   const [hasConnected, setHasConnected] = useState(false);
@@ -491,6 +493,26 @@ export function Navi({ state = 'offline', audioLevel = 0, scale = 1, radialMenuS
   // Glow lag - the difference between glow position and body position
   const glowLagX = useTransform(() => glowX.get() - bodyX.get());
   const glowLagY = useTransform(() => glowY.get() - bodyY.get());
+
+  // Follow drag position when dragging tasks (Focus page reorder)
+  useEffect(() => {
+    if (isDragging && dragTargetPosition) {
+      const centerX = window.innerWidth / 2;
+      const centerY = window.innerHeight * 0.2;
+      
+      // Position Navi slightly above the finger (so it's visible while dragging)
+      const offsetX = dragTargetPosition.x - centerX;
+      const offsetY = dragTargetPosition.y - centerY - 80; // 80px above finger
+      
+      touchTargetX.set(offsetX);
+      touchTargetY.set(offsetY);
+    } else if (!isDragging && !isTouching) {
+      // Return to position-based offset when not dragging
+      const offset = getPositionOffset();
+      touchTargetX.set(offset.x);
+      touchTargetY.set(offset.y);
+    }
+  }, [isDragging, dragTargetPosition, isTouching, getPositionOffset, touchTargetX, touchTargetY]);
 
   // Handle touch/mouse interactions - pressing anywhere triggers follow
   useEffect(() => {

@@ -139,6 +139,9 @@ function AppContent() {
   // Track Navi's position for glow effects
   const [naviPosition, setNaviPosition] = useState<{ x: number; y: number } | undefined>();
 
+  // Track drag position for Navi to follow (Focus page drag-to-reorder)
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+
   // Track if initial data has loaded (for Navi state)
   const [hasInitialDataLoaded, setHasInitialDataLoaded] = useState(false);
 
@@ -678,7 +681,7 @@ function AppContent() {
         <Navi
           state={naviState}
           audioLevel={activeVoiceSession.audioLevel}
-          scale={isFinanceVoiceActive ? 1.5 : 1}
+          scale={dragPosition ? 0.6 : isFinanceVoiceActive ? 1.5 : 1}
           radialMenuState={mode === 'chat' ? radialMenuState : undefined}
           position={
             isFinanceVoiceActive
@@ -691,6 +694,7 @@ function AppContent() {
           }
           onPositionChange={mode === 'dashboard' ? handleNaviPositionChange : undefined}
           connectivityState={connectivityState}
+          dragTargetPosition={dragPosition}
         />
 
         {/* Dashboard Mode - Tab Content */}
@@ -743,7 +747,7 @@ function AppContent() {
               transition={{ duration: 0.15 }}
               className="flex-1 flex flex-col min-h-0"
             >
-              <Focus naviPosition={naviPosition} />
+              <Focus naviPosition={naviPosition} onDragPositionChange={setDragPosition} />
             </motion.div>
           )}
 

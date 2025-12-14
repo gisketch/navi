@@ -16,6 +16,7 @@ import {
   generateLocalId,
 } from '../utils/offlineCache';
 import { useSettings } from './SettingsContext';
+import { useToast } from '../components/Toast';
 
 // ============================================
 // Context Type
@@ -42,6 +43,7 @@ interface TaskContextType {
   createTask: (data: Omit<Task, 'id' | 'created' | 'updated'>) => Promise<Task>;
   updateTask: (id: string, data: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
+  reorderTasks: (reorderedTasks: Task[]) => Promise<void>; // For drag-drop sorting
   
   // ADHD-specific actions
   startTask: (id: string) => Promise<void>;
@@ -72,6 +74,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const cacheUpdateRef = useRef<NodeJS.Timeout | null>(null);
   
   const { obsidianWebhookUrl } = useSettings();
+  const { showToast } = useToast();
 
   // ============================================
   // Cache Management
@@ -202,10 +205,12 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   const isOnline = () => navigator.onLine;
 
   // Trigger n8n webhook to create Obsidian file
-  const triggerObsidianFileCreation = useCallback(async (task: Task) => {
+  // Returns the obsidian_path if successful, null otherwise
+  // Takes optional taskId to update PocketBase directly
+  const triggerObsidianFileCreation = useCallback(async (task: Task, realTaskId?: string): Promise<string | null> => {
     if (!obsidianWebhookUrl) {
       console.log('[TaskContext] No Obsidian webhook URL configured');
-      return;
+      return null;
     }
 
     try {
@@ -215,7 +220,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({
           action: 'create_task_file',
           file_name: `${task.slug}.md`,
-          file_path: `${task.obsidian_path}${task.category === 'work' ? 'Work' : 'Personal'}`,
+          file_path: `07-navi/tasks/${task.category}`,
           title: task.title,
           content: task.content || '',
           deadline: task.deadline,
@@ -224,14 +229,48 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       });
       
       if (!response.ok) {
-        console.error('[TaskContext] Failed to create Obsidian file:', await response.text());
+        const errorText = await response.text();
+        console.error('[TaskContext] Failed to create Obsidian file:', errorText);
+        showToast('Failed to create Obsidian note', 'error');
+        return null;
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.obsidian_path) {
+        console.log('[TaskContext] Obsidian file created:', result.obsidian_path);
+        
+        // Update the task's obsidian_path in local state
+        const idToMatch = realTaskId || task.id;
+        setTasks(prev => prev.map(t => 
+          t.id === idToMatch || t.slug === task.slug ? { ...t, obsidian_path: result.obsidian_path } : t
+        ));
+        
+        // Update in PocketBase if we have a real (non-local) ID
+        const pbId = realTaskId || task.id;
+        if (navigator.onLine && pbId && !pbId.startsWith('local_')) {
+          try {
+            await pb.collection('tasks').update(pbId, { 
+              obsidian_path: result.obsidian_path 
+            }, { requestKey: null });
+            console.log('[TaskContext] Updated obsidian_path in PocketBase:', pbId);
+          } catch (err) {
+            console.error('[TaskContext] Failed to update obsidian_path in PocketBase:', err);
+          }
+        }
+        
+        return result.obsidian_path;
       } else {
-        console.log('[TaskContext] Obsidian file creation triggered');
+        console.error('[TaskContext] Obsidian webhook returned error:', result.error);
+        showToast('Obsidian note creation failed', 'error');
+        return null;
       }
     } catch (err) {
       console.error('[TaskContext] Error triggering Obsidian webhook:', err);
+      showToast('Could not connect to Obsidian webhook', 'error');
+      return null;
     }
-  }, [obsidianWebhookUrl]);
+  }, [obsidianWebhookUrl, showToast]);
 
   // ============================================
   // CRUD Actions
@@ -250,12 +289,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     // Update local state immediately
     setTasks(prev => [...prev, newTask]);
 
-    // Trigger Obsidian file creation via n8n
-    triggerObsidianFileCreation(newTask);
-
     if (!isOnline()) {
       const pbData = prepareTaskForPB(data);
       await addPendingOperation('tasks', 'create', pbData, localId);
+      // Trigger webhook anyway (will fail gracefully if offline)
+      triggerObsidianFileCreation(newTask);
       return newTask;
     }
 
@@ -267,10 +305,16 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       const realTask = transformTask(record as unknown as TaskRaw);
       setTasks(prev => prev.map(t => t.id === localId ? realTask : t));
       
+      // Now trigger Obsidian file creation with the REAL task ID
+      // This runs async in background - don't await
+      triggerObsidianFileCreation(realTask, realTask.id);
+      
       return realTask;
     } catch (err) {
       const pbData = prepareTaskForPB(data);
       await addPendingOperation('tasks', 'create', pbData, localId);
+      // Still try webhook
+      triggerObsidianFileCreation(newTask);
       return newTask;
     }
   }, [triggerObsidianFileCreation]);
@@ -376,6 +420,41 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     });
   }, [updateTask]);
 
+  /**
+   * Reorder tasks after drag-drop
+   * Updates sort_order for all affected tasks
+   */
+  const reorderTasks = useCallback(async (reorderedTasks: Task[]): Promise<void> => {
+    // Update local state immediately with new sort orders
+    const updatedTasks = reorderedTasks.map((task, index) => ({
+      ...task,
+      sort_order: index,
+    }));
+    
+    setTasks(prev => {
+      // Keep tasks not in the reordered list, update those that are
+      const reorderedIds = new Set(reorderedTasks.map(t => t.id));
+      const unchanged = prev.filter(t => !reorderedIds.has(t.id));
+      return [...unchanged, ...updatedTasks];
+    });
+
+    // Update PocketBase in background
+    if (navigator.onLine) {
+      try {
+        // Batch update all reordered tasks
+        await Promise.all(
+          updatedTasks.map(task => 
+            !task.id.startsWith('local_') 
+              ? pb.collection('tasks').update(task.id, { sort_order: task.sort_order }, { requestKey: null })
+              : Promise.resolve()
+          )
+        );
+      } catch (err) {
+        console.error('[TaskContext] Failed to update sort order in PocketBase:', err);
+      }
+    }
+  }, []);
+
   // ============================================
   // Context Value
   // ============================================
@@ -394,6 +473,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     createTask,
     updateTask,
     deleteTask,
+    reorderTasks,
     startTask,
     pauseTask,
     completeTask,
@@ -412,6 +492,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     createTask,
     updateTask,
     deleteTask,
+    reorderTasks,
     startTask,
     pauseTask,
     completeTask,

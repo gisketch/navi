@@ -34,6 +34,7 @@ export interface Task {
   started_at?: string; // ISO date - when "Start Action" was clicked
   completed_at?: string; // ISO date - when marked done
   obsidian_path: string; // Where the file lives in Obsidian (default: "Inbox/")
+  sort_order: number; // Manual sort order for drag-drop (lower = higher priority)
   created?: string; // ISO date - creation timestamp
   updated?: string; // ISO date - last update timestamp
 }
@@ -52,6 +53,7 @@ export interface TaskRaw {
   started_at?: string;
   completed_at?: string;
   obsidian_path: string;
+  sort_order?: number;
   created: string;
   updated: string;
 }
@@ -96,6 +98,7 @@ export function transformTask(raw: TaskRaw): Task {
     started_at: raw.started_at,
     completed_at: raw.completed_at,
     obsidian_path: raw.obsidian_path || 'Inbox/',
+    sort_order: raw.sort_order ?? 999999, // Default high number for unsorted
     created: raw.created,
     updated: raw.updated,
   };
@@ -116,15 +119,23 @@ export function prepareTaskForPB(task: Partial<Task>): Record<string, unknown> {
   if (task.started_at !== undefined) data.started_at = task.started_at || null;
   if (task.completed_at !== undefined) data.completed_at = task.completed_at || null;
   if (task.obsidian_path !== undefined) data.obsidian_path = task.obsidian_path;
+  if (task.sort_order !== undefined) data.sort_order = task.sort_order;
   
   return data;
 }
 
 /**
  * Get Obsidian URI for opening a task's note
+ * Note: obsidian_path now contains the full path from webhook (e.g., "07-navi/tasks/work/0001-task-slug.md")
+ * Fallback to old format if obsidian_path looks like a folder path
  */
-export function getObsidianUri(task: Task, vaultName: string = 'Notes'): string {
-  const filePath = `${task.obsidian_path}${task.slug}`;
+export function getObsidianUri(task: Task, vaultName: string = 'gisketch'): string {
+  // If obsidian_path ends with .md, it's the full file path from webhook
+  // Otherwise, it's the old folder format, so append slug
+  const filePath = task.obsidian_path.endsWith('.md') 
+    ? task.obsidian_path.replace(/\.md$/, '') // Remove .md for Obsidian URI
+    : `${task.obsidian_path}${task.slug}`;
+  
   return `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(filePath)}`;
 }
 
@@ -165,13 +176,18 @@ export function isOverdue(task: Task): boolean {
 
 /**
  * Sort tasks by priority for display
- * Order: in_progress first, then by deadline (earliest first), then by created date
+ * Order: in_progress first, then by sort_order (manual), then by deadline, then by created date
  */
 export function sortTasksForDisplay(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => {
     // In progress always first
     if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
     if (b.status === 'in_progress' && a.status !== 'in_progress') return 1;
+    
+    // Then by sort_order (manual drag-drop order)
+    const aOrder = a.sort_order ?? 999999;
+    const bOrder = b.sort_order ?? 999999;
+    if (aOrder !== bOrder) return aOrder - bOrder;
     
     // Then by deadline (tasks with deadlines before those without)
     if (a.deadline && !b.deadline) return -1;

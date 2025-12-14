@@ -6,10 +6,11 @@
  * - Work/Personal separation (prevents context collapse)
  * - "Start Action" is a ritual (friction as a feature)
  * - Timer shows elapsed time since started
+ * - Drag-drop to reorder tasks (Navi follows your finger!)
  */
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
 import { 
   Play, 
   Pause, 
@@ -21,6 +22,8 @@ import {
   User,
   Calendar,
   AlertCircle,
+  GripVertical,
+  Trash2,
 } from 'lucide-react';
 import { useTaskData } from '../contexts/TaskContext';
 import { useModal } from '../contexts/ModalContext';
@@ -28,9 +31,11 @@ import { GlassContainer } from './Dashboard';
 import { cn, glass, rounded } from '../utils/glass';
 import type { Task, TaskCategory } from '../utils/taskTypes';
 import { formatElapsedTime, isOverdue, getObsidianUri } from '../utils/taskTypes';
+import { TaskDeleteConfirmModal } from './modals/TaskDeleteConfirmModal';
 
 interface FocusProps {
   naviPosition?: { x: number; y: number };
+  onDragPositionChange?: (pos: { x: number; y: number } | null) => void;
 }
 
 // ============================================
@@ -265,39 +270,76 @@ function DoingNowCard({
 }
 
 // ============================================
-// Task List Item
+// Draggable Task List Item (for Reorder)
 // ============================================
-function TaskListItem({
+function DraggableTaskItem({
   task,
-  index,
   naviPosition,
   onStart,
   onClick,
+  onDelete,
+  onDragStart,
+  onDrag,
+  onDragEnd,
 }: {
   task: Task;
-  index: number;
   naviPosition?: { x: number; y: number };
   onStart: () => void;
   onClick: () => void;
+  onDelete: () => void;
+  onDragStart?: () => void;
+  onDrag?: (e: PointerEvent) => void;
+  onDragEnd?: () => void;
 }) {
   const overdue = isOverdue(task);
+  const dragControls = useDragControls();
+  const itemRef = useRef<HTMLLIElement>(null);
   
   return (
-    <motion.div
+    <Reorder.Item
+      value={task}
+      id={task.id}
+      dragListener={false}
+      dragControls={dragControls}
+      onDragStart={onDragStart}
+      onDrag={(e) => onDrag?.(e as unknown as PointerEvent)}
+      onDragEnd={onDragEnd}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      transition={{ delay: index * 0.05, duration: 0.3 }}
+      transition={{ duration: 0.2 }}
+      whileDrag={{ 
+        scale: 1.02, 
+        zIndex: 50,
+        boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+      }}
+      className="touch-none"
+      ref={itemRef}
     >
       <GlassContainer
-        as="button"
         onClick={onClick}
         naviPosition={naviPosition}
         glowColor="rgba(34, 211, 238, 0.3)"
-        className="w-full text-left"
+        className="w-full text-left cursor-pointer"
       >
         <div className="p-4">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Drag handle */}
+            <div
+              onPointerDown={(e) => {
+                e.preventDefault();
+                dragControls.start(e);
+              }}
+              className={cn(
+                'shrink-0 p-2 cursor-grab active:cursor-grabbing touch-none',
+                rounded.md,
+                'text-white/30 hover:text-white/50 hover:bg-white/5',
+                'transition-colors'
+              )}
+            >
+              <GripVertical className="w-4 h-4" />
+            </div>
+            
             {/* Start button */}
             <button
               onClick={(e) => {
@@ -331,10 +373,28 @@ function TaskListItem({
                 </div>
               )}
             </div>
+
+            {/* Delete button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className={cn(
+                'shrink-0 p-2',
+                rounded.md,
+                'text-white/20 hover:text-red-400',
+                'hover:bg-red-500/10 transition-all duration-200',
+                'active:scale-95'
+              )}
+              title="Delete task"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </GlassContainer>
-    </motion.div>
+    </Reorder.Item>
   );
 }
 
@@ -362,8 +422,10 @@ function DoneTaskItem({ task }: { task: Task }) {
 // ============================================
 // Main Focus Component
 // ============================================
-export function Focus({ naviPosition }: FocusProps) {
+export function Focus({ naviPosition, onDragPositionChange }: FocusProps) {
   const [activeCategory, setActiveCategory] = useState<TaskCategory>('work');
+  const [isDragging, setIsDragging] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const { openTaskInput, openTaskDetail } = useModal();
   
   const {
@@ -377,12 +439,37 @@ export function Focus({ naviPosition }: FocusProps) {
     startTask,
     pauseTask,
     completeTask,
+    reorderTasks,
+    deleteTask,
   } = useTaskData();
 
   // Get current task based on category
   const currentTask = activeCategory === 'work' ? currentWorkTask : currentPersonalTask;
   const todoTasks = activeCategory === 'work' ? workTodoTasks : personalTodoTasks;
   const doneTasks = activeCategory === 'work' ? workDoneTasks : personalDoneTasks;
+
+  // Handle drag events
+  const handleDragStart = useCallback(() => {
+    setIsDragging(true);
+  }, []);
+
+  const handleDrag = useCallback((e: PointerEvent) => {
+    if (onDragPositionChange) {
+      onDragPositionChange({ x: e.clientX, y: e.clientY });
+    }
+  }, [onDragPositionChange]);
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+    if (onDragPositionChange) {
+      onDragPositionChange(null);
+    }
+  }, [onDragPositionChange]);
+
+  // Handle reorder
+  const handleReorder = useCallback((newOrder: Task[]) => {
+    reorderTasks(newOrder);
+  }, [reorderTasks]);
 
   // Handle opening Obsidian
   const handleOpenNotes = (task: Task) => {
@@ -398,6 +485,14 @@ export function Focus({ naviPosition }: FocusProps) {
   // Handle create new task
   const handleCreateTask = () => {
     openTaskInput(activeCategory);
+  };
+
+  // Handle delete confirmation
+  const handleConfirmDelete = async () => {
+    if (taskToDelete) {
+      await deleteTask(taskToDelete.id);
+      setTaskToDelete(null);
+    }
   };
 
   if (isLoading) {
@@ -470,32 +565,45 @@ export function Focus({ naviPosition }: FocusProps) {
       {/* ===== SCROLLABLE BOTTOM SECTION ===== */}
       <div
         data-scrollable
-        className="flex-1 min-h-0 overflow-y-auto px-5 lg:px-8 pb-6 overscroll-contain touch-pan-y"
+        className={cn(
+          "flex-1 min-h-0 overflow-y-auto px-5 lg:px-8 pb-6 overscroll-contain",
+          isDragging ? "touch-none" : "touch-pan-y"
+        )}
       >
-        {/* Upcoming Tasks */}
-        <div className="space-y-3 mb-6">
-          <AnimatePresence mode="popLayout">
-            {todoTasks.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="text-center py-8 text-white/30 text-sm"
-              >
-                No tasks yet. Add one to get started!
-              </motion.div>
-            ) : (
-              todoTasks.map((task, index) => (
-                <TaskListItem
-                  key={task.id}
-                  task={task}
-                  index={index}
-                  naviPosition={naviPosition}
-                  onStart={() => startTask(task.id)}
-                  onClick={() => handleTaskClick(task)}
-                />
-              ))
-            )}
-          </AnimatePresence>
+        {/* Upcoming Tasks - Reorderable */}
+        <div className="mb-6">
+          {todoTasks.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center py-8 text-white/30 text-sm"
+            >
+              No tasks yet. Add one to get started!
+            </motion.div>
+          ) : (
+            <Reorder.Group
+              axis="y"
+              values={todoTasks}
+              onReorder={handleReorder}
+              className="space-y-3"
+            >
+              <AnimatePresence mode="popLayout">
+                {todoTasks.map((task) => (
+                  <DraggableTaskItem
+                    key={task.id}
+                    task={task}
+                    naviPosition={naviPosition}
+                    onStart={() => startTask(task.id)}
+                    onClick={() => handleTaskClick(task)}
+                    onDelete={() => setTaskToDelete(task)}
+                    onDragStart={handleDragStart}
+                    onDrag={handleDrag}
+                    onDragEnd={handleDragEnd}
+                  />
+                ))}
+              </AnimatePresence>
+            </Reorder.Group>
+          )}
         </div>
 
         {/* Recently Done Section */}
@@ -516,6 +624,14 @@ export function Focus({ naviPosition }: FocusProps) {
           </motion.div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <TaskDeleteConfirmModal
+        isOpen={taskToDelete !== null}
+        task={taskToDelete}
+        onClose={() => setTaskToDelete(null)}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

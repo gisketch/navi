@@ -39,6 +39,7 @@ export interface TaskFormData {
   deadline?: string;
   obsidian_path: string;
   status: 'todo';
+  sort_order: number;
 }
 
 export function TaskInputModal({
@@ -131,6 +132,7 @@ export function TaskInputModal({
         deadline: deadline || undefined,
         obsidian_path: 'Inbox/',
         status: 'todo',
+        sort_order: Date.now(), // New tasks get high sort order (end of list)
       });
 
       setShowSuccess(true);
