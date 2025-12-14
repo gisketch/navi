@@ -31,9 +31,10 @@ import { ModalManager } from './modals/ModalManager';
 import { FinanceConfirmationModal } from './modals/FinanceConfirmationModal';
 import { TaskConfirmationModal } from './modals/TaskConfirmationModal';
 import { FinanceVoiceOverlay } from './FinanceVoiceOverlay';
+import { TaskVoiceOverlay } from './TaskVoiceOverlay';
 import { Navi } from './Navi';
 import type { RadialMenuState, ConnectivityState } from './Navi';
-import { FINANCE_ONLY_SYSTEM_PROMPT, FINANCE_SYSTEM_PROMPT, TASK_SYSTEM_PROMPT } from '../utils/tools';
+import { FINANCE_ONLY_SYSTEM_PROMPT, FINANCE_SYSTEM_PROMPT, TASK_SYSTEM_PROMPT, TASK_ONLY_SYSTEM_PROMPT } from '../utils/tools';
 import type { Allocation } from '../utils/financeTypes';
 
 // Icons
@@ -117,6 +118,7 @@ function AppContent() {
     cancelPendingAction: cancelTaskAction,
     clearPendingAction: _clearTaskAction,
     selectMatch: selectTaskMatch,
+    updatePendingArgs: updateTaskPendingArgs,
   } = useTaskTools();
 
   // Use sync context for connectivity status
@@ -148,6 +150,9 @@ function AppContent() {
   // Finance voice overlay state
   const [isFinanceVoiceActive, setIsFinanceVoiceActive] = useState(false);
   const [isConfirmationProcessing, setIsConfirmationProcessing] = useState(false);
+
+  // Task voice overlay state
+  const [isTaskVoiceActive, setIsTaskVoiceActive] = useState(false);
 
   // Chat mode camera state (controlled by BottomNavBar in chat mode)
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -269,8 +274,26 @@ function AppContent() {
     financeMode: true, // Finance-only tools
   });
 
+  // ============================================
+  // Task Voice Session (Focus Tab only)
+  // ============================================
+  const taskVoiceSession = useVoiceSession({
+    apiKey: settings.apiKey,
+    systemInstruction: TASK_ONLY_SYSTEM_PROMPT,
+    naviBrainWebhook: settings.naviBrainWebhook,
+    voiceName: settings.voiceName,
+    receiveNoteContent: false, // Task mode doesn't need notes
+    onError: (err) => setError(err),
+    onExternalToolCall: handleExternalToolCall,
+    taskMode: true, // Task-only tools
+  });
+
   // Determine which session to use for Navi state
-  const activeVoiceSession = isFinanceVoiceActive ? financeVoiceSession : voiceSession;
+  const activeVoiceSession = isTaskVoiceActive 
+    ? taskVoiceSession 
+    : isFinanceVoiceActive 
+      ? financeVoiceSession 
+      : voiceSession;
 
   // ============================================
   // Navi State
@@ -283,6 +306,7 @@ function AppContent() {
     isCapturing: activeVoiceSession.isCapturing,
     connectionStatus: activeVoiceSession.connectionStatus,
     isFinanceVoiceActive, // Pass this so Navi shows listening/speaking in finance mode
+    isTaskVoiceActive, // Pass this so Navi shows listening/speaking in task mode
   });
 
   // ============================================
@@ -430,6 +454,73 @@ function AppContent() {
     setPendingToolInfo(null);
   }, [financeVoiceSession, clearPendingAction]);
 
+  // ============================================
+  // Task Voice Mode Handlers
+  // ============================================
+  
+  // Handle opening task voice overlay (long-press on Plus in Focus tab)
+  const handleTaskVoiceOpen = useCallback(async () => {
+    if (!isOnline) {
+      showToast('You are offline. AI features disabled.', 'info');
+      return;
+    }
+    
+    if (!settings.hasApiKey) {
+      openModal('settings');
+      return;
+    }
+
+    console.log('[App] Opening task voice overlay...');
+    setError(null);
+
+    try {
+      console.log('[App] Connecting to Gemini Live for tasks...');
+      await taskVoiceSession.connect();
+      console.log('[App] Connected! Setting task voice active...');
+      setIsTaskVoiceActive(true);
+
+      // Wait a bit for the connection to stabilize
+      console.log('[App] Waiting 600ms before starting capture...');
+      await new Promise(resolve => setTimeout(resolve, 600));
+
+      console.log('[App] Starting capture now...');
+      await taskVoiceSession.startCapture();
+      console.log('[App] Task voice capture started successfully!');
+    } catch (error) {
+      console.error('[App] Error in handleTaskVoiceOpen:', error);
+    }
+  }, [isOnline, settings.hasApiKey, openModal, taskVoiceSession, showToast]);
+
+  // Backup: Auto-start task voice capture if needed
+  useEffect(() => {
+    if (
+      isTaskVoiceActive &&
+      taskVoiceSession.isConnected &&
+      taskVoiceSession.audioInitialized &&
+      !taskVoiceSession.isCapturing
+    ) {
+      const timer = setTimeout(() => {
+        console.log('[App] Fallback: Auto-starting task voice capture');
+        taskVoiceSession.startCapture();
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    isTaskVoiceActive,
+    taskVoiceSession.isConnected,
+    taskVoiceSession.audioInitialized,
+    taskVoiceSession.isCapturing,
+  ]);
+
+  // Handle task voice overlay close
+  const handleTaskVoiceClose = useCallback(() => {
+    taskVoiceSession.stopCapture();
+    taskVoiceSession.disconnect();
+    setIsTaskVoiceActive(false);
+    _clearTaskAction();
+    setPendingToolInfo(null);
+  }, [taskVoiceSession, _clearTaskAction]);
+
   // Handle "Move to Chat" - transfer session text to main chat
   const handleMoveToChat = useCallback(async () => {
     // Get transcript from finance session
@@ -528,17 +619,25 @@ function AppContent() {
       const result = await confirmTaskAction();
 
       // Send tool response back to Gemini
-      voiceSession.sendToolResponse(
-        pendingToolInfo.toolCallId,
-        pendingToolInfo.toolName,
-        result
-      );
+      if (isTaskVoiceActive) {
+        taskVoiceSession.sendToolResponse(
+          pendingToolInfo.toolCallId,
+          pendingToolInfo.toolName,
+          result
+        );
+      } else {
+        voiceSession.sendToolResponse(
+          pendingToolInfo.toolCallId,
+          pendingToolInfo.toolName,
+          result
+        );
+      }
 
       // Parse result for toast
       try {
         const parsed = JSON.parse(result);
-        if (parsed.success) {
-          showToast(parsed.message, 'success');
+        if (parsed.success || !parsed.error) {
+          showToast(parsed.message || 'Done!', 'success');
         } else if (parsed.error) {
           showToast(parsed.message || 'Action failed', 'error');
         }
@@ -549,7 +648,7 @@ function AppContent() {
       setIsConfirmationProcessing(false);
       setPendingToolInfo(null);
     }
-  }, [pendingToolInfo, confirmTaskAction, voiceSession, showToast]);
+  }, [pendingToolInfo, confirmTaskAction, isTaskVoiceActive, taskVoiceSession, voiceSession, showToast]);
 
   // Handle task cancel
   const handleTaskCancel = useCallback(() => {
@@ -558,15 +657,23 @@ function AppContent() {
     const result = cancelTaskAction();
 
     // Send cancellation response back to Gemini
-    voiceSession.sendToolResponse(
-      pendingToolInfo.toolCallId,
-      pendingToolInfo.toolName,
-      result
-    );
+    if (isTaskVoiceActive) {
+      taskVoiceSession.sendToolResponse(
+        pendingToolInfo.toolCallId,
+        pendingToolInfo.toolName,
+        result
+      );
+    } else {
+      voiceSession.sendToolResponse(
+        pendingToolInfo.toolCallId,
+        pendingToolInfo.toolName,
+        result
+      );
+    }
 
     setPendingToolInfo(null);
     showToast('Action cancelled', 'info');
-  }, [pendingToolInfo, cancelTaskAction, voiceSession, showToast]);
+  }, [pendingToolInfo, cancelTaskAction, isTaskVoiceActive, taskVoiceSession, voiceSession, showToast]);
 
   // Handle finance voice mic toggle
   const handleFinanceVoiceMicToggle = useCallback(async () => {
@@ -663,6 +770,15 @@ function AppContent() {
           naviState={naviState}
         />
 
+        {/* Task Voice Overlay */}
+        <TaskVoiceOverlay
+          isOpen={isTaskVoiceActive}
+          currentTurn={taskVoiceSession.currentTurn}
+          liveStatus={taskVoiceSession.liveStatus}
+          naviPosition={naviPosition}
+          naviState={naviState}
+        />
+
         {/* Error banner */}
         <AnimatePresence>
           {error && (
@@ -681,10 +797,10 @@ function AppContent() {
         <Navi
           state={naviState}
           audioLevel={activeVoiceSession.audioLevel}
-          scale={dragPosition ? 0.6 : isFinanceVoiceActive ? 1.5 : 1}
+          scale={dragPosition ? 0.6 : (isFinanceVoiceActive || isTaskVoiceActive) ? 1.5 : 1}
           radialMenuState={mode === 'chat' ? radialMenuState : undefined}
           position={
-            isFinanceVoiceActive
+            (isFinanceVoiceActive || isTaskVoiceActive)
               ? 'center'
               : mode === 'dashboard'
                 ? 'top-right'
@@ -827,7 +943,7 @@ function AppContent() {
           }
           isMainButtonActive={mode === 'chat' 
             ? voiceSession.isCapturing 
-            : (activeVoiceSession.isConnected || isFinanceVoiceActive)
+            : (activeVoiceSession.isConnected || isFinanceVoiceActive || isTaskVoiceActive)
           }
           naviPosition={naviPosition}
           onOpenExpenseModal={() => openModal('expense')}
@@ -841,6 +957,17 @@ function AppContent() {
           onToggleCapture={handleFinanceVoiceMicToggle}
           onMoveToChat={handleMoveToChat}
           onCloseFinanceVoice={handleFinanceVoiceClose}
+          taskVoiceMode={isTaskVoiceActive}
+          isTaskCapturing={taskVoiceSession.isCapturing}
+          onToggleTaskCapture={() => {
+            if (taskVoiceSession.isCapturing) {
+              taskVoiceSession.stopCapture();
+            } else {
+              taskVoiceSession.startCapture();
+            }
+          }}
+          onCloseTaskVoice={handleTaskVoiceClose}
+          onOpenTaskVoice={handleTaskVoiceOpen}
           isSyncing={syncStatus === 'syncing' || hasPendingChanges}
           isCameraActive={isCameraActive}
           onToggleCamera={() => {
@@ -872,6 +999,7 @@ function AppContent() {
         onConfirm={handleTaskConfirm}
         onCancel={handleTaskCancel}
         onSelectMatch={selectTaskMatch}
+        onUpdateArgs={updateTaskPendingArgs}
         isProcessing={isConfirmationProcessing}
       />
       <ModalManager />

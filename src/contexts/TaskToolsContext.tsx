@@ -86,6 +86,7 @@ interface TaskToolsContextType {
   cancelPendingAction: () => string;
   clearPendingAction: () => void;
   selectMatch: (matchId: string) => void;
+  updatePendingArgs: (updates: Partial<TaskToolArgs[TaskToolName]>) => void;
 }
 
 const TaskToolsContext = createContext<TaskToolsContextType | null>(null);
@@ -540,6 +541,28 @@ export function TaskToolsProvider({ children }: { children: ReactNode }) {
     } : null);
   }, [pendingAction, tasks]);
 
+  const updatePendingArgs = useCallback((updates: Partial<TaskToolArgs[TaskToolName]>) => {
+    if (!pendingAction) return;
+    
+    setPendingAction(prev => {
+      if (!prev) return null;
+      const newArgs = { ...prev.args, ...updates };
+      
+      // Update description for add_task when category changes
+      let newDescription = prev.description;
+      if (prev.toolName === 'add_task' && 'category' in updates) {
+        const addArgs = newArgs as TaskToolArgs['add_task'];
+        newDescription = `Add ${addArgs.category} task: "${addArgs.title}"`;
+      }
+      
+      return {
+        ...prev,
+        args: newArgs,
+        description: newDescription,
+      };
+    });
+  }, [pendingAction]);
+
   // ============================================
   // Context Value
   // ============================================
@@ -551,6 +574,7 @@ export function TaskToolsProvider({ children }: { children: ReactNode }) {
     cancelPendingAction,
     clearPendingAction,
     selectMatch,
+    updatePendingArgs,
   };
 
   return (

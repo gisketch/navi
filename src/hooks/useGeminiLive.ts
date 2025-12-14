@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, Modality, type Session, type LiveServerMessage } from '@google/genai';
 import { GEMINI_MODEL, AUDIO_CONFIG, type ChatMessage, type CardData } from '../utils/constants';
-import { TOOLS, FINANCE_TOOLS } from '../utils/tools';
+import { TOOLS, FINANCE_TOOLS, TASK_TOOLS } from '../utils/tools';
 import { pb } from '../utils/pocketbase';
 
 const INPUT_SAMPLE_RATE = AUDIO_CONFIG.INPUT_SAMPLE_RATE;
@@ -20,6 +20,16 @@ export const FINANCE_TOOL_NAMES = [
   'add_debt',
   'pay_bill',
   'pay_debt',
+];
+
+// Task tool names that this hook should delegate
+export const TASK_TOOL_NAMES = [
+  'get_tasks',
+  'get_current_task',
+  'add_task',
+  'start_task',
+  'complete_task',
+  'pause_task',
 ];
 
 interface ToolCall {
@@ -57,6 +67,7 @@ interface UseGeminiLiveOptions {
   receiveNoteContent?: boolean;
   onExternalToolCall?: ExternalToolCallHandler;
   financeMode?: boolean; // If true, use finance-only tools
+  taskMode?: boolean; // If true, use task-only tools
 }
 
 interface UseGeminiLiveOptions {
@@ -69,6 +80,7 @@ interface UseGeminiLiveOptions {
   receiveNoteContent?: boolean;
   onExternalToolCall?: ExternalToolCallHandler;
   financeMode?: boolean; // If true, use finance-only tools
+  taskMode?: boolean; // If true, use task-only tools
 }
 
 interface UseGeminiLiveReturn {
@@ -99,6 +111,7 @@ export function useGeminiLive({
   receiveNoteContent = true,
   onExternalToolCall,
   financeMode = false,
+  taskMode = false,
 }: UseGeminiLiveOptions): UseGeminiLiveReturn {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -152,9 +165,10 @@ export function useGeminiLive({
       const toolCallId = call.id || 'unknown';
       const args = call.args || {};
 
-      // Check if this is a finance tool and we have an external handler
-      if (FINANCE_TOOL_NAMES.includes(toolName) && onExternalToolCall) {
-        console.log('[Navi] Delegating finance tool to external handler:', toolName, args);
+      // Check if this is an external tool (finance or task) and we have an external handler
+      const isExternalTool = FINANCE_TOOL_NAMES.includes(toolName) || TASK_TOOL_NAMES.includes(toolName);
+      if (isExternalTool && onExternalToolCall) {
+        console.log('[Navi] Delegating external tool to handler:', toolName, args);
         
         setLiveStatus(`Processing ${toolName.replace(/_/g, ' ')}...`);
         setIsToolActive(true);
@@ -166,7 +180,7 @@ export function useGeminiLive({
             if (result.pending) {
               // Result will come later via sendToolResponse
               // Keep status active until then
-              console.log('[Navi] Finance tool pending confirmation:', toolName);
+              console.log('[Navi] External tool pending confirmation:', toolName);
             } else {
               // Immediate result
               setLiveStatus(null);
@@ -194,7 +208,7 @@ export function useGeminiLive({
             });
           }
         } catch (err) {
-          console.error('[Navi] Finance tool error:', err);
+          console.error('[Navi] External tool error:', err);
           setLiveStatus(null);
           setIsToolActive(false);
           
@@ -528,7 +542,7 @@ export function useGeminiLive({
         },
         inputAudioTranscription: {},
         outputAudioTranscription: {},
-        tools: financeMode ? FINANCE_TOOLS : TOOLS, // Use finance-only or all tools
+        tools: taskMode ? TASK_TOOLS : financeMode ? FINANCE_TOOLS : TOOLS, // Use task-only, finance-only, or all tools
       };
 
       if (systemInstruction) {
@@ -565,7 +579,7 @@ export function useGeminiLive({
       setStatus('error');
       onError?.(error instanceof Error ? error : new Error('Failed to connect'));
     }
-  }, [apiKey, systemInstruction, onError, processResponseQueue, voiceName, financeMode]);
+  }, [apiKey, systemInstruction, onError, processResponseQueue, voiceName, financeMode, taskMode]);
 
   const disconnect = useCallback(() => {
     if (sessionRef.current) {

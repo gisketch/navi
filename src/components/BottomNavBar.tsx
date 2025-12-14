@@ -4,7 +4,7 @@ import { Home, User, Wallet, PenLine, Layers, Banknote, CreditCard, Receipt, Mic
 import { calculateProximityGlow, createGlowGradient, cn, glass } from '../utils/glass';
 
 type NavTab = 'home' | 'search' | 'finance' | 'notifications' | 'profile';
-type NavMode = 'dashboard' | 'chat';
+type NavMode = 'dashboard' | 'chat' | 'voice';
 
 // Radial menu configuration - arranged in a semi-circle above the button
 const RADIAL_BUTTONS = [
@@ -45,6 +45,12 @@ interface BottomNavBarProps {
   onToggleCapture?: () => void;
   onMoveToChat?: () => void;
   onCloseFinanceVoice?: () => void;
+  // Dashboard: Task voice mode (overlay on dashboard)
+  taskVoiceMode?: boolean;
+  isTaskCapturing?: boolean;
+  onToggleTaskCapture?: () => void;
+  onCloseTaskVoice?: () => void;
+  onOpenTaskVoice?: () => void; // Long press on Focus tab Plus button
   // Dashboard: Sync status
   isSyncing?: boolean;
   // Chat mode props
@@ -74,6 +80,12 @@ export function BottomNavBar({
   onToggleCapture,
   onMoveToChat,
   onCloseFinanceVoice,
+  // Task voice mode
+  taskVoiceMode = false,
+  isTaskCapturing = false,
+  onToggleTaskCapture,
+  onCloseTaskVoice,
+  onOpenTaskVoice,
   // Sync status
   isSyncing = false,
   // Chat mode props
@@ -100,6 +112,9 @@ export function BottomNavBar({
 
   // Check if we're on the finance tab
   const isFinanceTab = activeTab === 'finance';
+  
+  // Check if we're on the focus/notifications tab
+  const isFocusTab = activeTab === 'notifications';
 
   // Calculate glow for main button based on Navi proximity
   useEffect(() => {
@@ -201,7 +216,15 @@ export function BottomNavBar({
         setTimeout(() => setHasEntered(true), RADIAL_BUTTONS.length * 50 + 200);
       }, HOLD_THRESHOLD);
     }
-  }, [isFinanceTab]);
+    
+    // On focus tab, long press opens task voice mode
+    if (isFocusTab) {
+      holdTimerRef.current = setTimeout(() => {
+        radialTriggeredRef.current = true;
+        onOpenTaskVoice?.();
+      }, HOLD_THRESHOLD);
+    }
+  }, [isFinanceTab, isFocusTab, onOpenTaskVoice]);
 
   // Handle pointer move
   const handlePointerMove = useCallback((clientX: number, clientY: number) => {
@@ -284,14 +307,22 @@ export function BottomNavBar({
     };
   }, [showRadialMenu, isHolding, handlePointerMove, handlePointerUp]);
 
-  // Handle main button click
-  const handleMainButtonClick = useCallback(() => {
-    if (radialTriggeredRef.current) return;
-    onMainButtonClick();
-  }, [onMainButtonClick]);
-
-  // Determine button content based on tab and sync status
+  // Determine button content based on tab, sync status, and voice mode
   const getButtonContent = () => {
+    // Voice mode: show mic/micoff
+    if (isVoiceMode) {
+      if (voiceCapturing) {
+        return (
+          <Mic className="w-7 h-7 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
+        );
+      }
+      return (
+        <MicOff className={cn(
+          'w-7 h-7',
+          financeVoiceMode ? 'text-emerald-400' : 'text-purple-400'
+        )} />
+      );
+    }
     // Show spinner when syncing, regardless of tab
     if (isSyncing) {
       return (
@@ -306,104 +337,23 @@ export function BottomNavBar({
     return mainButtonContent;
   };
 
-  // Finance voice mode - 3 button layout
-  if (financeVoiceMode) {
-    return (
-      <motion.nav
-        initial={{ y: 100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 100, opacity: 0 }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className="fixed bottom-0 left-0 right-0 z-40 px-6"
-        // style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 20px), 20px)' }}
-      >
-        <div className="mx-auto max-w-md flex items-center justify-center gap-6">
-          {/* Move to Chat button */}
-          <motion.button
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={onMoveToChat}
-            data-interactive
-            className={cn(
-              'relative p-4 rounded-full',
-              glass.blur.xl,
-              'bg-white/[0.08]',
-              'border border-white/[0.15]',
-              'shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]',
-              'transition-all duration-200',
-              'hover:bg-white/10 hover:border-cyan-400/30'
-            )}
-          >
-            <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
-            <MessageSquare size={24} className="text-cyan-400" />
-          </motion.button>
+  // Determine if we're in any voice mode (finance or task)
+  const isVoiceMode = financeVoiceMode || taskVoiceMode;
+  const voiceCapturing = financeVoiceMode ? isCapturing : isTaskCapturing;
 
-          {/* Center Mic button */}
-          <div className="relative">
-            {/* Base ambient glow */}
-            <div
-              className={cn(
-                'absolute inset-0 rounded-full blur-2xl transition-all duration-500',
-                isCapturing
-                  ? 'bg-amber-400/30 scale-150'
-                  : 'bg-emerald-400/20 scale-100'
-              )}
-            />
-
-            <motion.button
-              ref={mainButtonRef}
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              whileTap={{ scale: 0.92 }}
-              onClick={onToggleCapture}
-              data-interactive
-              className={cn(
-                'relative w-[72px] h-[72px] rounded-full flex items-center justify-center',
-                glass.blur.xl,
-                'bg-white/[0.08]',
-                'transition-all duration-300',
-                isCapturing
-                  ? 'border-2 border-amber-400/50 shadow-[0_0_30px_rgba(251,191,36,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
-                  : 'border-2 border-emerald-400/50 shadow-[0_0_30px_rgba(52,211,153,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
-              )}
-            >
-              <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
-              {isCapturing ? (
-                <Mic className="w-7 h-7 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" />
-              ) : (
-                <MicOff className="w-7 h-7 text-emerald-400" />
-              )}
-            </motion.button>
-          </div>
-
-          {/* Close button */}
-          <motion.button
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={onCloseFinanceVoice}
-            data-interactive
-            className={cn(
-              'relative p-4 rounded-full',
-              glass.blur.xl,
-              'bg-white/[0.08]',
-              'border border-white/[0.15]',
-              'shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]',
-              'transition-all duration-200',
-              'hover:bg-white/10 hover:border-red-400/30'
-            )}
-          >
-            <div className="absolute inset-[2px] rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
-            <X size={24} className="text-red-400" />
-          </motion.button>
-        </div>
-      </motion.nav>
-    );
-  }
+  // Handle center button click in voice mode
+  const handleCenterButtonClick = useCallback(() => {
+    if (isVoiceMode) {
+      if (financeVoiceMode) {
+        onToggleCapture?.();
+      } else if (taskVoiceMode) {
+        onToggleTaskCapture?.();
+      }
+      return;
+    }
+    if (radialTriggeredRef.current) return;
+    onMainButtonClick();
+  }, [isVoiceMode, financeVoiceMode, taskVoiceMode, onToggleCapture, onToggleTaskCapture, onMainButtonClick]);
 
   return (
     <motion.nav
@@ -501,13 +451,19 @@ export function BottomNavBar({
         <div
           className={cn(
             'absolute inset-0 rounded-full blur-2xl transition-all duration-500',
-            showRadialMenu
-              ? 'bg-emerald-400/30 scale-150'
-              : isMainButtonActive
-                ? 'bg-cyan-400/30 scale-150'
-                : isFinanceTab
-                  ? 'bg-emerald-400/10 scale-100'
-                  : 'bg-cyan-400/10 scale-100'
+            isVoiceMode
+              ? voiceCapturing
+                ? 'bg-amber-400/30 scale-150'
+                : financeVoiceMode
+                  ? 'bg-emerald-400/20 scale-100'
+                  : 'bg-purple-400/20 scale-100'
+              : showRadialMenu
+                ? 'bg-emerald-400/30 scale-150'
+                : isMainButtonActive
+                  ? 'bg-cyan-400/30 scale-150'
+                  : isFinanceTab
+                    ? 'bg-emerald-400/10 scale-100'
+                    : 'bg-cyan-400/10 scale-100'
           )}
         />
 
@@ -527,20 +483,26 @@ export function BottomNavBar({
         <motion.button
           ref={mainButtonRef}
           whileTap={{ scale: 0.92 }}
-          onClick={handleMainButtonClick}
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleTouchStart}
+          onClick={handleCenterButtonClick}
+          onMouseDown={isVoiceMode ? undefined : handleMouseDown}
+          onTouchStart={isVoiceMode ? undefined : handleTouchStart}
           data-interactive
           className={cn(
             'relative w-[72px] h-[72px] rounded-full flex items-center justify-center',
             glass.blur.xl,
             'bg-white/[0.08]',
             'transition-all duration-300',
-            showRadialMenu
-              ? 'border-2 border-emerald-400/50 shadow-[0_0_30px_rgba(52,211,153,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)] scale-95'
-              : isMainButtonActive
-                ? 'border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
-                : 'border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
+            isVoiceMode
+              ? voiceCapturing
+                ? 'border-2 border-amber-400/50 shadow-[0_0_30px_rgba(251,191,36,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+                : financeVoiceMode
+                  ? 'border-2 border-emerald-400/50 shadow-[0_0_30px_rgba(52,211,153,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+                  : 'border-2 border-purple-400/50 shadow-[0_0_30px_rgba(168,85,247,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+              : showRadialMenu
+                ? 'border-2 border-emerald-400/50 shadow-[0_0_30px_rgba(52,211,153,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)] scale-95'
+                : isMainButtonActive
+                  ? 'border-2 border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3),inset_0_1px_1px_rgba(255,255,255,0.2)]'
+                  : 'border border-white/[0.15] shadow-[0_8px_32px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(255,255,255,0.1)]'
           )}
         >
           {/* Inner highlight */}
@@ -579,19 +541,21 @@ export function BottomNavBar({
         {/* Nav content */}
         <div className="relative pt-3 pb-3 px-2">
           <div className="mx-auto max-w-md flex items-center justify-around gap-4">
-            {/* Position 1: Home / Camera */}
+            {/* Position 1: Home / Camera / Chat (voice mode) */}
             <NavIconButton
-              key={mode === 'dashboard' ? 'home' : 'camera'}
-              icon={mode === 'dashboard' ? Home : Camera}
-              isActive={mode === 'dashboard' ? activeTab === 'home' : isCameraActive}
+              key={isVoiceMode ? 'voice-chat' : mode === 'dashboard' ? 'home' : 'camera'}
+              icon={isVoiceMode ? MessageSquare : mode === 'dashboard' ? Home : Camera}
+              isActive={isVoiceMode ? false : mode === 'dashboard' ? activeTab === 'home' : isCameraActive}
               onClick={() => {
-                if (mode === 'dashboard') onTabChange?.('home');
+                if (isVoiceMode) onMoveToChat?.();
+                else if (mode === 'dashboard') onTabChange?.('home');
                 else onToggleCamera?.();
               }}
-              mode={mode}
+              mode={isVoiceMode ? 'voice' : mode}
+              voiceColor={financeVoiceMode ? 'emerald' : 'purple'}
             />
 
-            {/* Position 2: Finance / Chat */}
+            {/* Position 2: Finance / Chat / Hidden (voice mode) */}
             <NavIconButton
               key={mode === 'dashboard' ? 'finance' : 'chat'}
               icon={mode === 'dashboard' ? Wallet : MessageSquare}
@@ -600,12 +564,13 @@ export function BottomNavBar({
                 if (mode === 'dashboard') onTabChange?.('finance');
               }}
               mode={mode}
+              hidden={isVoiceMode}
             />
 
             {/* Spacer for center button */}
             <div className="w-[72px]" />
 
-            {/* Position 3: Focus/Tasks / Settings */}
+            {/* Position 3: Focus/Tasks / Settings / Hidden (voice mode) */}
             <NavIconButton
               key={mode === 'dashboard' ? 'notifications' : 'settings'}
               icon={mode === 'dashboard' ? ListTodo : Settings}
@@ -615,18 +580,22 @@ export function BottomNavBar({
                 else onOpenSettings?.();
               }}
               mode={mode}
+              hidden={isVoiceMode}
             />
 
-            {/* Position 4: Profile / Exit */}
+            {/* Position 4: Profile / Exit / Close (voice mode) */}
             <NavIconButton
-              key={mode === 'dashboard' ? 'profile' : 'exit'}
-              icon={mode === 'dashboard' ? User : LogOut}
-              isActive={mode === 'dashboard' ? activeTab === 'profile' : false}
+              key={isVoiceMode ? 'voice-close' : mode === 'dashboard' ? 'profile' : 'exit'}
+              icon={isVoiceMode ? X : mode === 'dashboard' ? User : LogOut}
+              isActive={false}
               onClick={() => {
-                if (mode === 'dashboard') onTabChange?.('profile');
+                if (financeVoiceMode) onCloseFinanceVoice?.();
+                else if (taskVoiceMode) onCloseTaskVoice?.();
+                else if (mode === 'dashboard') onTabChange?.('profile');
                 else onExitChat?.();
               }}
-              mode={mode}
+              mode={isVoiceMode ? 'voice' : mode}
+              voiceColor="red"
             />
           </div>
         </div>
@@ -642,9 +611,27 @@ interface NavIconButtonProps {
   onClick: () => void;
   disabled?: boolean;
   mode: NavMode;
+  hidden?: boolean;
+  voiceColor?: 'emerald' | 'purple' | 'red' | 'cyan';
 }
 
-function NavIconButton({ icon: Icon, isActive, onClick, disabled, mode }: NavIconButtonProps) {
+function NavIconButton({ icon: Icon, isActive, onClick, disabled, mode, hidden, voiceColor }: NavIconButtonProps) {
+  // Hidden buttons are invisible but maintain layout space
+  if (hidden) {
+    return <div className="p-3 w-[48px]" />;
+  }
+
+  // Get color for voice mode buttons
+  const getVoiceColor = () => {
+    switch (voiceColor) {
+      case 'emerald': return 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]';
+      case 'purple': return 'text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]';
+      case 'red': return 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.5)]';
+      case 'cyan': return 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]';
+      default: return 'text-white/60';
+    }
+  };
+
   return (
     <motion.button
       whileTap={{ scale: 0.85 }}
@@ -679,12 +666,14 @@ function NavIconButton({ icon: Icon, isActive, onClick, disabled, mode }: NavIco
         >
           <Icon
             size={24}
-            strokeWidth={isActive ? 2.5 : 1.5}
+            strokeWidth={mode === 'voice' ? 2 : isActive ? 2.5 : 1.5}
             className={cn(
               'relative transition-colors duration-300',
-              isActive
-                ? 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]'
-                : 'text-white/40 hover:text-white/60'
+              mode === 'voice' && voiceColor
+                ? getVoiceColor()
+                : isActive
+                  ? 'text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]'
+                  : 'text-white/40 hover:text-white/60'
             )}
           />
         </motion.div>

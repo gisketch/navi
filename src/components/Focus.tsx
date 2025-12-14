@@ -305,7 +305,7 @@ function DraggableTaskItem({
       onDrag={(e) => onDrag?.(e as unknown as PointerEvent)}
       onDragEnd={onDragEnd}
       initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      animate={{ opacity: 1, y: 0, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.2 }}
       whileDrag={{ 
@@ -313,8 +313,12 @@ function DraggableTaskItem({
         zIndex: 50,
         boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
       }}
+      drag="y"
+      dragConstraints={{ left: 0, right: 0 }}
+      dragElastic={{ left: 0, right: 0 }}
       className="touch-none"
       ref={itemRef}
+      style={{ x: 0 }}
     >
       <GlassContainer
         onClick={onClick}

@@ -22,6 +22,7 @@ interface UseVoiceSessionOptions {
   onError?: (error: string) => void;
   onExternalToolCall?: ExternalToolCallHandler;
   financeMode?: boolean;
+  taskMode?: boolean;
 }
 
 interface UseVoiceSessionReturn {
@@ -70,6 +71,7 @@ export function useVoiceSession({
   onError,
   onExternalToolCall,
   financeMode = false,
+  taskMode = false,
 }: UseVoiceSessionOptions): UseVoiceSessionReturn {
   const [error, setError] = useState<string | null>(null);
 
@@ -104,6 +106,7 @@ export function useVoiceSession({
     receiveNoteContent,
     onExternalToolCall,
     financeMode,
+    taskMode,
   });
 
   // Audio capture hook

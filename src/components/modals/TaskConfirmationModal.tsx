@@ -26,6 +26,7 @@ interface TaskConfirmationModalProps {
   onConfirm: () => void;
   onCancel: () => void;
   onSelectMatch?: (matchId: string) => void;
+  onUpdateArgs?: (updates: Partial<TaskToolArgs[keyof TaskToolArgs]>) => void;
   isProcessing?: boolean;
 }
 
@@ -35,6 +36,7 @@ export function TaskConfirmationModal({
   onConfirm,
   onCancel,
   onSelectMatch,
+  onUpdateArgs,
   isProcessing = false,
 }: TaskConfirmationModalProps) {
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
@@ -197,20 +199,58 @@ export function TaskConfirmationModal({
                 {/* Action details */}
                 {!hasMultipleMatches && (
                   <div className="space-y-3">
-                    {actionDetails.details.map((detail, i) => (
-                      <div key={i} className="flex items-center justify-between">
-                        <span className="text-sm text-white/50">{detail.label}</span>
-                        <div className="flex items-center gap-2">
-                          {'icon' in detail && detail.icon && (
-                            <detail.icon className={cn(
-                              'w-4 h-4',
-                              detail.value === 'work' ? 'text-cyan-400' : 'text-purple-400'
-                            )} />
-                          )}
-                          <span className="text-sm text-white font-medium">{detail.value}</span>
+                    {actionDetails.details.map((detail, i) => {
+                      // Special handling for category in add_task - show button group
+                      if (detail.label === 'Category' && pendingAction.toolName === 'add_task') {
+                        const currentCategory = (pendingAction.args as TaskToolArgs['add_task']).category;
+                        return (
+                          <div key={i} className="flex items-center justify-between">
+                            <span className="text-sm text-white/50">{detail.label}</span>
+                            <div className="flex gap-1 p-1 rounded-lg bg-white/5 border border-white/10">
+                              <button
+                                onClick={() => onUpdateArgs?.({ category: 'work' })}
+                                className={cn(
+                                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                                  currentCategory === 'work'
+                                    ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                                    : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+                                )}
+                              >
+                                <Briefcase className="w-3.5 h-3.5" />
+                                Work
+                              </button>
+                              <button
+                                onClick={() => onUpdateArgs?.({ category: 'personal' })}
+                                className={cn(
+                                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all',
+                                  currentCategory === 'personal'
+                                    ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                                    : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+                                )}
+                              >
+                                <User className="w-3.5 h-3.5" />
+                                Personal
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div key={i} className="flex items-center justify-between">
+                          <span className="text-sm text-white/50">{detail.label}</span>
+                          <div className="flex items-center gap-2">
+                            {'icon' in detail && detail.icon && (
+                              <detail.icon className={cn(
+                                'w-4 h-4',
+                                detail.value === 'work' ? 'text-cyan-400' : 'text-purple-400'
+                              )} />
+                            )}
+                            <span className="text-sm text-white font-medium">{detail.value}</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 

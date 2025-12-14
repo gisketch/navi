@@ -18,6 +18,7 @@ interface UseNaviStateOptions {
   isCapturing: boolean;
   connectionStatus: ConnectionStatus;
   isFinanceVoiceActive?: boolean; // Finance overlay active (uses voice in dashboard mode)
+  isTaskVoiceActive?: boolean; // Task overlay active (uses voice in dashboard mode)
 }
 
 /**
@@ -43,11 +44,12 @@ export function useNaviState(options: UseNaviStateOptions): NaviState {
     isCapturing,
     connectionStatus,
     isFinanceVoiceActive = false,
+    isTaskVoiceActive = false,
   } = options;
 
   return useMemo<NaviState>(() => {
-    // Finance voice mode in dashboard - treat like chat mode for Navi state
-    if (isFinanceVoiceActive) {
+    // Finance voice mode or Task voice mode in dashboard - treat like chat mode for Navi state
+    if (isFinanceVoiceActive || isTaskVoiceActive) {
       if (isToolActive) return 'thinking';
       if (isPlaying) return 'speaking';
       if (isCapturing) return 'listening';
@@ -67,5 +69,5 @@ export function useNaviState(options: UseNaviStateOptions): NaviState {
     if (connectionStatus === 'connected' || connectionStatus === 'connecting') return 'idle';
     
     return 'offline';
-  }, [mode, hasInitialDataLoaded, isToolActive, isPlaying, isCapturing, connectionStatus, isFinanceVoiceActive]);
+  }, [mode, hasInitialDataLoaded, isToolActive, isPlaying, isCapturing, connectionStatus, isFinanceVoiceActive, isTaskVoiceActive]);
 }
